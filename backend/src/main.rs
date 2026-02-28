@@ -230,7 +230,8 @@ async fn get_session_status(
 
 // ── Session Status Poller ──────────────────────────────────────────────────
 
-/// State file format written by hooks/state-tracker.sh.
+/// State file format written by TabzChrome's state-tracker.sh hook
+/// (~/projects/TabzChrome/hooks/scripts/state-tracker.sh).
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct ClaudeStateFile {

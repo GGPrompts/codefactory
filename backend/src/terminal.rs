@@ -105,14 +105,15 @@ impl TerminalManager {
                 return Err(anyhow!("tmux new-session failed: {stderr}"));
             }
 
-            // Set CODEFACTORY_SESSION_ID in the tmux session environment
-            // so Claude Code hooks can identify which floor they belong to.
+            // Set CLAUDE_SESSION_ID in the tmux session environment so the
+            // existing TabzChrome state-tracker hook writes state files keyed
+            // by floor ID (e.g. /tmp/claude-code-state/1.json).
             let set_env_output = Command::new("tmux")
                 .args([
                     "set-environment",
                     "-t",
                     &tmux_session_name,
-                    "CODEFACTORY_SESSION_ID",
+                    "CLAUDE_SESSION_ID",
                     floor_id,
                 ])
                 .output();
@@ -130,11 +131,11 @@ impl TerminalManager {
                     warn!(
                         floor_id = %floor_id,
                         error = %e,
-                        "Failed to set CODEFACTORY_SESSION_ID (non-fatal)"
+                        "Failed to set CLAUDE_SESSION_ID (non-fatal)"
                     );
                 }
                 _ => {
-                    debug!(floor_id = %floor_id, "Set CODEFACTORY_SESSION_ID in tmux environment");
+                    debug!(floor_id = %floor_id, "Set CLAUDE_SESSION_ID in tmux environment");
                 }
             }
 
