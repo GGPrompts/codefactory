@@ -58,7 +58,7 @@
             html += buildFloorHTML(floorId, profile);
 
             // Shaft wall between floors (and before lobby)
-            html += buildShaftWallHTML(floorId);
+            html += buildShaftWallHTML(floorId, profile.icon);
         }
 
         // Handle 0 profiles: show add prompt in lobby area
@@ -100,7 +100,7 @@
                 '</div>' +
                 '<div class="floor-frame">' +
                     '<div class="floor-header">' +
-                        '<span class="floor-label">Floor ' + floorId + '</span>' +
+                        '<span class="floor-label">' + (icon ? escapeHtml(icon) + ' ' : '') + 'Floor ' + floorId + '</span>' +
                         '<span class="floor-title">' + escapeHtml(name) + '</span>' +
                         '<span class="floor-status" id="status-' + floorId + '">OFFLINE</span>' +
                     '</div>' +
@@ -135,6 +135,10 @@
                             '<label>CWD</label>' +
                             '<input type="text" class="edit-input" id="edit-cwd-' + floorId + '" value="' + escapeAttr(cwd) + '">' +
                         '</div>' +
+                        '<div class="edit-field">' +
+                            '<label>ICON</label>' +
+                            '<input type="text" class="edit-input edit-input-icon" id="edit-icon-' + floorId + '" value="' + escapeAttr(icon) + '" placeholder="emoji or leave blank">' +
+                        '</div>' +
                         '<div class="edit-actions">' +
                             '<button class="power-btn save-btn" data-floor="' + floorId + '">[SAVE]</button>' +
                             '<button class="power-btn cancel-btn" data-floor="' + floorId + '">[CANCEL]</button>' +
@@ -150,11 +154,12 @@
             '</section>';
     }
 
-    function buildShaftWallHTML(floorId) {
+    function buildShaftWallHTML(floorId, icon) {
+        var shaftContent = icon ? escapeHtml(icon) : escapeHtml(floorId);
         return '' +
             '<div class="shaft-wall">' +
                 '<div class="caution-stripe"></div>' +
-                '<span class="shaft-wall-number">' + escapeHtml(floorId) + '</span>' +
+                '<span class="shaft-wall-number">' + shaftContent + '</span>' +
                 '<div class="caution-stripe"></div>' +
             '</div>';
     }
@@ -166,8 +171,10 @@
             var profile = profileList[i - 1];
             var floorId = profile.id || String(i);
             var name = profile.name || 'Terminal Bay ' + floorId;
-            html += '<button class="floor-btn" data-target="floor-' + floorId +
-                    '" data-label="' + escapeAttr(name) + '">' + floorId + '</button>';
+            var btnContent = profile.icon ? escapeHtml(profile.icon) : floorId;
+            var iconClass = profile.icon ? ' has-icon' : '';
+            html += '<button class="floor-btn' + iconClass + '" data-target="floor-' + floorId +
+                    '" data-label="' + escapeAttr(name) + '">' + btnContent + '</button>';
         }
         elevatorButtons.innerHTML = html;
     }
@@ -288,9 +295,11 @@
             var nameInput = document.getElementById('edit-name-' + floorId);
             var cmdInput = document.getElementById('edit-command-' + floorId);
             var cwdInput = document.getElementById('edit-cwd-' + floorId);
+            var iconInput = document.getElementById('edit-icon-' + floorId);
             if (nameInput) nameInput.value = profile.name || '';
             if (cmdInput) cmdInput.value = profile.command || '';
             if (cwdInput) cwdInput.value = profile.cwd || defaultCwd || '';
+            if (iconInput) iconInput.value = profile.icon || '';
         }
     }
 
@@ -301,10 +310,12 @@
         var nameInput = document.getElementById('edit-name-' + floorId);
         var cmdInput = document.getElementById('edit-command-' + floorId);
         var cwdInput = document.getElementById('edit-cwd-' + floorId);
+        var iconInput = document.getElementById('edit-icon-' + floorId);
 
         var newName = nameInput ? nameInput.value.trim() : '';
         var newCommand = cmdInput ? cmdInput.value.trim() : '';
         var newCwd = cwdInput ? cwdInput.value.trim() : '';
+        var newIcon = iconInput ? iconInput.value.trim() : '';
 
         if (!newName) {
             nameInput.classList.add('input-error');
@@ -319,7 +330,7 @@
                     name: newName,
                     command: newCommand || null,
                     cwd: (newCwd && newCwd !== defaultCwd) ? newCwd : null,
-                    icon: p.icon || null,
+                    icon: newIcon || null,
                 };
             }
             return {
@@ -353,6 +364,7 @@
             profiles[idx].name = newName;
             profiles[idx].command = newCommand || null;
             profiles[idx].cwd = newCwd || null;
+            profiles[idx].icon = newIcon || null;
 
             // Update the UI elements
             var floorSection = document.getElementById('floor-' + floorId);
@@ -365,11 +377,21 @@
                 if (cmdEl) cmdEl.textContent = newCommand || 'bash';
                 var cwdEl = floorSection.querySelector('.profile-cwd');
                 if (cwdEl) cwdEl.textContent = newCwd || defaultCwd;
+                var iconEl = floorSection.querySelector('.profile-icon');
+                if (iconEl) iconEl.textContent = newIcon || floorId;
             }
 
-            // Update elevator button label
+            // Update elevator button content and label
             var btn = document.querySelector('.floor-btn[data-target="floor-' + floorId + '"]');
-            if (btn) btn.setAttribute('data-label', newName);
+            if (btn) {
+                btn.setAttribute('data-label', newName);
+                btn.textContent = newIcon || floorId;
+                if (newIcon) {
+                    btn.classList.add('has-icon');
+                } else {
+                    btn.classList.remove('has-icon');
+                }
+            }
 
             exitEditMode(floorId);
             console.log('[CodeFactory] Profile ' + floorId + ' updated: ' + newName);

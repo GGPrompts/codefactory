@@ -447,6 +447,17 @@ nav.elevator-panel {
     align-items: center;
     justify-content: center;
     position: relative;
+    overflow: hidden;
+    text-overflow: clip;
+    padding: 0;
+}
+
+/* Emoji icon overrides for elevator buttons */
+.floor-btn.has-icon {
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Twemoji Mozilla', sans-serif;
+    font-size: 1.25rem;
+    line-height: 1;
+    text-shadow: none;
 }
 
 .floor-btn:hover {
@@ -872,6 +883,12 @@ section.floor.powered-on .profile-edit-form {
     box-shadow: 0 0 8px rgba(255, 184, 0, 0.2);
 }
 
+.edit-input-icon {
+    max-width: 120px;
+    font-size: 1.2rem;
+    text-align: center;
+}
+
 .edit-input.input-error {
     border-color: var(--caution-red);
     box-shadow: 0 0 8px rgba(212, 44, 44, 0.3);
@@ -959,6 +976,9 @@ section.floor.powered-on .profile-edit-form {
         height: 34px;
         font-size: 0.8rem;
     }
+    .floor-btn.has-icon {
+        font-size: 1.1rem;
+    }
     .floor-btn::after {
         right: auto;
         bottom: calc(100% + 10px);
@@ -1017,6 +1037,7 @@ section.floor.powered-on .profile-edit-form {
 
 @media (max-width: 480px) {
     .floor-btn { width: 28px; height: 28px; font-size: 0.75rem; }
+    .floor-btn.has-icon { font-size: 0.95rem; }
     .panel-indicator { width: 28px; height: 28px; font-size: 1rem; }
     .lobby-title { font-size: 2rem; }
     .floor-title { font-size: 0.9rem; }

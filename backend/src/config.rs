@@ -37,19 +37,19 @@ impl Default for ProfileConfig {
                     name: "Shell 1".to_string(),
                     command: None,
                     cwd: Some("~".to_string()),
-                    icon: None,
+                    icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
                 },
                 Profile {
                     name: "Shell 2".to_string(),
                     command: None,
                     cwd: Some("~".to_string()),
-                    icon: None,
+                    icon: Some("\u{2328}\u{FE0F}".to_string()),
                 },
                 Profile {
                     name: "Shell 3".to_string(),
                     command: None,
                     cwd: Some("~".to_string()),
-                    icon: None,
+                    icon: Some("\u{1F4BB}".to_string()),
                 },
             ],
         }
