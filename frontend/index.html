@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeFactory - Industrial Terminal Complex</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Stencil+One&family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/@xterm/xterm@5/css/xterm.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Elevator navigation panel (fixed right side) -->
+<nav class="elevator-panel" aria-label="Floor navigation">
+    <div class="panel-frame">
+        <div class="panel-indicator" id="panelIndicator">L</div>
+        <div class="panel-arrow" id="panelArrow">&#9650;</div>
+        <button class="floor-btn" data-target="floor-5" data-label="Terminal Bay 5">5</button>
+        <button class="floor-btn" data-target="floor-4" data-label="Terminal Bay 4">4</button>
+        <button class="floor-btn" data-target="floor-3" data-label="Terminal Bay 3">3</button>
+        <button class="floor-btn" data-target="floor-2" data-label="Terminal Bay 2">2</button>
+        <button class="floor-btn" data-target="floor-1" data-label="Terminal Bay 1">1</button>
+        <button class="floor-btn active" data-target="lobby" data-label="Lobby">L</button>
+    </div>
+</nav>
+
+<!-- Main shaft content (top of page = top of building) -->
+<main class="shaft">
+
+    <!-- FLOOR 5 (top of page) -->
+    <section class="floor" id="floor-5">
+        <div class="elevator-doors">
+            <div class="door door-left"></div>
+            <div class="door door-right"></div>
+        </div>
+        <div class="floor-frame">
+            <div class="floor-header">
+                <span class="floor-label">Floor 5</span>
+                <span class="floor-title">Terminal Bay 5</span>
+                <span class="floor-status" id="status-5">OFFLINE</span>
+            </div>
+            <div class="terminal-container" id="terminal-5">
+                <!-- xterm.js will mount here -->
+            </div>
+        </div>
+    </section>
+
+    <div class="shaft-wall">
+        <div class="caution-stripe"></div>
+        <span class="shaft-wall-number">5</span>
+        <div class="caution-stripe"></div>
+    </div>
+
+    <!-- FLOOR 4 -->
+    <section class="floor" id="floor-4">
+        <div class="elevator-doors">
+            <div class="door door-left"></div>
+            <div class="door door-right"></div>
+        </div>
+        <div class="floor-frame">
+            <div class="floor-header">
+                <span class="floor-label">Floor 4</span>
+                <span class="floor-title">Terminal Bay 4</span>
+                <span class="floor-status" id="status-4">OFFLINE</span>
+            </div>
+            <div class="terminal-container" id="terminal-4">
+                <!-- xterm.js will mount here -->
+            </div>
+        </div>
+    </section>
+
+    <div class="shaft-wall">
+        <div class="caution-stripe"></div>
+        <span class="shaft-wall-number">4</span>
+        <div class="caution-stripe"></div>
+    </div>
+
+    <!-- FLOOR 3 -->
+    <section class="floor" id="floor-3">
+        <div class="elevator-doors">
+            <div class="door door-left"></div>
+            <div class="door door-right"></div>
+        </div>
+        <div class="floor-frame">
+            <div class="floor-header">
+                <span class="floor-label">Floor 3</span>
+                <span class="floor-title">Terminal Bay 3</span>
+                <span class="floor-status" id="status-3">OFFLINE</span>
+            </div>
+            <div class="terminal-container" id="terminal-3">
+                <!-- xterm.js will mount here -->
+            </div>
+        </div>
+    </section>
+
+    <div class="shaft-wall">
+        <div class="caution-stripe"></div>
+        <span class="shaft-wall-number">3</span>
+        <div class="caution-stripe"></div>
+    </div>
+
+    <!-- FLOOR 2 -->
+    <section class="floor" id="floor-2">
+        <div class="elevator-doors">
+            <div class="door door-left"></div>
+            <div class="door door-right"></div>
+        </div>
+        <div class="floor-frame">
+            <div class="floor-header">
+                <span class="floor-label">Floor 2</span>
+                <span class="floor-title">Terminal Bay 2</span>
+                <span class="floor-status" id="status-2">OFFLINE</span>
+            </div>
+            <div class="terminal-container" id="terminal-2">
+                <!-- xterm.js will mount here -->
+            </div>
+        </div>
+    </section>
+
+    <div class="shaft-wall">
+        <div class="caution-stripe"></div>
+        <span class="shaft-wall-number">2</span>
+        <div class="caution-stripe"></div>
+    </div>
+
+    <!-- FLOOR 1 -->
+    <section class="floor" id="floor-1">
+        <div class="elevator-doors">
+            <div class="door door-left"></div>
+            <div class="door door-right"></div>
+        </div>
+        <div class="floor-frame">
+            <div class="floor-header">
+                <span class="floor-label">Floor 1</span>
+                <span class="floor-title">Terminal Bay 1</span>
+                <span class="floor-status" id="status-1">OFFLINE</span>
+            </div>
+            <div class="terminal-container" id="terminal-1">
+                <!-- xterm.js will mount here -->
+            </div>
+        </div>
+    </section>
+
+    <div class="shaft-wall">
+        <div class="caution-stripe"></div>
+        <span class="shaft-wall-number">1</span>
+        <div class="caution-stripe"></div>
+    </div>
+
+    <!-- LOBBY (bottom of page = ground floor) -->
+    <section class="floor" id="lobby">
+        <div class="elevator-doors">
+            <div class="door door-left"></div>
+            <div class="door door-right"></div>
+        </div>
+        <div class="lobby-content">
+            <h1 class="lobby-title">CODEFACTORY</h1>
+            <h2 class="lobby-subtitle">INDUSTRIAL TERMINAL COMPLEX</h2>
+            <div class="lobby-status">
+                <span class="status-indicator"></span>
+                <span class="status-text">SYSTEM OPERATIONAL</span>
+            </div>
+            <p class="lobby-desc">
+                A vertical complex of networked terminal bays. Each floor houses an
+                isolated shell environment accessible through the elevator system.
+                Navigate using the control panel or scroll to ascend through the facility.
+            </p>
+            <div class="lobby-ascend">
+                <span class="ascend-arrow">&#9650;</span>
+                <span class="ascend-text">ASCEND TO BEGIN</span>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script src="https://unpkg.com/@xterm/xterm@5/lib/xterm.js"></script>
+<script src="https://unpkg.com/@xterm/addon-fit@0/lib/addon-fit.js"></script>
+<script src="https://unpkg.com/@xterm/addon-web-links@0/lib/addon-web-links.js"></script>
+<script src="https://unpkg.com/@xterm/addon-canvas@0/lib/addon-canvas.js"></script>
+<script src="js/terminal.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

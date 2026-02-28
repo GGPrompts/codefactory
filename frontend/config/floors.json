@@ -1,0 +1,39 @@
+{
+    "floors": [
+        {
+            "id": "1",
+            "name": "System Monitor",
+            "description": "Real-time system monitoring station",
+            "command": "htop",
+            "cwd": "~"
+        },
+        {
+            "id": "2",
+            "name": "Project Shell",
+            "description": "Main development workspace",
+            "command": null,
+            "cwd": "~"
+        },
+        {
+            "id": "3",
+            "name": "Log Stream",
+            "description": "Live system log feed",
+            "command": "journalctl -f --no-pager 2>/dev/null || tail -f /var/log/syslog 2>/dev/null || echo 'No log source available'",
+            "cwd": "~"
+        },
+        {
+            "id": "4",
+            "name": "Network Hub",
+            "description": "Network monitoring and connectivity",
+            "command": null,
+            "cwd": "~"
+        },
+        {
+            "id": "5",
+            "name": "Command Center",
+            "description": "Administrative control terminal",
+            "command": null,
+            "cwd": "~"
+        }
+    ]
+}
