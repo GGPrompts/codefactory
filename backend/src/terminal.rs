@@ -76,17 +76,7 @@ impl TerminalManager {
                 "Creating new detached tmux session"
             );
             // Resolve working directory (expand ~ to $HOME)
-            let resolved_cwd = cwd.map(|c| {
-                if c.starts_with('~') {
-                    if let Ok(home) = std::env::var("HOME") {
-                        c.replacen('~', &home, 1)
-                    } else {
-                        c.to_string()
-                    }
-                } else {
-                    c.to_string()
-                }
-            });
+            let resolved_cwd = cwd.map(|c| crate::config::expand_tilde(c));
 
             let mut tmux_args = vec![
                 "new-session".to_string(),

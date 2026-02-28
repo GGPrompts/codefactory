@@ -11,36 +11,35 @@
     var arrow = document.getElementById('panelArrow');
 
     // ── Floor Configuration ──
-    var floorConfig = {};  // id -> { name, description, command, cwd }
+    var floorConfig = {};  // id -> { name, command, cwd, icon }
 
-    // Fetch floor config from backend and apply to UI
-    fetch('/api/floors')
+    // Fetch profile config from backend and apply to UI
+    fetch('/api/profiles')
         .then(function(res) { return res.json(); })
         .then(function(data) {
-            if (data && data.floors) {
-                data.floors.forEach(function(floor) {
-                    floorConfig[floor.id] = floor;
+            var profiles = (data && data.profiles) || (data && data.floors) || [];
+            profiles.forEach(function(profile) {
+                floorConfig[profile.id] = profile;
 
-                    // Update floor title and label in the HTML
-                    var floorSection = document.getElementById('floor-' + floor.id);
-                    if (floorSection) {
-                        var titleEl = floorSection.querySelector('.floor-title');
-                        var labelEl = floorSection.querySelector('.floor-label');
-                        if (titleEl) titleEl.textContent = floor.name;
-                        if (labelEl) labelEl.textContent = 'Floor ' + floor.id + ' — ' + floor.description;
-                    }
+                // Update floor title and label in the HTML
+                var floorSection = document.getElementById('floor-' + profile.id);
+                if (floorSection) {
+                    var titleEl = floorSection.querySelector('.floor-title');
+                    var labelEl = floorSection.querySelector('.floor-label');
+                    if (titleEl) titleEl.textContent = profile.name;
+                    if (labelEl) labelEl.textContent = 'Floor ' + profile.id + ' — ' + (profile.name || '');
+                }
 
-                    // Update elevator button label
-                    var btn = document.querySelector('.floor-btn[data-target="floor-' + floor.id + '"]');
-                    if (btn) {
-                        btn.setAttribute('data-label', floor.name);
-                    }
-                });
-            }
-            console.log('[CodeFactory] Floor config loaded:', Object.keys(floorConfig).length, 'floors');
+                // Update elevator button label
+                var btn = document.querySelector('.floor-btn[data-target="floor-' + profile.id + '"]');
+                if (btn) {
+                    btn.setAttribute('data-label', profile.name);
+                }
+            });
+            console.log('[CodeFactory] Profile config loaded:', Object.keys(floorConfig).length, 'profiles');
         })
         .catch(function(err) {
-            console.warn('[CodeFactory] Failed to load floor config:', err);
+            console.warn('[CodeFactory] Failed to load profile config:', err);
         });
 
     // Floor label mapping (displayed in panel indicator)

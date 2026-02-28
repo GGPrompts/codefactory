@@ -1,17 +1,20 @@
+use std::sync::RwLock;
+
+use crate::config::ProfileConfig;
 use crate::terminal::TerminalManager;
 
 /// Shared application state for the CodeFactory backend.
 pub struct AppState {
-    /// Number of floors (terminal slots) available
-    pub floor_count: usize,
+    /// User profile configuration (terminal slots, commands, cwds)
+    pub profile_config: RwLock<ProfileConfig>,
     /// Manages all active terminal (PTY + tmux) sessions
     pub terminal_manager: TerminalManager,
 }
 
 impl AppState {
-    pub fn new(floor_count: usize) -> Self {
+    pub fn new(config: ProfileConfig) -> Self {
         Self {
-            floor_count,
+            profile_config: RwLock::new(config),
             terminal_manager: TerminalManager::new(),
         }
     }
@@ -19,6 +22,6 @@ impl AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        Self::new(5)
+        Self::new(ProfileConfig::default())
     }
 }
