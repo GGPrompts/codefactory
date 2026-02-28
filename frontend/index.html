@@ -17,11 +17,9 @@
     <div class="panel-frame">
         <div class="panel-indicator" id="panelIndicator">L</div>
         <div class="panel-arrow" id="panelArrow">&#9650;</div>
-        <button class="floor-btn" data-target="floor-5" data-label="Terminal Bay 5">5</button>
-        <button class="floor-btn" data-target="floor-4" data-label="Terminal Bay 4">4</button>
-        <button class="floor-btn" data-target="floor-3" data-label="Terminal Bay 3">3</button>
-        <button class="floor-btn" data-target="floor-2" data-label="Terminal Bay 2">2</button>
-        <button class="floor-btn" data-target="floor-1" data-label="Terminal Bay 1">1</button>
+        <div id="elevator-buttons">
+            <!-- Dynamically generated floor buttons -->
+        </div>
         <button class="floor-btn active" data-target="lobby" data-label="Lobby">L</button>
     </div>
 </nav>
@@ -29,125 +27,8 @@
 <!-- Main shaft content (top of page = top of building) -->
 <main class="shaft">
 
-    <!-- FLOOR 5 (top of page) -->
-    <section class="floor" id="floor-5">
-        <div class="elevator-doors">
-            <div class="door door-left"></div>
-            <div class="door door-right"></div>
-        </div>
-        <div class="floor-frame">
-            <div class="floor-header">
-                <span class="floor-label">Floor 5</span>
-                <span class="floor-title">Terminal Bay 5</span>
-                <span class="floor-status" id="status-5">OFFLINE</span>
-            </div>
-            <div class="terminal-container" id="terminal-5">
-                <!-- xterm.js will mount here -->
-            </div>
-        </div>
-    </section>
-
-    <div class="shaft-wall">
-        <div class="caution-stripe"></div>
-        <span class="shaft-wall-number">5</span>
-        <div class="caution-stripe"></div>
-    </div>
-
-    <!-- FLOOR 4 -->
-    <section class="floor" id="floor-4">
-        <div class="elevator-doors">
-            <div class="door door-left"></div>
-            <div class="door door-right"></div>
-        </div>
-        <div class="floor-frame">
-            <div class="floor-header">
-                <span class="floor-label">Floor 4</span>
-                <span class="floor-title">Terminal Bay 4</span>
-                <span class="floor-status" id="status-4">OFFLINE</span>
-            </div>
-            <div class="terminal-container" id="terminal-4">
-                <!-- xterm.js will mount here -->
-            </div>
-        </div>
-    </section>
-
-    <div class="shaft-wall">
-        <div class="caution-stripe"></div>
-        <span class="shaft-wall-number">4</span>
-        <div class="caution-stripe"></div>
-    </div>
-
-    <!-- FLOOR 3 -->
-    <section class="floor" id="floor-3">
-        <div class="elevator-doors">
-            <div class="door door-left"></div>
-            <div class="door door-right"></div>
-        </div>
-        <div class="floor-frame">
-            <div class="floor-header">
-                <span class="floor-label">Floor 3</span>
-                <span class="floor-title">Terminal Bay 3</span>
-                <span class="floor-status" id="status-3">OFFLINE</span>
-            </div>
-            <div class="terminal-container" id="terminal-3">
-                <!-- xterm.js will mount here -->
-            </div>
-        </div>
-    </section>
-
-    <div class="shaft-wall">
-        <div class="caution-stripe"></div>
-        <span class="shaft-wall-number">3</span>
-        <div class="caution-stripe"></div>
-    </div>
-
-    <!-- FLOOR 2 -->
-    <section class="floor" id="floor-2">
-        <div class="elevator-doors">
-            <div class="door door-left"></div>
-            <div class="door door-right"></div>
-        </div>
-        <div class="floor-frame">
-            <div class="floor-header">
-                <span class="floor-label">Floor 2</span>
-                <span class="floor-title">Terminal Bay 2</span>
-                <span class="floor-status" id="status-2">OFFLINE</span>
-            </div>
-            <div class="terminal-container" id="terminal-2">
-                <!-- xterm.js will mount here -->
-            </div>
-        </div>
-    </section>
-
-    <div class="shaft-wall">
-        <div class="caution-stripe"></div>
-        <span class="shaft-wall-number">2</span>
-        <div class="caution-stripe"></div>
-    </div>
-
-    <!-- FLOOR 1 -->
-    <section class="floor" id="floor-1">
-        <div class="elevator-doors">
-            <div class="door door-left"></div>
-            <div class="door door-right"></div>
-        </div>
-        <div class="floor-frame">
-            <div class="floor-header">
-                <span class="floor-label">Floor 1</span>
-                <span class="floor-title">Terminal Bay 1</span>
-                <span class="floor-status" id="status-1">OFFLINE</span>
-            </div>
-            <div class="terminal-container" id="terminal-1">
-                <!-- xterm.js will mount here -->
-            </div>
-        </div>
-    </section>
-
-    <div class="shaft-wall">
-        <div class="caution-stripe"></div>
-        <span class="shaft-wall-number">1</span>
-        <div class="caution-stripe"></div>
-    </div>
+    <!-- Dynamic floors injected here by JS -->
+    <div id="floors-container"></div>
 
     <!-- LOBBY (bottom of page = ground floor) -->
     <section class="floor" id="lobby">

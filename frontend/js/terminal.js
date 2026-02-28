@@ -2,14 +2,15 @@
 var CodeFactoryTerminals = (function() {
     'use strict';
 
-    var terminals = {};  // floor_id -> { xterm, fitAddon, ws, connected, initialized, config }
+    var terminals = {};  // floor_id -> { xterm, fitAddon, ws, connected, initialized, config, powered }
     var WS_BASE = 'ws://' + window.location.host + '/ws/';
     var existingSessions = {};
     var reconnectAttempts = {};
+    var reconnectTimers = {};  // floor_id -> timeout id for reconnection
 
     // Check for existing tmux sessions on page load (for reconnection after refresh)
     function checkExistingSessions() {
-        fetch('/api/sessions')
+        return fetch('/api/sessions')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.sessions) {
@@ -18,9 +19,11 @@ var CodeFactoryTerminals = (function() {
                     });
                     console.log('[CodeFactory] Existing sessions:', Object.keys(existingSessions));
                 }
+                return existingSessions;
             })
             .catch(function(e) {
                 console.warn('[CodeFactory] Failed to check existing sessions:', e);
+                return {};
             });
     }
 
@@ -57,19 +60,38 @@ var CodeFactoryTerminals = (function() {
 
     // Resolve addon constructors - different CDN builds expose globals differently
     function resolveAddon(name) {
-        // Try common patterns: window.FitAddon.FitAddon, window.FitAddon, etc.
         var obj = window[name];
         if (!obj) return null;
         if (typeof obj === 'function') return obj;
         if (typeof obj[name] === 'function') return obj[name];
-        // Try default export
         if (typeof obj.default === 'function') return obj.default;
         return null;
     }
 
-    function initTerminal(floorId, config) {
+    /**
+     * Power ON a floor: create xterm instance, connect WebSocket, spawn session.
+     * @param {string} floorId - Numeric floor ID (e.g. "1", "2")
+     * @param {object} config - Profile config { name, command, cwd, icon }
+     * @returns {object} terminal entry
+     */
+    function powerOn(floorId, config) {
+        // If already powered on, just return existing
+        if (terminals[floorId] && terminals[floorId].powered) {
+            return terminals[floorId];
+        }
+
         var container = document.getElementById('terminal-' + floorId);
-        if (!container || terminals[floorId]) return;
+        if (!container) return null;
+
+        // Show terminal container, hide offline card
+        var floorSection = document.getElementById('floor-' + floorId);
+        if (floorSection) {
+            floorSection.classList.add('powered-on');
+            floorSection.classList.remove('powered-off');
+        }
+
+        // Clear any previous terminal content
+        container.innerHTML = '';
 
         var xterm = new Terminal({
             cursorBlink: true,
@@ -110,16 +132,18 @@ var CodeFactoryTerminals = (function() {
             ws: null,
             connected: false,
             initialized: true,
+            powered: true,
             outputGuarded: true,
             outputBuffer: [],
             config: config || null,
+            resizeObserver: null,
         };
         terminals[floorId] = entry;
 
         // Output guard: buffer output for first 1000ms to prevent escape sequence corruption
         setTimeout(function() {
+            if (!entry.powered) return;
             entry.outputGuarded = false;
-            // Flush buffered output
             entry.outputBuffer.forEach(function(data) {
                 xterm.write(data);
             });
@@ -142,8 +166,7 @@ var CodeFactoryTerminals = (function() {
         var resizeObserver = new ResizeObserver(function() {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(function() {
-                if (fitAddon) fitAddon.fit();
-                // Send resize to backend
+                if (fitAddon && entry.powered) fitAddon.fit();
                 if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
                     entry.ws.send(JSON.stringify({
                         type: 'terminal-resize',
@@ -154,6 +177,14 @@ var CodeFactoryTerminals = (function() {
             }, 150);
         });
         resizeObserver.observe(container);
+        entry.resizeObserver = resizeObserver;
+
+        // Update status
+        var statusEl = document.getElementById('status-' + floorId);
+        if (statusEl) {
+            statusEl.textContent = 'CONNECTING';
+            statusEl.className = 'floor-status connecting';
+        }
 
         // Connect WebSocket
         connectWebSocket(floorId);
@@ -161,9 +192,72 @@ var CodeFactoryTerminals = (function() {
         return entry;
     }
 
-    function connectWebSocket(floorId) {
+    /**
+     * Power OFF a floor: disconnect WebSocket, destroy xterm, show offline card.
+     * The tmux session is preserved on the backend.
+     * @param {string} floorId
+     */
+    function powerOff(floorId) {
         var entry = terminals[floorId];
         if (!entry) return;
+
+        entry.powered = false;
+
+        // Cancel any pending reconnection
+        if (reconnectTimers[floorId]) {
+            clearTimeout(reconnectTimers[floorId]);
+            delete reconnectTimers[floorId];
+        }
+
+        // Close WebSocket without triggering reconnect
+        if (entry.ws) {
+            entry.ws.onclose = null;
+            entry.ws.onerror = null;
+            entry.ws.close();
+            entry.ws = null;
+        }
+
+        // Disconnect resize observer
+        if (entry.resizeObserver) {
+            entry.resizeObserver.disconnect();
+            entry.resizeObserver = null;
+        }
+
+        // Destroy xterm instance
+        if (entry.xterm) {
+            entry.xterm.dispose();
+            entry.xterm = null;
+        }
+
+        entry.connected = false;
+        entry.initialized = false;
+        delete terminals[floorId];
+        reconnectAttempts[floorId] = 0;
+
+        // Clear terminal container
+        var container = document.getElementById('terminal-' + floorId);
+        if (container) {
+            container.innerHTML = '';
+        }
+
+        // Toggle UI state
+        var floorSection = document.getElementById('floor-' + floorId);
+        if (floorSection) {
+            floorSection.classList.remove('powered-on');
+            floorSection.classList.add('powered-off');
+        }
+
+        // Update status
+        var statusEl = document.getElementById('status-' + floorId);
+        if (statusEl) {
+            statusEl.textContent = 'OFFLINE';
+            statusEl.className = 'floor-status offline';
+        }
+    }
+
+    function connectWebSocket(floorId) {
+        var entry = terminals[floorId];
+        if (!entry || !entry.powered) return;
 
         var attempts = reconnectAttempts[floorId] || 0;
         var statusEl = document.getElementById('status-' + floorId);
@@ -181,7 +275,7 @@ var CodeFactoryTerminals = (function() {
 
         ws.onopen = function() {
             console.log('[Floor ' + floorId + '] WebSocket connected');
-            reconnectAttempts[floorId] = 0;  // reset on success
+            reconnectAttempts[floorId] = 0;
         };
 
         ws.onmessage = function(event) {
@@ -195,7 +289,6 @@ var CodeFactoryTerminals = (function() {
 
             switch (msg.type) {
                 case 'connected':
-                    // If reconnecting to existing session, don't re-run the command
                     var isReconnect = existingSessions[floorId];
                     var cfg = entry.config;
                     console.log('[Floor ' + floorId + '] Server confirmed connection, sending spawn' +
@@ -208,7 +301,7 @@ var CodeFactoryTerminals = (function() {
                         cwd: isReconnect ? null : (cfg ? cfg.cwd : null)
                     }));
                     if (isReconnect) {
-                        delete existingSessions[floorId];  // consumed
+                        delete existingSessions[floorId];
                     }
                     break;
 
@@ -219,19 +312,19 @@ var CodeFactoryTerminals = (function() {
                         statusEl.textContent = 'ONLINE';
                         statusEl.className = 'floor-status online';
                     }
-                    // Send initial resize with actual terminal dimensions
                     setTimeout(function() {
-                        if (entry.fitAddon) entry.fitAddon.fit();
-                        ws.send(JSON.stringify({
-                            type: 'terminal-resize',
-                            cols: entry.xterm.cols,
-                            rows: entry.xterm.rows
-                        }));
+                        if (entry.fitAddon && entry.powered) entry.fitAddon.fit();
+                        if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'terminal-resize',
+                                cols: entry.xterm.cols,
+                                rows: entry.xterm.rows
+                            }));
+                        }
                     }, 100);
                     break;
 
                 case 'terminal-output':
-                    // Decode base64 output
                     try {
                         var decoded = atob(msg.data);
                         var bytes = new Uint8Array(decoded.length);
@@ -268,6 +361,7 @@ var CodeFactoryTerminals = (function() {
         };
 
         ws.onclose = function() {
+            if (!entry.powered) return;  // Don't reconnect if powered off
             console.log('[Floor ' + floorId + '] WebSocket closed');
             entry.connected = false;
             var currentAttempts = reconnectAttempts[floorId] || 0;
@@ -278,8 +372,8 @@ var CodeFactoryTerminals = (function() {
                 statusEl.className = 'floor-status connecting';
             }
             console.log('[Floor ' + floorId + '] Reconnecting in ' + delay + 'ms (attempt ' + (currentAttempts + 1) + ')');
-            setTimeout(function() {
-                if (terminals[floorId] && !terminals[floorId].connected) {
+            reconnectTimers[floorId] = setTimeout(function() {
+                if (terminals[floorId] && terminals[floorId].powered && !terminals[floorId].connected) {
                     connectWebSocket(floorId);
                 }
             }, delay);
@@ -292,9 +386,14 @@ var CodeFactoryTerminals = (function() {
 
     // Public API
     return {
-        init: initTerminal,
+        powerOn: powerOn,
+        powerOff: powerOff,
         getTerminal: function(floorId) { return terminals[floorId]; },
         isInitialized: function(floorId) { return !!terminals[floorId]; },
+        isPowered: function(floorId) { return !!(terminals[floorId] && terminals[floorId].powered); },
         checkExistingSessions: checkExistingSessions,
+        getExistingSessions: function() { return existingSessions; },
+        // Legacy compat
+        init: powerOn,
     };
 })();
