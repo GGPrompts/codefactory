@@ -86,11 +86,41 @@
         attachFloorListeners(profileList);
     }
 
+    // ==============================================================
+    // PANEL STATE (localStorage)
+    // ==============================================================
+    function getPanelState(floorId) {
+        try {
+            return localStorage.getItem('cf-panel-' + floorId) === 'open';
+        } catch (e) { return false; }
+    }
+
+    function setPanelState(floorId, open) {
+        try {
+            localStorage.setItem('cf-panel-' + floorId, open ? 'open' : 'closed');
+        } catch (e) { /* ignore */ }
+    }
+
     function buildFloorHTML(floorId, profile) {
         var name = profile.name || 'Terminal Bay ' + floorId;
         var command = profile.command || 'bash';
         var cwd = profile.cwd || defaultCwd || '~';
         var icon = profile.icon || '';
+        var hasPanel = !!profile.panel;
+        var panelOpen = hasPanel && getPanelState(floorId);
+
+        // Panel toggle button (only when panel is configured)
+        var panelToggleBtn = hasPanel
+            ? '<button class="power-btn panel-toggle-btn' + (panelOpen ? ' panel-active' : '') + '" data-floor="' + floorId + '" data-panel="' + escapeAttr(profile.panel) + '" title="Toggle side panel">[PANEL]</button>'
+            : '';
+
+        // Side panel div (only when panel is configured)
+        var sidePanelHTML = hasPanel
+            ? '<div class="floor-side-panel' + (panelOpen ? '' : ' collapsed') + '" id="side-panel-' + floorId + '">' +
+                  '<div class="panel-resize-handle" data-floor="' + floorId + '"></div>' +
+                  '<div class="panel-content" id="panel-content-' + floorId + '"></div>' +
+              '</div>'
+            : '';
 
         return '' +
             '<section class="floor powered-off" id="floor-' + floorId + '">' +
@@ -102,6 +132,7 @@
                     '<div class="floor-header">' +
                         '<span class="floor-label">' + (icon ? escapeHtml(icon) + ' ' : '') + 'Floor ' + floorId + '</span>' +
                         '<span class="floor-title">' + escapeHtml(name) + '</span>' +
+                        panelToggleBtn +
                         '<span class="floor-status" id="status-' + floorId + '">OFFLINE</span>' +
                     '</div>' +
                     '<!-- Offline profile card -->' +
@@ -144,8 +175,11 @@
                             '<button class="power-btn cancel-btn" data-floor="' + floorId + '">[CANCEL]</button>' +
                         '</div>' +
                     '</div>' +
-                    '<!-- Terminal container (shown when powered on) -->' +
-                    '<div class="terminal-container" id="terminal-' + floorId + '"></div>' +
+                    '<!-- Terminal + optional side panel in flex row -->' +
+                    '<div class="floor-content-row" id="content-row-' + floorId + '">' +
+                        '<div class="terminal-container" id="terminal-' + floorId + '"></div>' +
+                        sidePanelHTML +
+                    '</div>' +
                     '<!-- Power off button (shown when powered on) -->' +
                     '<div class="power-off-bar" id="power-off-bar-' + floorId + '">' +
                         '<button class="power-btn power-off-btn" data-floor="' + floorId + '">[POWER OFF]</button>' +
@@ -206,6 +240,13 @@
                 var profile = findProfile(floorId);
                 if (profile) {
                     CodeFactoryTerminals.powerOn(floorId, profile);
+                    // If panel is configured and was open, load its content
+                    if (profile.panel && getPanelState(floorId)) {
+                        var content = document.getElementById('panel-content-' + floorId);
+                        if (content && !content.hasChildNodes()) {
+                            MarkdownPanel.load(content, profile.panel);
+                        }
+                    }
                 }
             });
         });
@@ -245,6 +286,93 @@
                 exitEditMode(floorId);
             });
         });
+
+        // Panel toggle buttons
+        document.querySelectorAll('.panel-toggle-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var floorId = btn.dataset.floor;
+                var panelName = btn.dataset.panel;
+                togglePanel(floorId, panelName, btn);
+            });
+        });
+
+        // Panel resize handles
+        document.querySelectorAll('.panel-resize-handle').forEach(function(handle) {
+            initPanelResize(handle);
+        });
+    }
+
+    // ==============================================================
+    // PANEL TOGGLE & RESIZE
+    // ==============================================================
+    function togglePanel(floorId, panelName, btn) {
+        var panel = document.getElementById('side-panel-' + floorId);
+        if (!panel) return;
+
+        var isCollapsed = panel.classList.contains('collapsed');
+
+        if (isCollapsed) {
+            // Expand panel
+            panel.classList.remove('collapsed');
+            btn.classList.add('panel-active');
+            setPanelState(floorId, true);
+
+            // Load content if not yet loaded
+            var content = document.getElementById('panel-content-' + floorId);
+            if (content && !content.hasChildNodes()) {
+                MarkdownPanel.load(content, panelName);
+            }
+        } else {
+            // Collapse panel
+            panel.classList.add('collapsed');
+            btn.classList.remove('panel-active');
+            setPanelState(floorId, false);
+        }
+
+        // Refit terminal after panel toggle
+        refitTerminal(floorId);
+    }
+
+    function refitTerminal(floorId) {
+        setTimeout(function () {
+            if (typeof CodeFactoryTerminals === 'undefined') return;
+            var entry = CodeFactoryTerminals.getTerminal(floorId);
+            if (entry && entry.fitAddon && entry.powered) {
+                entry.fitAddon.fit();
+            }
+        }, 350);  // wait for CSS transition
+    }
+
+    function initPanelResize(handle) {
+        var floorId = handle.dataset.floor;
+        var panel = document.getElementById('side-panel-' + floorId);
+        if (!panel) return;
+
+        var startX, startWidth;
+
+        handle.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            startX = e.clientX;
+            startWidth = panel.offsetWidth;
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', onStop);
+            handle.classList.add('dragging');
+        });
+
+        function onDrag(e) {
+            // Dragging left edge of panel: moving left = wider, moving right = narrower
+            var delta = startX - e.clientX;
+            var newWidth = Math.max(200, Math.min(800, startWidth + delta));
+            panel.style.width = newWidth + 'px';
+        }
+
+        function onStop() {
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', onStop);
+            handle.classList.remove('dragging');
+            refitTerminal(floorId);
+        }
     }
 
     function findProfile(floorId) {
@@ -331,6 +459,7 @@
                     command: newCommand || null,
                     cwd: (newCwd && newCwd !== defaultCwd) ? newCwd : null,
                     icon: newIcon || null,
+                    panel: p.panel || null,
                 };
             }
             return {
@@ -338,6 +467,7 @@
                 command: p.command || null,
                 cwd: (p.cwd && p.cwd !== defaultCwd) ? p.cwd : null,
                 icon: p.icon || null,
+                panel: p.panel || null,
             };
         });
 

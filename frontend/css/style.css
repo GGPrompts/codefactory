@@ -245,11 +245,20 @@ section.floor {
     background: rgba(212, 44, 44, 0.1);
 }
 
+/* ── Floor Content Row (terminal + optional side panel) ── */
+.floor-content-row {
+    display: flex;
+    flex-direction: row;
+    width: calc(100vw - 160px);
+    max-width: 1400px;
+    height: calc(100vh - 120px);
+}
+
 /* ── Terminal Container ── */
 .terminal-container {
-    width: calc(100vw - 160px);
-    height: calc(100vh - 120px);
-    max-width: 1400px;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
     background: #0d0d0d;
     border: 3px solid var(--steel-mid);
     border-top: none; /* connects seamlessly to floor-header */
@@ -258,6 +267,125 @@ section.floor {
         0 4px 16px rgba(0,0,0,0.5);
     position: relative;
     overflow: hidden;
+}
+
+/* ── Side Panel ── */
+.floor-side-panel {
+    width: 340px;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent 0, transparent 2px,
+            rgba(74, 84, 89, 0.04) 2px, rgba(74, 84, 89, 0.04) 4px
+        ),
+        linear-gradient(180deg, var(--steel-dark) 0%, var(--iron-black) 100%);
+    border: 3px solid var(--steel-mid);
+    border-top: none;
+    border-left: none;
+    box-shadow: inset 2px 0 8px rgba(0, 0, 0, 0.4);
+    padding: 16px;
+    position: relative;
+    flex-shrink: 0;
+    transition: width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+}
+
+.floor-side-panel.collapsed {
+    width: 0;
+    padding: 0;
+    border-width: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+/* Panel loading state */
+.panel-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+}
+
+.panel-loading-text {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: var(--steel-light);
+    animation: blink 2s step-end infinite;
+}
+
+/* Panel error state */
+.panel-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 100px;
+}
+
+.panel-error-text {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    color: var(--caution-red);
+}
+
+.panel-error-detail {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--steel-light);
+}
+
+/* ── Panel Resize Handle ── */
+.panel-resize-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 5;
+    background: transparent;
+    transition: background 0.2s;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle.dragging {
+    background: var(--rust-accent);
+}
+
+/* ── Panel Toggle Button ── */
+.panel-toggle-btn {
+    font-size: 0.7rem !important;
+    padding: 4px 10px !important;
+    border-color: var(--steel-mid) !important;
+    color: var(--brushed-steel) !important;
+    margin-right: 8px;
+}
+
+.panel-toggle-btn:hover {
+    border-color: var(--rust-accent) !important;
+    color: var(--rust-accent) !important;
+    box-shadow: 0 0 8px rgba(232, 130, 58, 0.2) !important;
+}
+
+.panel-toggle-btn.panel-active {
+    border-color: var(--hazard-yellow) !important;
+    color: var(--hazard-yellow) !important;
+    background: rgba(255, 184, 0, 0.1) !important;
+}
+
+/* Hide panel toggle when floor is offline */
+section.floor.powered-off .panel-toggle-btn {
+    display: none;
+}
+
+/* Hide side panel when floor is offline */
+section.floor.powered-off .floor-side-panel {
+    display: none;
 }
 
 /* Subtle scanline effect when terminal is empty/offline */
@@ -634,8 +762,8 @@ section.floor.in-view .lobby-content {
    POWER STATE: OFFLINE / ONLINE
    ══════════════════════════════════════════════════════════ */
 
-/* When powered off: show profile card, hide terminal + power-off bar */
-section.floor.powered-off .terminal-container {
+/* When powered off: show profile card, hide terminal row + power-off bar */
+section.floor.powered-off .floor-content-row {
     display: none;
 }
 
@@ -647,9 +775,9 @@ section.floor.powered-off .profile-card {
     display: flex;
 }
 
-/* When powered on: show terminal + power-off bar, hide profile card + edit form */
-section.floor.powered-on .terminal-container {
-    display: block;
+/* When powered on: show terminal row + power-off bar, hide profile card + edit form */
+section.floor.powered-on .floor-content-row {
+    display: flex;
 }
 
 section.floor.powered-on .power-off-bar {
@@ -1070,9 +1198,16 @@ section.floor.powered-on .profile-edit-form {
     .floor-frame {
         max-width: 100%;
     }
-    .terminal-container {
+    .floor-content-row {
         width: calc(100vw - 24px);
         height: calc(100vh - 160px);
+    }
+    /* Hide side panels on mobile */
+    .floor-side-panel {
+        display: none !important;
+    }
+    .panel-toggle-btn {
+        display: none !important;
     }
     .lobby-title {
         font-size: 2.5rem;
@@ -1120,7 +1255,7 @@ section.floor.powered-on .profile-edit-form {
     .lobby-title { font-size: 2rem; }
     .floor-title { font-size: 0.9rem; }
     section.floor { padding: 10px; }
-    .terminal-container {
+    .floor-content-row {
         width: calc(100vw - 24px);
         height: calc(100vh - 140px);
     }

@@ -12,6 +12,9 @@ pub struct Profile {
     pub cwd: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Optional markdown panel filename (relative to ~/.config/codefactory/panels/).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panel: Option<String>,
 }
 
 /// Top-level config stored at `~/.config/codefactory/profiles.json`.
@@ -38,18 +41,21 @@ impl Default for ProfileConfig {
                     command: None,
                     cwd: Some("~".to_string()),
                     icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
+                    panel: None,
                 },
                 Profile {
                     name: "Shell 2".to_string(),
                     command: None,
                     cwd: Some("~".to_string()),
                     icon: Some("\u{2328}\u{FE0F}".to_string()),
+                    panel: None,
                 },
                 Profile {
                     name: "Shell 3".to_string(),
                     command: None,
                     cwd: Some("~".to_string()),
                     icon: Some("\u{1F4BB}".to_string()),
+                    panel: None,
                 },
             ],
         }

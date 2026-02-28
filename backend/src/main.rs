@@ -6,7 +6,7 @@ mod ws;
 use std::sync::Arc;
 
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
@@ -62,6 +62,7 @@ async fn main() {
         .route("/api/floors", get(get_profiles))
         .route("/api/sessions", get(get_sessions))
         .route("/api/session-status", get(get_session_status))
+        .route("/api/panels/{name}", get(get_panel))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -132,6 +133,7 @@ async fn get_profiles(
                 "command": p.command,
                 "cwd": p.cwd.as_deref().unwrap_or(&config.default_cwd),
                 "icon": p.icon,
+                "panel": p.panel,
             })
         })
         .collect();
@@ -226,6 +228,70 @@ async fn get_session_status(
             "claudeFloors": claude_floors,
         })),
     )
+}
+
+/// Serve a raw markdown file from `~/.config/codefactory/panels/`.
+/// The filename is sanitized to prevent path traversal.
+async fn get_panel(Path(name): Path<String>) -> impl IntoResponse {
+    // Sanitize: strip any path separators and parent-directory components
+    let sanitized = name
+        .replace('/', "")
+        .replace('\\', "")
+        .replace("..", "");
+
+    if sanitized.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            [("content-type", "text/plain")],
+            "Invalid panel name".to_string(),
+        );
+    }
+
+    let panels_dir = config::expand_tilde("~/.config/codefactory/panels");
+    let file_path = std::path::PathBuf::from(&panels_dir).join(&sanitized);
+
+    // Extra safety: ensure the resolved path is still within the panels directory
+    match file_path.canonicalize() {
+        Ok(canonical) => {
+            let base = match std::path::PathBuf::from(&panels_dir).canonicalize() {
+                Ok(b) => b,
+                Err(_) => {
+                    return (
+                        StatusCode::NOT_FOUND,
+                        [("content-type", "text/plain")],
+                        "Panels directory not found".to_string(),
+                    );
+                }
+            };
+            if !canonical.starts_with(&base) {
+                return (
+                    StatusCode::FORBIDDEN,
+                    [("content-type", "text/plain")],
+                    "Access denied".to_string(),
+                );
+            }
+        }
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                [("content-type", "text/plain")],
+                format!("Panel '{}' not found", sanitized),
+            );
+        }
+    }
+
+    match tokio::fs::read_to_string(&file_path).await {
+        Ok(content) => (
+            StatusCode::OK,
+            [("content-type", "text/markdown; charset=utf-8")],
+            content,
+        ),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            [("content-type", "text/plain")],
+            format!("Panel '{}' not found", sanitized),
+        ),
+    }
 }
 
 // ── Session Status Poller ──────────────────────────────────────────────────

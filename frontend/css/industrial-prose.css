@@ -1,0 +1,394 @@
+/* ══════════════════════════════════════════════════════════
+   CodeFactory -- Industrial Prose Theme for Markdown Panels
+   Ported from ~/projects/markdown-themes/src/themes/industrial.css
+   ══════════════════════════════════════════════════════════ */
+
+/* Panel-scoped custom properties (inherit from main style.css :root) */
+.floor-side-panel {
+    /* Additional industrial colors not in main palette */
+    --oil-black: #0D0F10;
+    --carbon: #252829;
+    --oxidation: #6B4423;
+    --code-bg: var(--oil-black);
+}
+
+/* ── Body Typography ── */
+.floor-side-panel .prose {
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+    color: var(--dirty-white);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── Headings ── */
+.floor-side-panel .prose h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 1.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--hazard-yellow);
+    text-shadow:
+        3px 3px 0 var(--iron-black),
+        -1px -1px 0 var(--rust-mid);
+    margin: 0 0 0.75rem 0;
+    line-height: 1.2;
+}
+
+.floor-side-panel .prose h2 {
+    font-family: var(--font-heading);
+    font-weight: 500;
+    font-size: 1.2rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dirty-white);
+    border-bottom: 4px solid var(--rust-mid);
+    padding-bottom: 0.5rem;
+    margin: 1.5rem 0 0.75rem 0;
+    position: relative;
+}
+
+.floor-side-panel .prose h2::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 60px;
+    height: 4px;
+    background: var(--hazard-yellow);
+}
+
+.floor-side-panel .prose h3,
+.floor-side-panel .prose h4 {
+    font-family: var(--font-heading);
+    font-weight: 500;
+    font-size: 1.05rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dirty-white);
+    margin: 1.25rem 0 0.5rem 0;
+}
+
+.floor-side-panel .prose h5,
+.floor-side-panel .prose h6 {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--rust-light);
+    margin: 1rem 0 0.5rem 0;
+}
+
+/* ── Paragraphs ── */
+.floor-side-panel .prose p {
+    margin: 0 0 0.75rem 0;
+}
+
+/* ── Blockquotes -- Warning/Caution tape style ── */
+.floor-side-panel .prose blockquote {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    padding: 1.25rem;
+    margin: 1rem 0;
+    border-left: none;
+    background: var(--carbon);
+    color: var(--dirty-white);
+    position: relative;
+    border: 3px solid var(--steel-mid);
+}
+
+.floor-side-panel .prose blockquote::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: repeating-linear-gradient(
+        -45deg,
+        var(--hazard-yellow),
+        var(--hazard-yellow) 10px,
+        var(--iron-black) 10px,
+        var(--iron-black) 20px
+    );
+}
+
+.floor-side-panel .prose blockquote p {
+    margin: 0;
+}
+
+/* ── Links ── */
+.floor-side-panel .prose a {
+    color: var(--hazard-yellow);
+    text-decoration: none;
+    border-bottom: 2px dashed var(--steel-mid);
+    transition: all 0.2s ease;
+}
+
+.floor-side-panel .prose a:hover {
+    color: var(--dirty-white);
+    border-bottom-color: var(--hazard-yellow);
+    border-bottom-style: solid;
+}
+
+/* ── Horizontal Rules -- Riveted seam ── */
+.floor-side-panel .prose hr {
+    border: none;
+    height: 6px;
+    background: var(--steel-dark);
+    margin: 1.5rem 0;
+    position: relative;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.floor-side-panel .prose hr::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 0;
+    right: 0;
+    height: 12px;
+    background:
+        radial-gradient(circle 6px at 20px 6px, var(--bright-steel) 3px, transparent 4px),
+        radial-gradient(circle 6px at 60px 6px, var(--bright-steel) 3px, transparent 4px),
+        radial-gradient(circle 6px at 100px 6px, var(--bright-steel) 3px, transparent 4px);
+    background-repeat: repeat-x;
+    background-size: 120px 12px;
+}
+
+/* ── Code Blocks -- Dark industrial terminal ── */
+.floor-side-panel .prose pre {
+    background: var(--oil-black);
+    border: 3px solid var(--steel-mid);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 2px 0 rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    position: relative;
+}
+
+.floor-side-panel .prose pre code {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--dirty-white);
+    background: transparent;
+    padding: 0;
+    border: none;
+}
+
+/* ── Inline Code ── */
+.floor-side-panel .prose :not(pre) > code {
+    background: var(--oil-black);
+    border: 2px solid var(--steel-mid);
+    color: var(--hazard-yellow);
+    padding: 0.1em 0.35em;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+}
+
+/* ── Lists ── */
+.floor-side-panel .prose ul,
+.floor-side-panel .prose ol {
+    color: var(--brushed-steel);
+    padding-left: 1.5rem;
+    margin: 0 0 0.75rem 0;
+}
+
+.floor-side-panel .prose li::marker {
+    color: var(--rust-light);
+}
+
+.floor-side-panel .prose li {
+    margin-bottom: 0.35rem;
+}
+
+/* ── Tables -- Steel plate grid ── */
+.floor-side-panel .prose table {
+    width: 100%;
+    background: var(--carbon);
+    border: 3px solid var(--steel-mid);
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+}
+
+.floor-side-panel .prose th {
+    font-family: var(--font-heading);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--hazard-yellow);
+    border-bottom: 3px solid var(--rust-mid);
+    background: var(--steel-dark);
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+}
+
+.floor-side-panel .prose td {
+    border-bottom: 1px solid var(--steel-mid);
+    padding: 0.5rem 0.75rem;
+}
+
+.floor-side-panel .prose tr:hover {
+    background: rgba(255, 184, 0, 0.05);
+}
+
+/* ── Strong/Bold ── */
+.floor-side-panel .prose strong {
+    color: var(--dirty-white);
+    font-weight: 700;
+}
+
+/* ── Emphasis/Italic ── */
+.floor-side-panel .prose em {
+    color: var(--rust-accent);
+    font-style: italic;
+}
+
+/* ── Images ── */
+.floor-side-panel .prose img {
+    max-width: 100%;
+    border: 4px solid var(--steel-dark);
+    box-shadow:
+        inset 0 0 0 2px var(--steel-mid),
+        0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Task list checkboxes ── */
+.floor-side-panel .prose input[type="checkbox"] {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--iron-black);
+    border: 2px solid var(--steel-mid);
+    margin-right: 0.4rem;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.floor-side-panel .prose input[type="checkbox"]:checked {
+    background: var(--hazard-yellow);
+    border-color: var(--iron-black);
+    position: relative;
+}
+
+.floor-side-panel .prose input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 0;
+    width: 5px;
+    height: 9px;
+    border: solid var(--iron-black);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* ══════════════════════════════════════════════════════════
+   COPY BUTTON ON CODE BLOCKS
+   ══════════════════════════════════════════════════════════ */
+.code-block-wrapper {
+    position: relative;
+}
+
+.code-copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border: 1px solid var(--steel-mid);
+    border-radius: 0;
+    background: var(--steel-dark);
+    color: var(--brushed-steel);
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 2;
+    opacity: 0;
+}
+
+.code-block-wrapper:hover .code-copy-btn {
+    opacity: 1;
+}
+
+.code-copy-btn:hover {
+    border-color: var(--hazard-yellow);
+    color: var(--hazard-yellow);
+    background: var(--iron-black);
+}
+
+.code-copy-btn.copied {
+    border-color: var(--safety-green);
+    color: var(--safety-green);
+}
+
+/* ══════════════════════════════════════════════════════════
+   HIGHLIGHT.JS OVERRIDES (industrial palette)
+   ══════════════════════════════════════════════════════════ */
+.floor-side-panel .prose pre code.hljs {
+    background: transparent;
+    padding: 0;
+}
+
+/* Token colors matching the industrial palette */
+.floor-side-panel .hljs-keyword,
+.floor-side-panel .hljs-selector-tag,
+.floor-side-panel .hljs-built_in { color: var(--hazard-yellow); }
+
+.floor-side-panel .hljs-string,
+.floor-side-panel .hljs-addition { color: var(--safety-green); }
+
+.floor-side-panel .hljs-comment,
+.floor-side-panel .hljs-quote { color: var(--steel-light); font-style: italic; }
+
+.floor-side-panel .hljs-number,
+.floor-side-panel .hljs-literal { color: var(--rust-accent); }
+
+.floor-side-panel .hljs-title,
+.floor-side-panel .hljs-section,
+.floor-side-panel .hljs-title.function_ { color: var(--rust-light); }
+
+.floor-side-panel .hljs-variable,
+.floor-side-panel .hljs-params { color: var(--bright-steel); }
+
+.floor-side-panel .hljs-type,
+.floor-side-panel .hljs-class .hljs-title { color: var(--hazard-orange); }
+
+.floor-side-panel .hljs-attr,
+.floor-side-panel .hljs-attribute { color: var(--rust-accent); }
+
+.floor-side-panel .hljs-deletion { color: var(--caution-red); }
+
+.floor-side-panel .hljs-punctuation { color: var(--brushed-steel); }
+
+.floor-side-panel .hljs-meta { color: var(--steel-light); }
+
+/* ══════════════════════════════════════════════════════════
+   SCROLLBAR STYLING
+   ══════════════════════════════════════════════════════════ */
+.floor-side-panel ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.floor-side-panel ::-webkit-scrollbar-track {
+    background: var(--iron-black);
+    border-left: 1px solid var(--steel-mid);
+}
+
+.floor-side-panel ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--steel-light) 0%, var(--steel-mid) 100%);
+    border: 1px solid var(--steel-dark);
+}
+
+.floor-side-panel ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--brushed-steel) 0%, var(--steel-light) 100%);
+}
