@@ -43,7 +43,7 @@ pub enum ClientMessage {
 
 // ── Messages from server to client ──────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
 pub enum ServerMessage {
     #[serde(rename = "terminal-output")]
@@ -68,6 +68,17 @@ pub enum ServerMessage {
 
     #[serde(rename = "connected")]
     Connected,
+
+    #[serde(rename = "session-status")]
+    SessionStatus {
+        #[serde(rename = "floorId")]
+        floor_id: String,
+        status: String,
+        #[serde(rename = "currentTool")]
+        current_tool: String,
+        #[serde(rename = "subagentCount")]
+        subagent_count: u32,
+    },
 }
 
 // ── WebSocket upgrade handler ───────────────────────────────────────────────
@@ -108,6 +119,17 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                 Err(e) => {
                     error!(error = %e, "Failed to serialize server message");
                 }
+            }
+        }
+    });
+
+    // Subscribe to session status broadcasts
+    let mut status_rx = state.status_tx.subscribe();
+    let status_tx_ws = tx.clone();
+    let status_handle = tokio::spawn(async move {
+        while let Ok(msg) = status_rx.recv().await {
+            if status_tx_ws.send(msg).is_err() {
+                break;
             }
         }
     });
@@ -310,6 +332,9 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
     if let Some(handle) = pty_read_handle {
         handle.abort();
     }
+
+    // Abort the status broadcast forwarder
+    status_handle.abort();
 
     // Drop the sender to signal the forwarder to stop
     drop(tx);

@@ -18,10 +18,11 @@ use tower_http::{
 };
 use tracing::{info, warn};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use config::ProfileConfig;
 use state::AppState;
+use ws::ServerMessage;
 
 #[tokio::main]
 async fn main() {
@@ -60,6 +61,7 @@ async fn main() {
         // Keep /api/floors as an alias during migration
         .route("/api/floors", get(get_profiles))
         .route("/api/sessions", get(get_sessions))
+        .route("/api/session-status", get(get_session_status))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -94,6 +96,12 @@ async fn main() {
                 warn!("Failed to check for orphaned sessions: {}", e);
             }
         }
+    });
+
+    // Session status poller: reads Claude state files and broadcasts changes
+    let poller_state = app_state.clone();
+    tokio::spawn(async move {
+        session_status_poller(poller_state).await;
     });
 
     axum::serve(listener, app)
@@ -186,6 +194,139 @@ async fn get_sessions(
             StatusCode::OK,
             Json(SessionsResponse { sessions: Vec::new() }),
         ),
+    }
+}
+
+/// Return current Claude session status for all floors (polled from state files).
+async fn get_session_status(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    let claude_floors = claude_floor_ids(&state);
+    let state_dir = std::path::Path::new("/tmp/claude-code-state");
+    let mut statuses = Vec::new();
+
+    for floor_id in &claude_floors {
+        let file_path = state_dir.join(format!("{}.json", floor_id));
+        if let Ok(content) = std::fs::read_to_string(&file_path) {
+            if let Ok(sf) = serde_json::from_str::<ClaudeStateFile>(&content) {
+                statuses.push(serde_json::json!({
+                    "floorId": floor_id,
+                    "status": sf.status,
+                    "currentTool": sf.current_tool.unwrap_or_default(),
+                    "subagentCount": sf.subagent_count.unwrap_or(0),
+                }));
+            }
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "statuses": statuses,
+            "claudeFloors": claude_floors,
+        })),
+    )
+}
+
+// ── Session Status Poller ──────────────────────────────────────────────────
+
+/// State file format written by hooks/state-tracker.sh.
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct ClaudeStateFile {
+    session_id: String,
+    status: String,
+    current_tool: Option<String>,
+    subagent_count: Option<u32>,
+    last_updated: Option<String>,
+}
+
+/// Determine which floor IDs have Claude-type profiles (command contains "claude").
+fn claude_floor_ids(state: &AppState) -> Vec<String> {
+    let config = state.profile_config.read().unwrap();
+    config
+        .profiles
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| {
+            p.command
+                .as_deref()
+                .map(|c| c.to_lowercase().contains("claude"))
+                .unwrap_or(false)
+        })
+        .map(|(i, _)| {
+            // Floor IDs are 1-indexed strings, matching what get_profiles returns
+            (i + 1).to_string()
+        })
+        .collect()
+}
+
+/// Background task that polls /tmp/claude-code-state/*.json every 2 seconds
+/// and broadcasts SessionStatus messages when state changes.
+async fn session_status_poller(state: Arc<AppState>) {
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    let state_dir = Path::new("/tmp/claude-code-state");
+    let mut last_states: HashMap<String, String> = HashMap::new();
+
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        // Only poll for floors that have Claude-type profiles
+        let claude_floors = claude_floor_ids(&state);
+        if claude_floors.is_empty() {
+            continue;
+        }
+
+        if !state_dir.exists() {
+            continue;
+        }
+
+        for floor_id in &claude_floors {
+            let file_path = state_dir.join(format!("{}.json", floor_id));
+            if !file_path.exists() {
+                // If we had a previous state and the file disappeared, broadcast idle
+                if last_states.remove(floor_id).is_some() {
+                    let _ = state.status_tx.send(ServerMessage::SessionStatus {
+                        floor_id: floor_id.clone(),
+                        status: "idle".to_string(),
+                        current_tool: String::new(),
+                        subagent_count: 0,
+                    });
+                }
+                continue;
+            }
+
+            // Read the state file
+            let content = match tokio::fs::read_to_string(&file_path).await {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            // Only broadcast if content changed
+            if last_states.get(floor_id).map(|s| s.as_str()) == Some(&content) {
+                continue;
+            }
+
+            // Parse the state file
+            let state_file: ClaudeStateFile = match serde_json::from_str(&content) {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!(floor_id = %floor_id, error = %e, "Failed to parse state file");
+                    continue;
+                }
+            };
+
+            last_states.insert(floor_id.clone(), content);
+
+            let _ = state.status_tx.send(ServerMessage::SessionStatus {
+                floor_id: floor_id.clone(),
+                status: state_file.status,
+                current_tool: state_file.current_tool.unwrap_or_default(),
+                subagent_count: state_file.subagent_count.unwrap_or(0),
+            });
+        }
     }
 }
 

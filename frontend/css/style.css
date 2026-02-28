@@ -930,6 +930,84 @@ section.floor.powered-on .profile-edit-form {
 }
 
 /* ══════════════════════════════════════════════════════════
+   CLAUDE SESSION STATUS — ELEVATOR BUTTON GLOWS
+   ══════════════════════════════════════════════════════════ */
+
+/* Green glow when Claude is awaiting input */
+.floor-btn.claude-awaiting {
+    border-color: var(--safety-green);
+    box-shadow:
+        0 0 8px rgba(45, 139, 71, 0.6),
+        0 0 20px rgba(45, 139, 71, 0.3),
+        inset 0 0 6px rgba(45, 139, 71, 0.15);
+    animation: claude-glow-green 2s ease-in-out infinite;
+}
+
+@keyframes claude-glow-green {
+    0%, 100% {
+        box-shadow:
+            0 0 8px rgba(45, 139, 71, 0.6),
+            0 0 20px rgba(45, 139, 71, 0.3),
+            inset 0 0 6px rgba(45, 139, 71, 0.15);
+    }
+    50% {
+        box-shadow:
+            0 0 12px rgba(45, 139, 71, 0.8),
+            0 0 30px rgba(45, 139, 71, 0.5),
+            inset 0 0 8px rgba(45, 139, 71, 0.25);
+    }
+}
+
+/* Amber pulse when Claude is processing or using a tool */
+.floor-btn.claude-processing {
+    border-color: var(--hazard-orange);
+    box-shadow:
+        0 0 6px rgba(255, 107, 0, 0.5),
+        0 0 16px rgba(255, 107, 0, 0.25);
+    animation: claude-pulse-amber 1.2s ease-in-out infinite;
+}
+
+@keyframes claude-pulse-amber {
+    0%, 100% {
+        box-shadow:
+            0 0 6px rgba(255, 107, 0, 0.5),
+            0 0 16px rgba(255, 107, 0, 0.25);
+        border-color: var(--hazard-orange);
+    }
+    50% {
+        box-shadow:
+            0 0 10px rgba(255, 107, 0, 0.8),
+            0 0 28px rgba(255, 107, 0, 0.45);
+        border-color: var(--hazard-yellow);
+    }
+}
+
+/* Subtle dim for idle Claude sessions */
+.floor-btn.claude-idle {
+    /* No special styling -- just remove processing/awaiting glows */
+}
+
+/* Floor header status badge variants for Claude */
+.floor-status.claude-header-awaiting {
+    color: var(--safety-green);
+    border-color: var(--safety-green);
+    background: rgba(45, 139, 71, 0.15);
+    animation: claude-glow-green-text 2s ease-in-out infinite;
+}
+
+@keyframes claude-glow-green-text {
+    0%, 100% { text-shadow: 0 0 4px rgba(45, 139, 71, 0.4); }
+    50% { text-shadow: 0 0 8px rgba(45, 139, 71, 0.8); }
+}
+
+.floor-status.claude-header-processing {
+    color: var(--hazard-orange);
+    border-color: var(--hazard-orange);
+    background: rgba(255, 107, 0, 0.1);
+    animation: blink 1.2s step-end infinite;
+}
+
+/* ══════════════════════════════════════════════════════════
    ELEVATOR BUTTONS CONTAINER
    ══════════════════════════════════════════════════════════ */
 #elevator-buttons {
