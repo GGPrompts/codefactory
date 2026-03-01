@@ -95,8 +95,8 @@ var CodeFactoryTerminals = (function() {
 
         var xterm = new Terminal({
             cursorBlink: true,
-            fontSize: 14,
-            fontFamily: "'Share Tech Mono', 'Courier New', monospace",
+            fontSize: 16,
+            fontFamily: "'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'Hack Nerd Font', 'DejaVu Sans Mono', 'Menlo', 'Consolas', monospace",
             theme: TERMINAL_THEME,
             allowTransparency: false,
             scrollback: 0,  // tmux manages scrollback
