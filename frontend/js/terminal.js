@@ -157,6 +157,7 @@ var CodeFactoryTerminals = (function() {
             initialized: true,
             powered: true,
             outputGuarded: true,
+            inputGuarded: true,
             outputBuffer: [],
             config: config || null,
             resizeObserver: null,
@@ -183,8 +184,20 @@ var CodeFactoryTerminals = (function() {
             entry.outputBuffer = [];
         }, 1000);
 
+        // Input guard: suppress input for first 1500ms to prevent stray
+        // keypresses (e.g. Enter from address bar, F5) leaking into the PTY
+        // during reconnect.
+        setTimeout(function() {
+            entry.inputGuarded = false;
+        }, 1500);
+
         // Handle user input
         xterm.onData(function(data) {
+            if (entry.inputGuarded) {
+                console.warn('[Floor ' + floorId + '] Input suppressed during guard period:',
+                    JSON.stringify(data));
+                return;
+            }
             if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
                 var encoded = btoa(unescape(encodeURIComponent(data)));
                 entry.ws.send(JSON.stringify({
@@ -354,6 +367,7 @@ var CodeFactoryTerminals = (function() {
                         command: isReconnect ? null : (cfg ? cfg.command : null),
                         cwd: isReconnect ? null : (cfg ? cfg.cwd : null)
                     }));
+                    entry.isReconnect = !!isReconnect;
                     if (isReconnect) {
                         delete existingSessions[floorId];
                     }
@@ -428,7 +442,21 @@ var CodeFactoryTerminals = (function() {
             console.log('[Floor ' + floorId + '] Reconnecting in ' + delay + 'ms (attempt ' + (currentAttempts + 1) + ')');
             reconnectTimers[floorId] = setTimeout(function() {
                 if (terminals[floorId] && terminals[floorId].powered && !terminals[floorId].connected) {
-                    connectWebSocket(floorId);
+                    // Re-check existing sessions before reconnecting so the
+                    // spawn message correctly sends command: null for reattach.
+                    fetch('/api/sessions')
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.sessions) {
+                                data.sessions.forEach(function(id) {
+                                    existingSessions[id] = true;
+                                });
+                            }
+                            connectWebSocket(floorId);
+                        })
+                        .catch(function() {
+                            connectWebSocket(floorId);
+                        });
                 }
             }, delay);
         };

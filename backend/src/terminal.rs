@@ -41,13 +41,15 @@ impl TerminalManager {
     ///
     /// Creates a detached tmux session (or reattaches to an existing one),
     /// then opens a PTY that attaches to that tmux session.
-    pub fn spawn_session(&self, floor_id: &str, cols: u16, rows: u16, cwd: Option<&str>) -> Result<()> {
+    /// Returns `Ok(true)` if a new tmux session was created, `Ok(false)` if
+    /// reattaching to an existing one.
+    pub fn spawn_session(&self, floor_id: &str, cols: u16, rows: u16, cwd: Option<&str>) -> Result<bool> {
         let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
 
         // Return early if session already exists for this floor.
         if sessions.contains_key(floor_id) {
             info!(floor_id = %floor_id, "Session already exists, skipping spawn");
-            return Ok(());
+            return Ok(false);
         }
 
         let tmux_session_name = format!("codefactory-floor-{floor_id}");
@@ -194,10 +196,11 @@ impl TerminalManager {
         info!(
             floor_id = %floor_id,
             tmux = %tmux_session_name,
+            reattach = tmux_exists,
             "Terminal session spawned successfully"
         );
 
-        Ok(())
+        Ok(!tmux_exists)
     }
 
     /// Write input data to the PTY for a given floor.

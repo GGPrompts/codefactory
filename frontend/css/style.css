@@ -52,6 +52,7 @@ main.shaft {
 .elevator-doors {
     position: absolute;
     inset: 0;
+    left: 90px;
     z-index: 10;
     pointer-events: none;
     overflow: hidden;
@@ -165,7 +166,9 @@ section.floor {
     flex-direction: column;
     align-items: center;
     width: 100%;
-    max-width: calc(100vw - 120px);
+    max-width: calc(100vw - 150px);
+    margin-left: 100px;
+    margin-right: 50px;
     gap: 12px;
 }
 
@@ -249,8 +252,7 @@ section.floor {
 .floor-content-row {
     display: flex;
     flex-direction: row;
-    width: calc(100vw - 160px);
-    max-width: 1400px;
+    width: calc(100vw - 150px);
     height: calc(100vh - 120px);
 }
 
@@ -504,11 +506,11 @@ section.floor.powered-off .floor-side-panel {
 }
 
 /* ══════════════════════════════════════════════════════════
-   ELEVATOR PANEL (fixed right side)
+   ELEVATOR PANEL (fixed left side)
    ══════════════════════════════════════════════════════════ */
 nav.elevator-panel {
     position: fixed;
-    right: 20px;
+    left: 20px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 100;
@@ -1015,8 +1017,7 @@ section.floor.powered-on .profile-edit-form {
     flex-direction: column;
     align-items: center;
     gap: 24px;
-    width: calc(100vw - 160px);
-    max-width: 1400px;
+    width: calc(100vw - 150px);
     min-height: 300px;
     padding: 48px 32px;
     background:
@@ -1184,8 +1185,7 @@ section.floor.powered-on .profile-edit-form {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    width: calc(100vw - 160px);
-    max-width: 1400px;
+    width: calc(100vw - 150px);
     padding: 8px 0;
 }
 
@@ -1196,8 +1196,7 @@ section.floor.powered-on .profile-edit-form {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    width: calc(100vw - 160px);
-    max-width: 1400px;
+    width: calc(100vw - 150px);
     padding: 32px;
     background:
         linear-gradient(180deg, rgba(44, 48, 51, 0.8) 0%, rgba(26, 29, 31, 0.95) 100%);

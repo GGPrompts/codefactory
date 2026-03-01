@@ -158,22 +158,27 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                     continue;
                                 }
 
-                                // Spawn terminal session with optional cwd
-                                if let Err(e) = state.terminal_manager.spawn_session(
+                                // Spawn terminal session with optional cwd.
+                                // Returns true if a new tmux session was created,
+                                // false if reattaching to an existing one.
+                                let is_new_session = match state.terminal_manager.spawn_session(
                                     &floor_id,
                                     cols,
                                     rows,
                                     cwd.as_deref(),
                                 ) {
-                                    error!(floor_id = %floor_id, error = %e, "Failed to spawn terminal session");
-                                    let _ = send_server_msg(
-                                        &tx,
-                                        ServerMessage::Error {
-                                            message: format!("Failed to spawn terminal: {e}"),
-                                        },
-                                    );
-                                    break;
-                                }
+                                    Ok(is_new) => is_new,
+                                    Err(e) => {
+                                        error!(floor_id = %floor_id, error = %e, "Failed to spawn terminal session");
+                                        let _ = send_server_msg(
+                                            &tx,
+                                            ServerMessage::Error {
+                                                message: format!("Failed to spawn terminal: {e}"),
+                                            },
+                                        );
+                                        break;
+                                    }
+                                };
 
                                 // Send Spawned message
                                 if !send_server_msg(
@@ -239,9 +244,10 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
 
                                 spawned = true;
 
-                                // If a command was specified, send it to the PTY after a short delay.
-                                // For Claude profiles, prepend CLAUDE_SESSION_ID so the
-                                // state-tracker hook writes files keyed by floor ID.
+                                // Only send the initial command for truly new sessions.
+                                // On reattach the process is already running — re-sending
+                                // the command would inject a spurious newline/duplicate.
+                                if is_new_session {
                                 if let Some(ref cmd) = command {
                                     let effective_cmd = if cmd.to_lowercase().contains("claude") {
                                         format!("CLAUDE_SESSION_ID={} {}", floor_id, cmd)
@@ -258,6 +264,7 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                             warn!(floor_id = %cmd_floor_id, error = %e, "Failed to write initial command to PTY");
                                         }
                                     });
+                                }
                                 }
                             }
                             ClientMessage::Input { data } => {
