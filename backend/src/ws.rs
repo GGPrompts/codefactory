@@ -214,6 +214,10 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                         match std::io::Read::read(&mut reader, &mut buf) {
                                             Ok(0) => {
                                                 info!(floor_id = %pty_floor_id, "PTY reader returned EOF");
+                                                // Notify frontend that the session exited
+                                                let _ = pty_tx.send(ServerMessage::Closed {
+                                                    floor_id: pty_floor_id.clone(),
+                                                });
                                                 break;
                                             }
                                             Ok(n) => {

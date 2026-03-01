@@ -365,12 +365,8 @@ var CodeFactoryTerminals = (function() {
                     break;
 
                 case 'terminal-closed':
-                    console.log('[Floor ' + floorId + '] Terminal closed by server');
-                    entry.connected = false;
-                    if (statusEl) {
-                        statusEl.textContent = 'OFFLINE';
-                        statusEl.className = 'floor-status offline';
-                    }
+                    console.log('[Floor ' + floorId + '] Terminal exited, powering off');
+                    powerOff(floorId);
                     break;
 
                 case 'terminal-error':
