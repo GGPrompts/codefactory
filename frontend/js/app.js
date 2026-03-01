@@ -323,6 +323,14 @@
         document.querySelectorAll('.panel-resize-handle').forEach(function(handle) {
             initPanelResize(handle);
         });
+
+        // Click-to-focus on terminal containers
+        document.querySelectorAll('.terminal-container').forEach(function(container) {
+            container.addEventListener('mousedown', function() {
+                var floorId = container.id.replace('terminal-', '');
+                CodeFactoryTerminals.focus(floorId);
+            });
+        });
     }
 
     // ==============================================================
@@ -934,11 +942,6 @@
 
                 if (arrived) {
                     playDing();
-                    // Auto-focus the terminal on the arrived floor
-                    var floorNum = bestFloor.replace('floor-', '');
-                    if (floorNum !== 'lobby') {
-                        CodeFactoryTerminals.focus(floorNum);
-                    }
                 }
 
                 indicator.classList.add('flash');
