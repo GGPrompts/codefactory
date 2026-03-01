@@ -62,7 +62,7 @@ async fn main() {
         .route("/api/floors", get(get_profiles))
         .route("/api/sessions", get(get_sessions))
         .route("/api/session-status", get(get_session_status))
-        .route("/api/panels/{name}", get(get_panel))
+        .route("/api/panels/{*name}", get(get_panel))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -235,16 +235,11 @@ async fn get_session_status(
     )
 }
 
-/// Serve a raw markdown file from `~/.config/codefactory/panels/`.
-/// The filename is sanitized to prevent path traversal.
+/// Serve a raw markdown file.
+/// If the name contains `/` or starts with `~`, treat it as an absolute path
+/// (with tilde expansion). Otherwise look it up in `~/.config/codefactory/panels/`.
 async fn get_panel(Path(name): Path<String>) -> impl IntoResponse {
-    // Sanitize: strip any path separators and parent-directory components
-    let sanitized = name
-        .replace('/', "")
-        .replace('\\', "")
-        .replace("..", "");
-
-    if sanitized.is_empty() {
+    if name.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             [("content-type", "text/plain")],
@@ -252,35 +247,27 @@ async fn get_panel(Path(name): Path<String>) -> impl IntoResponse {
         );
     }
 
-    let panels_dir = config::expand_tilde("~/.config/codefactory/panels");
-    let file_path = std::path::PathBuf::from(&panels_dir).join(&sanitized);
+    let file_path = if name.starts_with('~') || name.starts_with('/') {
+        // Absolute path — expand tilde and use directly
+        std::path::PathBuf::from(config::expand_tilde(&name))
+    } else {
+        // Bare filename — look up in panels directory, sanitize against traversal
+        let sanitized = name
+            .replace('/', "")
+            .replace('\\', "")
+            .replace("..", "");
+        let panels_dir = config::expand_tilde("~/.config/codefactory/panels");
+        std::path::PathBuf::from(&panels_dir).join(&sanitized)
+    };
 
-    // Extra safety: ensure the resolved path is still within the panels directory
-    match file_path.canonicalize() {
-        Ok(canonical) => {
-            let base = match std::path::PathBuf::from(&panels_dir).canonicalize() {
-                Ok(b) => b,
-                Err(_) => {
-                    return (
-                        StatusCode::NOT_FOUND,
-                        [("content-type", "text/plain")],
-                        "Panels directory not found".to_string(),
-                    );
-                }
-            };
-            if !canonical.starts_with(&base) {
-                return (
-                    StatusCode::FORBIDDEN,
-                    [("content-type", "text/plain")],
-                    "Access denied".to_string(),
-                );
-            }
-        }
-        Err(_) => {
+    // Must be a regular file (not a directory, device, etc.)
+    match tokio::fs::metadata(&file_path).await {
+        Ok(meta) if meta.is_file() => {}
+        _ => {
             return (
                 StatusCode::NOT_FOUND,
                 [("content-type", "text/plain")],
-                format!("Panel '{}' not found", sanitized),
+                format!("Panel '{}' not found", name),
             );
         }
     }
@@ -294,7 +281,7 @@ async fn get_panel(Path(name): Path<String>) -> impl IntoResponse {
         Err(_) => (
             StatusCode::NOT_FOUND,
             [("content-type", "text/plain")],
-            format!("Panel '{}' not found", sanitized),
+            format!("Panel '{}' not found", name),
         ),
     }
 }

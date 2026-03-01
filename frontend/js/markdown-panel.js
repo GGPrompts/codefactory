@@ -94,7 +94,7 @@ var MarkdownPanel = (function () {
             '<span class="panel-loading-text">LOADING PANEL...</span>' +
             '</div>';
 
-        fetch('/api/panels/' + encodeURIComponent(panelName))
+        fetch('/api/panels/' + panelName.split('/').map(encodeURIComponent).join('/'))
             .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.text();
