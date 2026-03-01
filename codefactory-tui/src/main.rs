@@ -27,6 +27,9 @@ struct Profile {
     cwd: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     icon: Option<String>,
+    /// Optional markdown panel filename (relative to ~/.config/codefactory/panels/).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    panel: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,18 +53,21 @@ impl Default for ProfileConfig {
                     command: None,
                     cwd: Some("~".to_string()),
                     icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
+                    panel: None,
                 },
                 Profile {
                     name: "Shell 2".to_string(),
                     command: None,
                     cwd: Some("~".to_string()),
                     icon: Some("\u{2328}\u{FE0F}".to_string()),
+                    panel: None,
                 },
                 Profile {
                     name: "Shell 3".to_string(),
                     command: None,
                     cwd: Some("~".to_string()),
                     icon: Some("\u{1F4BB}".to_string()),
+                    panel: None,
                 },
             ],
         }
@@ -158,6 +164,7 @@ fn detect_tools() -> Vec<Profile> {
             command: Some(t.command.to_string()),
             cwd: None,
             icon: t.icon.map(|s| s.to_string()),
+            panel: None,
         })
         .collect()
 }
@@ -182,6 +189,7 @@ enum AddField {
     Command,
     Cwd,
     Icon,
+    Panel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,6 +198,7 @@ enum EditField {
     Command,
     Cwd,
     Icon,
+    Panel,
 }
 
 struct App {
@@ -233,6 +242,7 @@ impl App {
                 command: None,
                 cwd: None,
                 icon: None,
+                panel: None,
             },
             status: String::new(),
             should_quit: false,
@@ -318,6 +328,7 @@ impl App {
                     command: None,
                     cwd: None,
                     icon: None,
+                    panel: None,
                 };
                 self.input.clear();
                 self.mode = Mode::AddPrompt(AddField::Name);
@@ -399,6 +410,16 @@ impl App {
                         } else {
                             Some(self.input.trim().to_string())
                         };
+                        self.input.clear();
+                        self.mode = Mode::AddPrompt(AddField::Panel);
+                        self.status = "Panel filename (e.g. claude.md, optional, Enter to skip):".to_string();
+                    }
+                    AddField::Panel => {
+                        self.pending_profile.panel = if self.input.trim().is_empty() {
+                            None
+                        } else {
+                            Some(self.input.trim().to_string())
+                        };
                         self.config.profiles.push(self.pending_profile.clone());
                         let idx = self.config.profiles.len() - 1;
                         self.table_state.select(Some(idx));
@@ -468,6 +489,19 @@ impl App {
                     EditField::Icon => {
                         self.pending_profile.icon = if self.input.trim().is_empty() {
                             self.config.profiles[idx].icon.clone()
+                        } else {
+                            Some(self.input.trim().to_string())
+                        };
+                        self.input = self.pending_profile.panel.clone().unwrap_or_default();
+                        self.mode = Mode::EditPrompt(EditField::Panel);
+                        self.status =
+                            "Edit panel filename (Enter to keep, type to change, space to clear):".to_string();
+                    }
+                    EditField::Panel => {
+                        self.pending_profile.panel = if self.input.trim() == "-" {
+                            None // type "-" to clear
+                        } else if self.input.trim().is_empty() {
+                            self.config.profiles[idx].panel.clone()
                         } else {
                             Some(self.input.trim().to_string())
                         };
@@ -588,7 +622,7 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
     f.render_widget(title, chunks[0]);
 
     // -- Profile table --
-    let header_cells = ["#", "Name", "Command", "CWD", "Icon"]
+    let header_cells = ["#", "Name", "Command", "CWD", "Icon", "Panel"]
         .iter()
         .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
     let header = Row::new(header_cells).height(1);
@@ -605,6 +639,7 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
                 Cell::from(p.command.as_deref().unwrap_or("-")),
                 Cell::from(p.cwd.as_deref().unwrap_or("(inherit)")),
                 Cell::from(p.icon.as_deref().unwrap_or("")),
+                Cell::from(p.panel.as_deref().unwrap_or("")),
             ];
             Row::new(cells)
         })
@@ -614,10 +649,11 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
         rows,
         [
             Constraint::Length(3),
+            Constraint::Percentage(20),
             Constraint::Percentage(25),
-            Constraint::Percentage(30),
-            Constraint::Percentage(30),
+            Constraint::Percentage(25),
             Constraint::Length(6),
+            Constraint::Percentage(15),
         ],
     )
     .header(header)

@@ -172,6 +172,10 @@
                             '<label>ICON</label>' +
                             '<input type="text" class="edit-input edit-input-icon" id="edit-icon-' + floorId + '" value="' + escapeAttr(icon) + '" placeholder="emoji or leave blank">' +
                         '</div>' +
+                        '<div class="edit-field">' +
+                            '<label>PANEL <span class="label-hint">(markdown filename, e.g. claude.md)</span></label>' +
+                            '<input type="text" class="edit-input" id="edit-panel-' + floorId + '" value="' + escapeAttr(profile.panel || '') + '" placeholder="(optional)">' +
+                        '</div>' +
                         '<div class="edit-actions">' +
                             '<button class="power-btn save-btn" data-floor="' + floorId + '">[SAVE]</button>' +
                             '<button class="power-btn cancel-btn" data-floor="' + floorId + '">[CANCEL]</button>' +
@@ -442,10 +446,12 @@
             var cmdInput = document.getElementById('edit-command-' + floorId);
             var cwdInput = document.getElementById('edit-cwd-' + floorId);
             var iconInput = document.getElementById('edit-icon-' + floorId);
+            var panelInput = document.getElementById('edit-panel-' + floorId);
             if (nameInput) nameInput.value = profile.name || '';
             if (cmdInput) cmdInput.value = profile.command || '';
             if (cwdInput) cwdInput.value = profile.cwd || defaultCwd || '';
             if (iconInput) iconInput.value = profile.icon || '';
+            if (panelInput) panelInput.value = profile.panel || '';
         }
     }
 
@@ -457,11 +463,13 @@
         var cmdInput = document.getElementById('edit-command-' + floorId);
         var cwdInput = document.getElementById('edit-cwd-' + floorId);
         var iconInput = document.getElementById('edit-icon-' + floorId);
+        var panelInput = document.getElementById('edit-panel-' + floorId);
 
         var newName = nameInput ? nameInput.value.trim() : '';
         var newCommand = cmdInput ? cmdInput.value.trim() : '';
         var newCwd = cwdInput ? cwdInput.value.trim() : '';
         var newIcon = iconInput ? iconInput.value.trim() : '';
+        var newPanel = panelInput ? panelInput.value.trim() : '';
 
         if (!newName) {
             nameInput.classList.add('input-error');
@@ -477,7 +485,7 @@
                     command: newCommand || null,
                     cwd: (newCwd && newCwd !== defaultCwd) ? newCwd : null,
                     icon: newIcon || null,
-                    panel: p.panel || null,
+                    panel: newPanel || null,
                 };
             }
             return {
@@ -513,6 +521,7 @@
             profiles[idx].command = newCommand || null;
             profiles[idx].cwd = (newCwd && newCwd !== defaultCwd) ? newCwd : null;
             profiles[idx].icon = newIcon || null;
+            profiles[idx].panel = newPanel || null;
 
             // Update the UI elements
             var floorSection = document.getElementById('floor-' + floorId);
