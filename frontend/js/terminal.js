@@ -106,12 +106,25 @@ var CodeFactoryTerminals = (function() {
         var FitAddonCtor = resolveAddon('FitAddon');
         var WebLinksAddonCtor = resolveAddon('WebLinksAddon');
         var CanvasAddonCtor = resolveAddon('CanvasAddon');
+        var Unicode11AddonCtor = resolveAddon('Unicode11Addon');
 
         var fitAddon = FitAddonCtor ? new FitAddonCtor() : null;
         var webLinksAddon = WebLinksAddonCtor ? new WebLinksAddonCtor() : null;
 
         if (fitAddon) xterm.loadAddon(fitAddon);
         if (webLinksAddon) xterm.loadAddon(webLinksAddon);
+
+        // Unicode11 addon for correct box-drawing and wide character alignment
+        if (Unicode11AddonCtor) {
+            try {
+                var unicode11Addon = new Unicode11AddonCtor();
+                xterm.loadAddon(unicode11Addon);
+                xterm.unicode.activeVersion = '11';
+            } catch(e) {
+                console.warn('Unicode11Addon not available');
+            }
+        }
+
         xterm.open(container);
 
         // Try to load canvas addon for GPU rendering
@@ -140,13 +153,23 @@ var CodeFactoryTerminals = (function() {
         };
         terminals[floorId] = entry;
 
-        // Output guard: buffer output for first 1000ms to prevent escape sequence corruption
+        // Output guard: buffer output for first 1000ms to prevent escape sequence corruption.
+        // Concatenate all buffered chunks into one Uint8Array before writing so escape
+        // sequences that span chunk boundaries are not broken.
         setTimeout(function() {
             if (!entry.powered) return;
             entry.outputGuarded = false;
-            entry.outputBuffer.forEach(function(data) {
-                xterm.write(data);
-            });
+            if (entry.outputBuffer.length > 0) {
+                var totalLen = 0;
+                entry.outputBuffer.forEach(function(chunk) { totalLen += chunk.length; });
+                var merged = new Uint8Array(totalLen);
+                var offset = 0;
+                entry.outputBuffer.forEach(function(chunk) {
+                    merged.set(chunk, offset);
+                    offset += chunk.length;
+                });
+                xterm.write(merged);
+            }
             entry.outputBuffer = [];
         }, 1000);
 

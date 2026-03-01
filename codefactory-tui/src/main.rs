@@ -381,7 +381,7 @@ impl App {
                         };
                         self.input.clear();
                         self.mode = Mode::AddPrompt(AddField::Cwd);
-                        self.status = "Working directory (optional, Enter to skip):".to_string();
+                        self.status = "Working directory (blank = inherit global cwd):".to_string();
                     }
                     AddField::Cwd => {
                         self.pending_profile.cwd = if self.input.trim().is_empty() {
@@ -452,7 +452,7 @@ impl App {
                         self.input = self.pending_profile.cwd.clone().unwrap_or_default();
                         self.mode = Mode::EditPrompt(EditField::Cwd);
                         self.status =
-                            "Edit cwd (Enter to keep, type to change):".to_string();
+                            "Edit cwd (blank = inherit global cwd, Enter to keep):".to_string();
                     }
                     EditField::Cwd => {
                         self.pending_profile.cwd = if self.input.trim().is_empty() {
@@ -603,7 +603,7 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
                 Cell::from(format!("{}", i + 1)),
                 Cell::from(p.name.as_str()),
                 Cell::from(p.command.as_deref().unwrap_or("-")),
-                Cell::from(p.cwd.as_deref().unwrap_or("-")),
+                Cell::from(p.cwd.as_deref().unwrap_or("(inherit)")),
                 Cell::from(p.icon.as_deref().unwrap_or("")),
             ];
             Row::new(cells)

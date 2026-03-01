@@ -37,23 +37,30 @@ impl Default for ProfileConfig {
             default_cwd: "~".to_string(),
             profiles: vec![
                 Profile {
+                    name: "Settings".to_string(),
+                    command: Some("cargo run -p codefactory-tui".to_string()),
+                    cwd: None,
+                    icon: Some("\u{2699}\u{FE0F}".to_string()),
+                    panel: None,
+                },
+                Profile {
                     name: "Shell 1".to_string(),
                     command: None,
-                    cwd: Some("~".to_string()),
+                    cwd: None,
                     icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
                     panel: None,
                 },
                 Profile {
                     name: "Shell 2".to_string(),
                     command: None,
-                    cwd: Some("~".to_string()),
+                    cwd: None,
                     icon: Some("\u{2328}\u{FE0F}".to_string()),
                     panel: None,
                 },
                 Profile {
                     name: "Shell 3".to_string(),
                     command: None,
-                    cwd: Some("~".to_string()),
+                    cwd: None,
                     icon: Some("\u{1F4BB}".to_string()),
                     panel: None,
                 },

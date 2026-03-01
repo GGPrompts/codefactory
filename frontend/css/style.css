@@ -20,7 +20,7 @@
     --concrete: #B5AFA7;
     --dirty-white: #E8E4DC;
     --grime: #3D3832;
-    --font-display: 'Stencil One', cursive;
+    --font-display: 'Stencil One', 'Impact', sans-serif;
     --font-heading: 'Oswald', sans-serif;
     --font-mono: 'Share Tech Mono', monospace;
 }
@@ -696,6 +696,134 @@ nav.elevator-panel {
     color: var(--safety-green);
 }
 
+/* Lobby Working Directory Selector */
+.lobby-workdir {
+    width: 100%;
+    max-width: 520px;
+    border: 1px solid var(--steel-mid);
+    background: rgba(30, 30, 30, 0.6);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.workdir-label {
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--hazard-yellow);
+    text-align: left;
+}
+
+.workdir-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.workdir-path {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--steel-dark);
+    border-radius: 2px;
+}
+
+.workdir-edit-btn {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--hazard-yellow);
+    background: transparent;
+    border: 1px solid var(--hazard-yellow);
+    padding: 6px 12px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.workdir-edit-btn:hover {
+    background: var(--hazard-yellow);
+    color: var(--bg-base);
+}
+
+.workdir-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.workdir-input {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--hazard-yellow);
+    padding: 8px 10px;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 2px;
+}
+
+.workdir-input:focus {
+    box-shadow: 0 0 6px rgba(255, 184, 0, 0.3);
+}
+
+.workdir-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.workdir-action-btn {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: 5px 14px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    border: 1px solid;
+    background: transparent;
+    transition: background 0.15s, color 0.15s;
+}
+
+.workdir-save-btn {
+    color: var(--safety-green);
+    border-color: var(--safety-green);
+}
+
+.workdir-save-btn:hover {
+    background: var(--safety-green);
+    color: var(--bg-base);
+}
+
+.workdir-cancel-btn {
+    color: var(--brushed-steel);
+    border-color: var(--steel-mid);
+}
+
+.workdir-cancel-btn:hover {
+    background: var(--steel-mid);
+    color: var(--bg-base);
+}
+
+.workdir-hint {
+    font-family: var(--font-heading);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: rgba(232, 228, 220, 0.35);
+    text-align: left;
+}
+
 .lobby-desc {
     max-width: 500px;
     font-family: var(--font-heading);
@@ -991,6 +1119,13 @@ section.floor.powered-on .profile-edit-form {
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--rust-accent);
+}
+
+.label-hint {
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: none;
+    color: rgba(232, 228, 220, 0.4);
 }
 
 .edit-input {

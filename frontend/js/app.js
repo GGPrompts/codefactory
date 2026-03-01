@@ -34,6 +34,7 @@
             defaultCwd = (data && data.default_cwd) || '';
             renderFloors(profiles);
             initElevatorMechanics();
+            initLobbyWorkdir();
             console.log('[CodeFactory] Loaded ' + profiles.length + ' profiles');
         })
         .catch(function(err) {
@@ -163,8 +164,8 @@
                             '<input type="text" class="edit-input" id="edit-command-' + floorId + '" value="' + escapeAttr(command) + '">' +
                         '</div>' +
                         '<div class="edit-field">' +
-                            '<label>CWD</label>' +
-                            '<input type="text" class="edit-input" id="edit-cwd-' + floorId + '" value="' + escapeAttr(cwd) + '">' +
+                            '<label>CWD <span class="label-hint">(blank = inherit global)</span></label>' +
+                            '<input type="text" class="edit-input" id="edit-cwd-' + floorId + '" value="' + escapeAttr(profile.cwd || '') + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
                         '</div>' +
                         '<div class="edit-field">' +
                             '<label>ICON</label>' +
@@ -239,7 +240,11 @@
                 var floorId = btn.dataset.floor;
                 var profile = findProfile(floorId);
                 if (profile) {
-                    CodeFactoryTerminals.powerOn(floorId, profile);
+                    // Resolve cwd: use profile's explicit cwd, or fall back to default
+                    var resolved = Object.assign({}, profile, {
+                        cwd: profile.cwd || defaultCwd || null
+                    });
+                    CodeFactoryTerminals.powerOn(floorId, resolved);
                     // If panel is configured and was open, load its content
                     if (profile.panel && getPanelState(floorId)) {
                         var content = document.getElementById('panel-content-' + floorId);
@@ -490,10 +495,10 @@
             return res.json();
         })
         .then(function() {
-            // Update local state
+            // Update local state (preserve null for cwd that matches default)
             profiles[idx].name = newName;
             profiles[idx].command = newCommand || null;
-            profiles[idx].cwd = newCwd || null;
+            profiles[idx].cwd = (newCwd && newCwd !== defaultCwd) ? newCwd : null;
             profiles[idx].icon = newIcon || null;
 
             // Update the UI elements
@@ -532,6 +537,99 @@
             setTimeout(function() {
                 if (saveBtn) saveBtn.textContent = '[SAVE]';
             }, 2000);
+        });
+    }
+
+    // ==============================================================
+    // LOBBY WORKING DIRECTORY
+    // ==============================================================
+    function initLobbyWorkdir() {
+        var pathEl = document.getElementById('workdir-path');
+        var displayEl = document.getElementById('workdir-display');
+        var editorEl = document.getElementById('workdir-editor');
+        var inputEl = document.getElementById('workdir-input');
+        var editBtn = document.getElementById('workdir-edit-btn');
+        var saveBtn = document.getElementById('workdir-save-btn');
+        var cancelBtn = document.getElementById('workdir-cancel-btn');
+
+        if (!pathEl) return;
+
+        // Show current value
+        pathEl.textContent = defaultCwd || '~';
+
+        function enterWorkdirEdit() {
+            inputEl.value = defaultCwd || '';
+            displayEl.style.display = 'none';
+            editorEl.style.display = '';
+            setTimeout(function() { inputEl.focus(); inputEl.select(); }, 50);
+        }
+
+        function exitWorkdirEdit() {
+            editorEl.style.display = 'none';
+            displayEl.style.display = '';
+        }
+
+        function saveWorkdir() {
+            var newCwd = inputEl.value.trim();
+            if (!newCwd) return;
+
+            saveBtn.textContent = '[SAVING...]';
+
+            // Build profiles payload preserving null cwd for project-dependent floors
+            var updatedProfiles = profiles.map(function(p) {
+                return {
+                    name: p.name,
+                    command: p.command || null,
+                    cwd: p.cwd || null,
+                    icon: p.icon || null,
+                    panel: p.panel || null,
+                };
+            });
+
+            fetch('/api/profiles', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    default_cwd: newCwd,
+                    profiles: updatedProfiles,
+                }),
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function() {
+                defaultCwd = newCwd;
+                pathEl.textContent = newCwd;
+
+                // Update displayed cwd for floors that inherit default
+                profiles.forEach(function(p) {
+                    var floorId = p.id;
+                    if (!p.cwd) {
+                        var cwdEl = document.querySelector('#floor-' + floorId + ' .profile-cwd');
+                        if (cwdEl) cwdEl.textContent = newCwd;
+                        var cwdInput = document.getElementById('edit-cwd-' + floorId);
+                        if (cwdInput && cwdInput.value === '') cwdInput.value = '';
+                    }
+                });
+
+                exitWorkdirEdit();
+                console.log('[CodeFactory] Working directory updated: ' + newCwd);
+            })
+            .catch(function(err) {
+                console.error('[CodeFactory] Failed to save working directory:', err);
+                saveBtn.textContent = '[ERROR]';
+                setTimeout(function() { saveBtn.textContent = '[SAVE]'; }, 2000);
+            });
+        }
+
+        editBtn.addEventListener('click', enterWorkdirEdit);
+        cancelBtn.addEventListener('click', exitWorkdirEdit);
+        saveBtn.addEventListener('click', saveWorkdir);
+
+        inputEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') saveWorkdir();
+            if (e.key === 'Escape') exitWorkdirEdit();
         });
     }
 

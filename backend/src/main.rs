@@ -131,7 +131,7 @@ async fn get_profiles(
                 "id": (i + 1).to_string(),
                 "name": p.name,
                 "command": p.command,
-                "cwd": p.cwd.as_deref().unwrap_or(&config.default_cwd),
+                "cwd": p.cwd,
                 "icon": p.icon,
                 "panel": p.panel,
             })

@@ -6,7 +6,7 @@
     <title>CodeFactory - Industrial Terminal Complex</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Stencil+One&family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/@xterm/xterm@5/css/xterm.css">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/industrial-prose.css">
@@ -38,11 +38,26 @@
             <div class="door door-right"></div>
         </div>
         <div class="lobby-content">
-            <h1 class="lobby-title">CODEFACTORY</h1>
+            <h1 class="lobby-title">CODE FACTORY</h1>
             <h2 class="lobby-subtitle">INDUSTRIAL TERMINAL COMPLEX</h2>
             <div class="lobby-status">
                 <span class="status-indicator"></span>
                 <span class="status-text">SYSTEM OPERATIONAL</span>
+            </div>
+            <div class="lobby-workdir" id="lobby-workdir">
+                <div class="workdir-label">WORKING DIRECTORY</div>
+                <div class="workdir-display" id="workdir-display">
+                    <span class="workdir-path" id="workdir-path">—</span>
+                    <button class="workdir-edit-btn" id="workdir-edit-btn" title="Change working directory">[EDIT]</button>
+                </div>
+                <div class="workdir-editor" id="workdir-editor" style="display:none;">
+                    <input type="text" class="workdir-input" id="workdir-input" placeholder="/path/to/project" spellcheck="false">
+                    <div class="workdir-actions">
+                        <button class="workdir-action-btn workdir-save-btn" id="workdir-save-btn">[SAVE]</button>
+                        <button class="workdir-action-btn workdir-cancel-btn" id="workdir-cancel-btn">[CANCEL]</button>
+                    </div>
+                </div>
+                <div class="workdir-hint">Inherited by floors with no explicit cwd</div>
             </div>
             <p class="lobby-desc">
                 A vertical complex of networked terminal bays. Each floor houses an
@@ -62,6 +77,7 @@
 <script src="https://unpkg.com/@xterm/addon-fit@0/lib/addon-fit.js"></script>
 <script src="https://unpkg.com/@xterm/addon-web-links@0/lib/addon-web-links.js"></script>
 <script src="https://unpkg.com/@xterm/addon-canvas@0/lib/addon-canvas.js"></script>
+<script src="https://unpkg.com/@xterm/addon-unicode11@0/lib/addon-unicode11.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
 <script src="js/terminal.js"></script>
