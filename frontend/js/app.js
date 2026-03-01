@@ -610,6 +610,34 @@
     }
 
     // ==============================================================
+    // RECENT WORKING DIRECTORIES (localStorage)
+    // ==============================================================
+    var RECENT_DIRS_KEY = 'cf-recent-dirs';
+    var RECENT_DIRS_MAX = 10;
+
+    function getRecentDirs() {
+        try {
+            var raw = localStorage.getItem(RECENT_DIRS_KEY);
+            if (!raw) return [];
+            var dirs = JSON.parse(raw);
+            return Array.isArray(dirs) ? dirs.slice(0, RECENT_DIRS_MAX) : [];
+        } catch (e) { return []; }
+    }
+
+    function addRecentDir(path) {
+        if (!path) return;
+        var dirs = getRecentDirs().filter(function(d) { return d !== path; });
+        dirs.unshift(path);
+        if (dirs.length > RECENT_DIRS_MAX) dirs = dirs.slice(0, RECENT_DIRS_MAX);
+        try { localStorage.setItem(RECENT_DIRS_KEY, JSON.stringify(dirs)); } catch (e) { /* ignore */ }
+    }
+
+    function removeRecentDir(path) {
+        var dirs = getRecentDirs().filter(function(d) { return d !== path; });
+        try { localStorage.setItem(RECENT_DIRS_KEY, JSON.stringify(dirs)); } catch (e) { /* ignore */ }
+    }
+
+    // ==============================================================
     // LOBBY WORKING DIRECTORY
     // ==============================================================
     function initLobbyWorkdir() {
@@ -620,22 +648,66 @@
         var editBtn = document.getElementById('workdir-edit-btn');
         var saveBtn = document.getElementById('workdir-save-btn');
         var cancelBtn = document.getElementById('workdir-cancel-btn');
+        var recentEl = document.getElementById('workdir-recent');
 
         if (!pathEl) return;
 
         // Show current value
         pathEl.textContent = defaultCwd || '~';
 
+        // Seed the current defaultCwd into recent dirs
+        if (defaultCwd) addRecentDir(defaultCwd);
+
+        function renderRecentDirs() {
+            if (!recentEl) return;
+            var dirs = getRecentDirs();
+            if (dirs.length === 0) {
+                recentEl.innerHTML = '';
+                recentEl.classList.remove('has-items');
+                return;
+            }
+            var html = '';
+            for (var i = 0; i < dirs.length; i++) {
+                html += '<div class="workdir-recent-item" data-path="' + escapeAttr(dirs[i]) + '">' +
+                    '<span class="workdir-recent-path">' + escapeHtml(dirs[i]) + '</span>' +
+                    '<button class="workdir-recent-remove" data-path="' + escapeAttr(dirs[i]) + '" title="Remove">[X]</button>' +
+                    '</div>';
+            }
+            recentEl.innerHTML = html;
+            recentEl.classList.add('has-items');
+
+            // Attach click handlers
+            recentEl.querySelectorAll('.workdir-recent-item').forEach(function(item) {
+                item.addEventListener('click', function(e) {
+                    // Ignore if clicking the remove button
+                    if (e.target.classList.contains('workdir-recent-remove')) return;
+                    var path = item.dataset.path;
+                    inputEl.value = path;
+                    saveWorkdir();
+                });
+            });
+
+            recentEl.querySelectorAll('.workdir-recent-remove').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    removeRecentDir(btn.dataset.path);
+                    renderRecentDirs();
+                });
+            });
+        }
+
         function enterWorkdirEdit() {
             inputEl.value = defaultCwd || '';
             displayEl.style.display = 'none';
             editorEl.style.display = '';
+            renderRecentDirs();
             setTimeout(function() { inputEl.focus(); inputEl.select(); }, 50);
         }
 
         function exitWorkdirEdit() {
             editorEl.style.display = 'none';
             displayEl.style.display = '';
+            if (recentEl) recentEl.classList.remove('has-items');
         }
 
         function saveWorkdir() {
@@ -670,6 +742,7 @@
             .then(function() {
                 defaultCwd = newCwd;
                 pathEl.textContent = newCwd;
+                addRecentDir(newCwd);
 
                 // Update displayed cwd for floors that inherit default
                 profiles.forEach(function(p) {

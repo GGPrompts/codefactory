@@ -816,6 +816,72 @@ nav.elevator-panel {
     color: var(--bg-base);
 }
 
+/* Recent working directories dropdown */
+.workdir-recent {
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid var(--steel-mid);
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 2px;
+}
+
+.workdir-recent.has-items {
+    display: flex;
+}
+
+.workdir-recent-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid rgba(74, 84, 89, 0.3);
+}
+
+.workdir-recent-item:last-child {
+    border-bottom: none;
+}
+
+.workdir-recent-item:hover {
+    background: rgba(255, 184, 0, 0.08);
+}
+
+.workdir-recent-path {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--brushed-steel);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.03em;
+}
+
+.workdir-recent-item:hover .workdir-recent-path {
+    color: var(--hazard-yellow);
+}
+
+.workdir-recent-remove {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--steel-mid);
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 2px 5px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+
+.workdir-recent-remove:hover {
+    color: var(--caution-red);
+    border-color: var(--caution-red);
+}
+
 .workdir-hint {
     font-family: var(--font-heading);
     font-size: 0.65rem;
