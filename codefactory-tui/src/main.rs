@@ -2,7 +2,7 @@ use std::io;
 use std::path::PathBuf;
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -276,6 +276,25 @@ impl App {
             Mode::DeleteConfirm => self.handle_delete_confirm(key),
             Mode::GlobalCwdPrompt => self.handle_global_cwd_prompt(key),
             Mode::DetectConfirm => self.handle_detect_confirm(key),
+        }
+    }
+
+    fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) {
+        if self.config.profiles.is_empty() {
+            return;
+        }
+        match mouse.kind {
+            MouseEventKind::ScrollDown => {
+                let i = self.selected().unwrap_or(0);
+                let next = if i >= self.config.profiles.len() - 1 { 0 } else { i + 1 };
+                self.table_state.select(Some(next));
+            }
+            MouseEventKind::ScrollUp => {
+                let i = self.selected().unwrap_or(0);
+                let prev = if i == 0 { self.config.profiles.len() - 1 } else { i - 1 };
+                self.table_state.select(Some(prev));
+            }
+            _ => {}
         }
     }
 
@@ -751,7 +770,7 @@ fn main() -> io::Result<()> {
     // Terminal setup
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -760,8 +779,10 @@ fn main() -> io::Result<()> {
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
-        if let Event::Key(key) = event::read()? {
-            app.handle_key(key);
+        match event::read()? {
+            Event::Key(key) => app.handle_key(key),
+            Event::Mouse(mouse) => app.handle_mouse(mouse),
+            _ => {}
         }
 
         if app.should_quit {
@@ -771,7 +792,7 @@ fn main() -> io::Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
 
     Ok(())
