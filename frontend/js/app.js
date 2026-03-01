@@ -49,12 +49,16 @@
     // FLOOR RENDERING
     // ==============================================================
     function renderFloors(profileList) {
-        floorCount = profileList.length;
+        // Filter out disabled profiles but keep original IDs
+        var enabledProfiles = profileList.filter(function(p) {
+            return p.enabled !== false;
+        });
+        floorCount = enabledProfiles.length;
         var html = '';
 
         // Build floors top-down (highest number first)
         for (var i = floorCount; i >= 1; i--) {
-            var profile = profileList[i - 1];  // profiles are 0-indexed, floors are 1-indexed
+            var profile = enabledProfiles[i - 1];
             var floorId = profile.id || String(i);
 
             html += buildFloorHTML(floorId, profile);
@@ -79,13 +83,16 @@
         }
 
         // Build elevator panel buttons
-        renderElevatorButtons(profileList);
+        renderElevatorButtons(enabledProfiles);
 
         // Rebuild references
-        rebuildDOMReferences(profileList);
+        rebuildDOMReferences(enabledProfiles);
 
         // Attach floor event listeners (power on/off, edit)
-        attachFloorListeners(profileList);
+        attachFloorListeners(enabledProfiles);
+
+        // Auto-load page floors
+        autoLoadPageFloors(enabledProfiles);
     }
 
     // ==============================================================
@@ -105,9 +112,18 @@
 
     function buildFloorHTML(floorId, profile) {
         var name = profile.name || 'Terminal Bay ' + floorId;
+        var icon = profile.icon || '';
+        var isPage = !!profile.page;
+
+        if (isPage) {
+            return buildPageFloorHTML(floorId, profile, name, icon);
+        }
+        return buildTerminalFloorHTML(floorId, profile, name, icon);
+    }
+
+    function buildTerminalFloorHTML(floorId, profile, name, icon) {
         var command = profile.command || 'bash';
         var cwd = profile.cwd || defaultCwd || '~';
-        var icon = profile.icon || '';
         var hasPanel = !!profile.panel;
         var panelOpen = hasPanel && getPanelState(floorId);
 
@@ -155,32 +171,7 @@
                         '</div>' +
                     '</div>' +
                     '<!-- Edit form (hidden by default) -->' +
-                    '<div class="profile-edit-form" id="edit-form-' + floorId + '" style="display:none;">' +
-                        '<div class="edit-field">' +
-                            '<label>NAME</label>' +
-                            '<input type="text" class="edit-input" id="edit-name-' + floorId + '" value="' + escapeAttr(name) + '">' +
-                        '</div>' +
-                        '<div class="edit-field">' +
-                            '<label>COMMAND</label>' +
-                            '<input type="text" class="edit-input" id="edit-command-' + floorId + '" value="' + escapeAttr(command) + '">' +
-                        '</div>' +
-                        '<div class="edit-field">' +
-                            '<label>CWD <span class="label-hint">(blank = inherit global)</span></label>' +
-                            '<input type="text" class="edit-input" id="edit-cwd-' + floorId + '" value="' + escapeAttr(profile.cwd || '') + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
-                        '</div>' +
-                        '<div class="edit-field">' +
-                            '<label>ICON</label>' +
-                            '<input type="text" class="edit-input edit-input-icon" id="edit-icon-' + floorId + '" value="' + escapeAttr(icon) + '" placeholder="emoji or leave blank">' +
-                        '</div>' +
-                        '<div class="edit-field">' +
-                            '<label>PANEL <span class="label-hint">(markdown filename, e.g. claude.md)</span></label>' +
-                            '<input type="text" class="edit-input" id="edit-panel-' + floorId + '" value="' + escapeAttr(profile.panel || '') + '" placeholder="(optional)">' +
-                        '</div>' +
-                        '<div class="edit-actions">' +
-                            '<button class="power-btn save-btn" data-floor="' + floorId + '">[SAVE]</button>' +
-                            '<button class="power-btn cancel-btn" data-floor="' + floorId + '">[CANCEL]</button>' +
-                        '</div>' +
-                    '</div>' +
+                    buildEditFormHTML(floorId, profile) +
                     '<!-- Terminal + optional side panel in flex row -->' +
                     '<div class="floor-content-row" id="content-row-' + floorId + '">' +
                         '<div class="terminal-container" id="terminal-' + floorId + '"></div>' +
@@ -193,6 +184,88 @@
                     '</div>' +
                 '</div>' +
             '</section>';
+    }
+
+    function buildPageFloorHTML(floorId, profile, name, icon) {
+        return '' +
+            '<section class="floor powered-off" id="floor-' + floorId + '" data-page="' + escapeAttr(profile.page) + '">' +
+                '<div class="elevator-doors">' +
+                    '<div class="door door-left"></div>' +
+                    '<div class="door door-right"></div>' +
+                '</div>' +
+                '<div class="floor-frame">' +
+                    '<div class="floor-header">' +
+                        '<span class="floor-label">' + (icon ? escapeHtml(icon) + ' ' : '') + 'Floor ' + floorId + '</span>' +
+                        '<span class="floor-title">' + escapeHtml(name) + '</span>' +
+                        '<span class="floor-status" id="status-' + floorId + '">OFFLINE</span>' +
+                    '</div>' +
+                    '<!-- Offline profile card -->' +
+                    '<div class="profile-card" id="profile-card-' + floorId + '">' +
+                        '<div class="profile-info">' +
+                            '<div class="profile-icon">' + escapeHtml(icon || floorId) + '</div>' +
+                            '<div class="profile-details">' +
+                                '<div class="profile-name">' + escapeHtml(name) + '</div>' +
+                                '<div class="profile-meta">' +
+                                    '<span class="profile-command">[PAGE] ' + escapeHtml(profile.page) + '</span>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="profile-actions">' +
+                            '<button class="power-btn power-on-btn" data-floor="' + floorId + '">[POWER ON]</button>' +
+                            '<button class="power-btn edit-btn" data-floor="' + floorId + '">[EDIT]</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<!-- Edit form (hidden by default) -->' +
+                    buildEditFormHTML(floorId, profile) +
+                    '<!-- Page container in flex row -->' +
+                    '<div class="floor-content-row" id="content-row-' + floorId + '">' +
+                        '<div class="page-container" id="page-' + floorId + '"></div>' +
+                    '</div>' +
+                    '<!-- Power off bar for page floors -->' +
+                    '<div class="power-off-bar" id="power-off-bar-' + floorId + '">' +
+                        '<button class="power-btn kill-btn" data-floor="' + floorId + '">[POWER OFF]</button>' +
+                    '</div>' +
+                '</div>' +
+            '</section>';
+    }
+
+    function buildEditFormHTML(floorId, profile) {
+        var name = profile.name || '';
+        var command = profile.command || '';
+        var cwd = profile.cwd || '';
+        var icon = profile.icon || '';
+
+        return '' +
+            '<div class="profile-edit-form" id="edit-form-' + floorId + '" style="display:none;">' +
+                '<div class="edit-field">' +
+                    '<label>NAME</label>' +
+                    '<input type="text" class="edit-input" id="edit-name-' + floorId + '" value="' + escapeAttr(name) + '">' +
+                '</div>' +
+                '<div class="edit-field">' +
+                    '<label>COMMAND <span class="label-hint">(blank for page floors)</span></label>' +
+                    '<input type="text" class="edit-input" id="edit-command-' + floorId + '" value="' + escapeAttr(command) + '">' +
+                '</div>' +
+                '<div class="edit-field">' +
+                    '<label>CWD <span class="label-hint">(blank = inherit global)</span></label>' +
+                    '<input type="text" class="edit-input" id="edit-cwd-' + floorId + '" value="' + escapeAttr(cwd) + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
+                '</div>' +
+                '<div class="edit-field">' +
+                    '<label>ICON</label>' +
+                    '<input type="text" class="edit-input edit-input-icon" id="edit-icon-' + floorId + '" value="' + escapeAttr(icon) + '" placeholder="emoji or leave blank">' +
+                '</div>' +
+                '<div class="edit-field">' +
+                    '<label>PANEL <span class="label-hint">(markdown filename, e.g. claude.md)</span></label>' +
+                    '<input type="text" class="edit-input" id="edit-panel-' + floorId + '" value="' + escapeAttr(profile.panel || '') + '" placeholder="(optional)">' +
+                '</div>' +
+                '<div class="edit-field">' +
+                    '<label>PAGE <span class="label-hint">(HTML file path — sets floor as page type)</span></label>' +
+                    '<input type="text" class="edit-input" id="edit-page-' + floorId + '" value="' + escapeAttr(profile.page || '') + '" placeholder="(optional)">' +
+                '</div>' +
+                '<div class="edit-actions">' +
+                    '<button class="power-btn save-btn" data-floor="' + floorId + '">[SAVE]</button>' +
+                    '<button class="power-btn cancel-btn" data-floor="' + floorId + '">[CANCEL]</button>' +
+                '</div>' +
+            '</div>';
     }
 
     function buildShaftWallHTML(floorId, icon) {
@@ -246,18 +319,22 @@
                 var floorId = btn.dataset.floor;
                 var profile = findProfile(floorId);
                 if (profile) {
-                    // Resolve cwd: use profile's explicit cwd, or fall back to default
-                    var resolved = Object.assign({}, profile, {
-                        cwd: profile.cwd || defaultCwd || null
-                    });
-                    CodeFactoryTerminals.powerOn(floorId, resolved);
-                    // Focus terminal after it connects
-                    setTimeout(function() { CodeFactoryTerminals.focus(floorId); }, 200);
-                    // If panel is configured and was open, load its content
-                    if (profile.panel && getPanelState(floorId)) {
-                        var content = document.getElementById('panel-content-' + floorId);
-                        if (content && !content.hasChildNodes()) {
-                            MarkdownPanel.load(content, profile.panel);
+                    if (profile.page) {
+                        powerOnPage(floorId, profile);
+                    } else {
+                        // Resolve cwd: use profile's explicit cwd, or fall back to default
+                        var resolved = Object.assign({}, profile, {
+                            cwd: profile.cwd || defaultCwd || null
+                        });
+                        CodeFactoryTerminals.powerOn(floorId, resolved);
+                        // Focus terminal after it connects
+                        setTimeout(function() { CodeFactoryTerminals.focus(floorId); }, 200);
+                        // If panel is configured and was open, load its content
+                        if (profile.panel && getPanelState(floorId)) {
+                            var content = document.getElementById('panel-content-' + floorId);
+                            if (content && !content.hasChildNodes()) {
+                                MarkdownPanel.load(content, profile.panel);
+                            }
                         }
                     }
                 }
@@ -273,12 +350,17 @@
             });
         });
 
-        // Kill buttons (disconnect PTY and destroy tmux session)
+        // Kill buttons (disconnect PTY and destroy tmux session, or power off page)
         document.querySelectorAll('.kill-btn').forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
-                CodeFactoryTerminals.kill(floorId);
+                var profile = findProfile(floorId);
+                if (profile && profile.page) {
+                    powerOffPage(floorId);
+                } else {
+                    CodeFactoryTerminals.kill(floorId);
+                }
             });
         });
 
@@ -405,6 +487,63 @@
         }
     }
 
+    // ==============================================================
+    // PAGE FLOOR POWER ON / OFF
+    // ==============================================================
+    function powerOnPage(floorId, profile) {
+        var container = document.getElementById('page-' + floorId);
+        if (!container) return;
+
+        // Create iframe
+        var iframe = document.createElement('iframe');
+        iframe.className = 'page-iframe';
+        iframe.src = '/api/pages/' + encodeURIComponent(profile.page);
+        container.innerHTML = '';
+        container.appendChild(iframe);
+
+        // Set floor to powered-on state
+        var section = document.getElementById('floor-' + floorId);
+        if (section) {
+            section.classList.remove('powered-off');
+            section.classList.add('powered-on');
+        }
+        var statusEl = document.getElementById('status-' + floorId);
+        if (statusEl) {
+            statusEl.textContent = 'ONLINE';
+            statusEl.className = 'floor-status online';
+        }
+        console.log('[CodeFactory] Page floor ' + floorId + ' powered on: ' + profile.page);
+    }
+
+    function powerOffPage(floorId) {
+        var container = document.getElementById('page-' + floorId);
+        if (container) {
+            container.innerHTML = '';
+        }
+
+        // Set floor to powered-off state
+        var section = document.getElementById('floor-' + floorId);
+        if (section) {
+            section.classList.remove('powered-on');
+            section.classList.add('powered-off');
+        }
+        var statusEl = document.getElementById('status-' + floorId);
+        if (statusEl) {
+            statusEl.textContent = 'OFFLINE';
+            statusEl.className = 'floor-status offline';
+        }
+        console.log('[CodeFactory] Page floor ' + floorId + ' powered off');
+    }
+
+    function autoLoadPageFloors(profileList) {
+        profileList.forEach(function(profile) {
+            if (profile.page) {
+                var floorId = profile.id;
+                powerOnPage(floorId, profile);
+            }
+        });
+    }
+
     function findProfile(floorId) {
         for (var i = 0; i < profiles.length; i++) {
             if (profiles[i].id === floorId || String(i + 1) === floorId) {
@@ -455,11 +594,13 @@
             var cwdInput = document.getElementById('edit-cwd-' + floorId);
             var iconInput = document.getElementById('edit-icon-' + floorId);
             var panelInput = document.getElementById('edit-panel-' + floorId);
+            var pageInput = document.getElementById('edit-page-' + floorId);
             if (nameInput) nameInput.value = profile.name || '';
             if (cmdInput) cmdInput.value = profile.command || '';
             if (cwdInput) cwdInput.value = profile.cwd || defaultCwd || '';
             if (iconInput) iconInput.value = profile.icon || '';
             if (panelInput) panelInput.value = profile.panel || '';
+            if (pageInput) pageInput.value = profile.page || '';
         }
     }
 
@@ -472,12 +613,14 @@
         var cwdInput = document.getElementById('edit-cwd-' + floorId);
         var iconInput = document.getElementById('edit-icon-' + floorId);
         var panelInput = document.getElementById('edit-panel-' + floorId);
+        var pageInput = document.getElementById('edit-page-' + floorId);
 
         var newName = nameInput ? nameInput.value.trim() : '';
         var newCommand = cmdInput ? cmdInput.value.trim() : '';
         var newCwd = cwdInput ? cwdInput.value.trim() : '';
         var newIcon = iconInput ? iconInput.value.trim() : '';
         var newPanel = panelInput ? panelInput.value.trim() : '';
+        var newPage = pageInput ? pageInput.value.trim() : '';
 
         if (!newName) {
             nameInput.classList.add('input-error');
@@ -494,6 +637,8 @@
                     cwd: (newCwd && newCwd !== defaultCwd) ? newCwd : null,
                     icon: newIcon || null,
                     panel: newPanel || null,
+                    page: newPage || null,
+                    enabled: p.enabled !== false,
                 };
             }
             return {
@@ -502,6 +647,8 @@
                 cwd: (p.cwd && p.cwd !== defaultCwd) ? p.cwd : null,
                 icon: p.icon || null,
                 panel: p.panel || null,
+                page: p.page || null,
+                enabled: p.enabled !== false,
             };
         });
 
@@ -530,6 +677,7 @@
             profiles[idx].cwd = (newCwd && newCwd !== defaultCwd) ? newCwd : null;
             profiles[idx].icon = newIcon || null;
             profiles[idx].panel = newPanel || null;
+            profiles[idx].page = newPage || null;
 
             // Update the UI elements
             var floorSection = document.getElementById('floor-' + floorId);
@@ -600,7 +748,7 @@
         console.log('[CodeFactory] Auto-reconnecting floors:', sessionIds);
         sessionIds.forEach(function(floorId) {
             var profile = findProfile(floorId);
-            if (profile) {
+            if (profile && !profile.page) {
                 var resolved = Object.assign({}, profile, {
                     cwd: profile.cwd || defaultCwd || null
                 });
@@ -732,6 +880,8 @@
                     cwd: p.cwd || null,
                     icon: p.icon || null,
                     panel: p.panel || null,
+                    page: p.page || null,
+                    enabled: p.enabled !== false,
                 };
             });
 
@@ -977,7 +1127,7 @@
                 var target = document.getElementById(targetId);
                 if (target) {
                     jumpTarget = targetId;
-                    target.scrollIntoView({ behavior: 'smooth' });
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             });
         });
@@ -1008,7 +1158,7 @@
                 var target = document.getElementById(targetId);
                 if (target) {
                     jumpTarget = targetId;
-                    target.scrollIntoView({ behavior: 'smooth' });
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             }
         });

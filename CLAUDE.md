@@ -1,6 +1,6 @@
 # CodeFactory
 
-Vertical terminal complex — a web UI that manages multiple terminal profiles as "floors" in an elevator-themed interface.
+Vertical terminal complex — a web UI that manages multiple terminal profiles as "floors" in an elevator-themed interface. Floors can be **terminal** (tmux-backed) or **page** (HTML via iframe).
 
 ## Architecture
 
@@ -16,11 +16,30 @@ cargo run -p codefactory-tui  # launch settings TUI
 cargo check --workspace       # verify both crates compile
 ```
 
+## Floor Types
+
+- **Terminal floors** (default): tmux-backed shells with optional command, cwd, and markdown side panel
+- **Page floors**: set `page` field to an HTML file path — renders in an iframe, auto-loads on startup (no power-on click needed)
+- Floor type is inferred: if `page` is set → page floor, otherwise → terminal floor
+
+## Profile Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Display name (required) |
+| `command` | string? | Shell command (terminal floors) |
+| `cwd` | string? | Working directory (null = inherit `default_cwd`) |
+| `icon` | string? | Emoji icon for elevator button |
+| `panel` | string? | Markdown side panel (bare name or absolute/~ path) |
+| `page` | string? | HTML page path (bare name or absolute/~ path) |
+| `enabled` | bool | Show/hide floor without removing it (default: true) |
+
 ## Conventions
 
 - No JS framework — vanilla ES5-style IIFE modules, `var` not `let/const`
 - CSS uses custom properties defined at top of `style.css` (industrial theme: `--hazard-yellow`, `--steel-*`, `--safety-green`, etc.)
 - Backend uses axum + tokio; terminals spawn via tmux
 - Profiles with `cwd: null` inherit `default_cwd` from config — resolution happens frontend-side
+- Disabled profiles (`enabled: false`) are filtered out at render time
 
 See `backend/CLAUDE.md` and `frontend/CLAUDE.md` for crate/directory-specific details.

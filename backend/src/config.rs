@@ -15,6 +15,16 @@ pub struct Profile {
     /// Optional markdown panel filename (relative to ~/.config/codefactory/panels/).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panel: Option<String>,
+    /// Optional HTML page path (bare name → ~/.config/codefactory/pages/, or absolute/~ path).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    /// Whether this profile is enabled (hidden when false). Defaults to true.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Top-level config stored at `~/.config/codefactory/profiles.json`.
@@ -42,6 +52,8 @@ impl Default for ProfileConfig {
                     cwd: None,
                     icon: Some("\u{2699}\u{FE0F}".to_string()),
                     panel: None,
+                    page: None,
+                    enabled: true,
                 },
                 Profile {
                     name: "Shell 1".to_string(),
@@ -49,6 +61,8 @@ impl Default for ProfileConfig {
                     cwd: None,
                     icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
                     panel: None,
+                    page: None,
+                    enabled: true,
                 },
                 Profile {
                     name: "Shell 2".to_string(),
@@ -56,6 +70,8 @@ impl Default for ProfileConfig {
                     cwd: None,
                     icon: Some("\u{2328}\u{FE0F}".to_string()),
                     panel: None,
+                    page: None,
+                    enabled: true,
                 },
                 Profile {
                     name: "Shell 3".to_string(),
@@ -63,6 +79,8 @@ impl Default for ProfileConfig {
                     cwd: None,
                     icon: Some("\u{1F4BB}".to_string()),
                     panel: None,
+                    page: None,
+                    enabled: true,
                 },
             ],
         }

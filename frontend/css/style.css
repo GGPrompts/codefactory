@@ -269,6 +269,27 @@ section.floor {
     overflow: hidden;
 }
 
+/* ── Page Container (iframe floors) ── */
+.page-container {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    position: relative;
+    background: var(--iron-black);
+    border: 3px solid var(--steel-mid);
+    border-top: none;
+    box-shadow:
+        inset 0 2px 8px rgba(0,0,0,0.8),
+        0 4px 16px rgba(0,0,0,0.5);
+    overflow: hidden;
+}
+
+.page-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
 /* ── Side Panel ── */
 .floor-side-panel {
     width: 340px;

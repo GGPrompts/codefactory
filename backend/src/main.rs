@@ -63,6 +63,7 @@ async fn main() {
         .route("/api/sessions", get(get_sessions))
         .route("/api/session-status", get(get_session_status))
         .route("/api/panels/{*name}", get(get_panel))
+        .route("/api/pages/{*name}", get(get_page))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -139,6 +140,8 @@ async fn get_profiles(
                 "cwd": p.cwd,
                 "icon": p.icon,
                 "panel": p.panel,
+                "page": p.page,
+                "enabled": p.enabled,
             })
         })
         .collect();
@@ -285,6 +288,55 @@ async fn get_panel(Path(name): Path<String>) -> impl IntoResponse {
             StatusCode::NOT_FOUND,
             [("content-type", "text/plain")],
             format!("Panel '{}' not found", name),
+        ),
+    }
+}
+
+/// Serve a raw HTML page file.
+/// Same path resolution as `get_panel` but returns `text/html`.
+async fn get_page(Path(name): Path<String>) -> impl IntoResponse {
+    let name = name.strip_prefix('/').unwrap_or(&name).to_string();
+
+    if name.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            [("content-type", "text/plain")],
+            "Invalid page name".to_string(),
+        );
+    }
+
+    let file_path = if name.starts_with('~') || name.starts_with('/') {
+        std::path::PathBuf::from(config::expand_tilde(&name))
+    } else {
+        let sanitized = name
+            .replace('/', "")
+            .replace('\\', "")
+            .replace("..", "");
+        let pages_dir = config::expand_tilde("~/.config/codefactory/pages");
+        std::path::PathBuf::from(&pages_dir).join(&sanitized)
+    };
+
+    match tokio::fs::metadata(&file_path).await {
+        Ok(meta) if meta.is_file() => {}
+        _ => {
+            return (
+                StatusCode::NOT_FOUND,
+                [("content-type", "text/plain")],
+                format!("Page '{}' not found", name),
+            );
+        }
+    }
+
+    match tokio::fs::read_to_string(&file_path).await {
+        Ok(content) => (
+            StatusCode::OK,
+            [("content-type", "text/html; charset=utf-8")],
+            content,
+        ),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            [("content-type", "text/plain")],
+            format!("Page '{}' not found", name),
         ),
     }
 }

@@ -30,6 +30,16 @@ struct Profile {
     /// Optional markdown panel filename (relative to ~/.config/codefactory/panels/).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     panel: Option<String>,
+    /// Optional HTML page path (bare name or absolute/~ path).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    page: Option<String>,
+    /// Whether this profile is enabled (hidden when false). Defaults to true.
+    #[serde(default = "default_true")]
+    enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +64,8 @@ impl Default for ProfileConfig {
                     cwd: Some("~".to_string()),
                     icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
                     panel: None,
+                    page: None,
+                    enabled: true,
                 },
                 Profile {
                     name: "Shell 2".to_string(),
@@ -61,6 +73,8 @@ impl Default for ProfileConfig {
                     cwd: Some("~".to_string()),
                     icon: Some("\u{2328}\u{FE0F}".to_string()),
                     panel: None,
+                    page: None,
+                    enabled: true,
                 },
                 Profile {
                     name: "Shell 3".to_string(),
@@ -68,6 +82,8 @@ impl Default for ProfileConfig {
                     cwd: Some("~".to_string()),
                     icon: Some("\u{1F4BB}".to_string()),
                     panel: None,
+                    page: None,
+                    enabled: true,
                 },
             ],
         }
@@ -165,6 +181,8 @@ fn detect_tools() -> Vec<Profile> {
             cwd: None,
             icon: t.icon.map(|s| s.to_string()),
             panel: None,
+            page: None,
+            enabled: true,
         })
         .collect()
 }
@@ -190,6 +208,8 @@ enum AddField {
     Cwd,
     Icon,
     Panel,
+    Page,
+    Enabled,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -199,6 +219,8 @@ enum EditField {
     Cwd,
     Icon,
     Panel,
+    Page,
+    Enabled,
 }
 
 struct App {
@@ -243,6 +265,8 @@ impl App {
                 cwd: None,
                 icon: None,
                 panel: None,
+                page: None,
+                enabled: true,
             },
             status: String::new(),
             should_quit: false,
@@ -348,6 +372,8 @@ impl App {
                     cwd: None,
                     icon: None,
                     panel: None,
+                    page: None,
+                    enabled: true,
                 };
                 self.input.clear();
                 self.mode = Mode::AddPrompt(AddField::Name);
@@ -439,6 +465,23 @@ impl App {
                         } else {
                             Some(self.input.trim().to_string())
                         };
+                        self.input.clear();
+                        self.mode = Mode::AddPrompt(AddField::Page);
+                        self.status = "Page path (HTML file, optional, Enter to skip):".to_string();
+                    }
+                    AddField::Page => {
+                        self.pending_profile.page = if self.input.trim().is_empty() {
+                            None
+                        } else {
+                            Some(self.input.trim().to_string())
+                        };
+                        self.input = "y".to_string();
+                        self.mode = Mode::AddPrompt(AddField::Enabled);
+                        self.status = "Enabled? (y/n, default y):".to_string();
+                    }
+                    AddField::Enabled => {
+                        let val = self.input.trim().to_lowercase();
+                        self.pending_profile.enabled = val != "n" && val != "no";
                         self.config.profiles.push(self.pending_profile.clone());
                         let idx = self.config.profiles.len() - 1;
                         self.table_state.select(Some(idx));
@@ -518,12 +561,35 @@ impl App {
                     }
                     EditField::Panel => {
                         self.pending_profile.panel = if self.input.trim() == "-" {
-                            None // type "-" to clear
+                            None
                         } else if self.input.trim().is_empty() {
                             self.config.profiles[idx].panel.clone()
                         } else {
                             Some(self.input.trim().to_string())
                         };
+                        self.input = self.pending_profile.page.clone().unwrap_or_default();
+                        self.mode = Mode::EditPrompt(EditField::Page);
+                        self.status =
+                            "Edit page path (Enter to keep, type to change, - to clear):".to_string();
+                    }
+                    EditField::Page => {
+                        self.pending_profile.page = if self.input.trim() == "-" {
+                            None
+                        } else if self.input.trim().is_empty() {
+                            self.config.profiles[idx].page.clone()
+                        } else {
+                            Some(self.input.trim().to_string())
+                        };
+                        self.input = if self.pending_profile.enabled { "y".to_string() } else { "n".to_string() };
+                        self.mode = Mode::EditPrompt(EditField::Enabled);
+                        self.status =
+                            "Enabled? (y/n, Enter to keep):".to_string();
+                    }
+                    EditField::Enabled => {
+                        let val = self.input.trim().to_lowercase();
+                        if !val.is_empty() {
+                            self.pending_profile.enabled = val != "n" && val != "no";
+                        }
                         self.config.profiles[idx] = self.pending_profile.clone();
                         self.save();
                         self.mode = Mode::Normal;
@@ -641,7 +707,7 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
     f.render_widget(title, chunks[0]);
 
     // -- Profile table --
-    let header_cells = ["#", "Name", "Command", "CWD", "Icon", "Panel"]
+    let header_cells = ["#", "Name", "Command", "CWD", "Icon", "Panel", "Page", "On"]
         .iter()
         .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
     let header = Row::new(header_cells).height(1);
@@ -652,6 +718,7 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
         .iter()
         .enumerate()
         .map(|(i, p)| {
+            let enabled_str = if p.enabled { "Y" } else { "N" };
             let cells = vec![
                 Cell::from(format!("{}", i + 1)),
                 Cell::from(p.name.as_str()),
@@ -659,6 +726,8 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
                 Cell::from(p.cwd.as_deref().unwrap_or("(inherit)")),
                 Cell::from(p.icon.as_deref().unwrap_or("")),
                 Cell::from(p.panel.as_deref().unwrap_or("")),
+                Cell::from(p.page.as_deref().unwrap_or("")),
+                Cell::from(enabled_str),
             ];
             Row::new(cells)
         })
@@ -668,11 +737,13 @@ fn ui(f: &mut ratatui::Frame, app: &mut App) {
         rows,
         [
             Constraint::Length(3),
+            Constraint::Percentage(16),
             Constraint::Percentage(20),
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
+            Constraint::Percentage(20),
             Constraint::Length(6),
-            Constraint::Percentage(15),
+            Constraint::Percentage(12),
+            Constraint::Percentage(16),
+            Constraint::Length(3),
         ],
     )
     .header(header)
