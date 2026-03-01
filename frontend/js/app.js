@@ -650,49 +650,62 @@
     }
 
     function playDing() {
+        // Industrial clunk: short filtered noise burst (like a heavy relay engaging)
         if (!audioUnlocked) return;
         ensureAudio();
         var now = audioCtx.currentTime;
+        var bufferSize = audioCtx.sampleRate * 0.08;
+        var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.15));
+        }
+        var noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
 
-        var osc1 = audioCtx.createOscillator();
-        var gain1 = audioCtx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.value = 784;
-        gain1.gain.setValueAtTime(sfxVolume, now);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-        osc1.connect(gain1);
-        gain1.connect(audioCtx.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.6);
+        var filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 220;
+        filter.Q.value = 3;
 
-        var osc2 = audioCtx.createOscillator();
-        var gain2 = audioCtx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.value = 659;
-        gain2.gain.setValueAtTime(0.001, now);
-        gain2.gain.setValueAtTime(sfxVolume * 0.85, now + 0.12);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
-        osc2.connect(gain2);
-        gain2.connect(audioCtx.destination);
-        osc2.start(now + 0.12);
-        osc2.stop(now + 0.75);
+        var gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(sfxVolume * 0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start(now);
+        noise.stop(now + 0.08);
     }
 
     function playClick() {
+        // Subtle relay tick: tiny noise pop
         if (!audioUnlocked) return;
         ensureAudio();
         var now = audioCtx.currentTime;
-        var osc = audioCtx.createOscillator();
+        var bufferSize = audioCtx.sampleRate * 0.02;
+        var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.08));
+        }
+        var noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        var filter = audioCtx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 800;
+
         var gain = audioCtx.createGain();
-        osc.type = 'square';
-        osc.frequency.value = 1800;
-        osc.frequency.exponentialRampToValueAtTime(600, now + 0.03);
-        gain.gain.setValueAtTime(sfxVolume * 0.35, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-        osc.connect(gain);
+        gain.gain.setValueAtTime(sfxVolume * 0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+        noise.connect(filter);
+        filter.connect(gain);
         gain.connect(audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.06);
+        noise.start(now);
+        noise.stop(now + 0.02);
     }
 
     function unlockAudio() {
