@@ -239,6 +239,9 @@ async fn get_session_status(
 /// If the name contains `/` or starts with `~`, treat it as an absolute path
 /// (with tilde expansion). Otherwise look it up in `~/.config/codefactory/panels/`.
 async fn get_panel(Path(name): Path<String>) -> impl IntoResponse {
+    // Wildcard captures may include a leading slash — strip it
+    let name = name.strip_prefix('/').unwrap_or(&name).to_string();
+
     if name.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
