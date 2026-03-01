@@ -35,6 +35,7 @@
             renderFloors(profiles);
             initElevatorMechanics();
             initLobbyWorkdir();
+            reconnectExistingSessions();
             console.log('[CodeFactory] Loaded ' + profiles.length + ' profiles');
         })
         .catch(function(err) {
@@ -537,6 +538,53 @@
             setTimeout(function() {
                 if (saveBtn) saveBtn.textContent = '[SAVE]';
             }, 2000);
+        });
+    }
+
+    // ==============================================================
+    // AUTO-RECONNECT EXISTING SESSIONS
+    // ==============================================================
+    function reconnectExistingSessions() {
+        // Wait for terminal.js to finish fetching existing sessions
+        var existing = CodeFactoryTerminals.getExistingSessions();
+        var ids = Object.keys(existing);
+
+        if (ids.length > 0) {
+            // Sessions already fetched, reconnect now
+            doReconnect(ids);
+        } else {
+            // terminal.js fetch may still be in flight — poll briefly
+            var attempts = 0;
+            var poll = setInterval(function() {
+                attempts++;
+                var ex = CodeFactoryTerminals.getExistingSessions();
+                var exIds = Object.keys(ex);
+                if (exIds.length > 0 || attempts >= 10) {
+                    clearInterval(poll);
+                    if (exIds.length > 0) doReconnect(exIds);
+                }
+            }, 200);
+        }
+    }
+
+    function doReconnect(sessionIds) {
+        console.log('[CodeFactory] Auto-reconnecting floors:', sessionIds);
+        sessionIds.forEach(function(floorId) {
+            var profile = findProfile(floorId);
+            if (profile) {
+                var resolved = Object.assign({}, profile, {
+                    cwd: profile.cwd || defaultCwd || null
+                });
+                CodeFactoryTerminals.powerOn(floorId, resolved);
+
+                // If panel was open, load it
+                if (profile.panel && getPanelState(floorId)) {
+                    var content = document.getElementById('panel-content-' + floorId);
+                    if (content && !content.hasChildNodes()) {
+                        MarkdownPanel.load(content, profile.panel);
+                    }
+                }
+            }
         });
     }
 
