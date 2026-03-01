@@ -239,9 +239,16 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
 
                                 spawned = true;
 
-                                // If a command was specified, send it to the PTY after a short delay
+                                // If a command was specified, send it to the PTY after a short delay.
+                                // For Claude profiles, prepend CLAUDE_SESSION_ID so the
+                                // state-tracker hook writes files keyed by floor ID.
                                 if let Some(ref cmd) = command {
-                                    let cmd_with_newline = format!("{}\n", cmd);
+                                    let effective_cmd = if cmd.to_lowercase().contains("claude") {
+                                        format!("CLAUDE_SESSION_ID={} {}", floor_id, cmd)
+                                    } else {
+                                        cmd.clone()
+                                    };
+                                    let cmd_with_newline = format!("{}\n", effective_cmd);
                                     let cmd_floor_id = floor_id.clone();
                                     let cmd_state = state.clone();
                                     let cmd_bytes = cmd_with_newline.into_bytes();

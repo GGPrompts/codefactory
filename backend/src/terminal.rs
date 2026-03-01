@@ -105,40 +105,6 @@ impl TerminalManager {
                 return Err(anyhow!("tmux new-session failed: {stderr}"));
             }
 
-            // Set CLAUDE_SESSION_ID in the tmux session environment so the
-            // existing TabzChrome state-tracker hook writes state files keyed
-            // by floor ID (e.g. /tmp/claude-code-state/1.json).
-            let set_env_output = Command::new("tmux")
-                .args([
-                    "set-environment",
-                    "-t",
-                    &tmux_session_name,
-                    "CLAUDE_SESSION_ID",
-                    floor_id,
-                ])
-                .output();
-
-            match set_env_output {
-                Ok(o) if !o.status.success() => {
-                    let stderr = String::from_utf8_lossy(&o.stderr);
-                    warn!(
-                        floor_id = %floor_id,
-                        stderr = %stderr,
-                        "tmux set-environment warning (non-fatal)"
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        floor_id = %floor_id,
-                        error = %e,
-                        "Failed to set CLAUDE_SESSION_ID (non-fatal)"
-                    );
-                }
-                _ => {
-                    debug!(floor_id = %floor_id, "Set CLAUDE_SESSION_ID in tmux environment");
-                }
-            }
-
             // Source the codefactory tmux config.
             debug!(floor_id = %floor_id, "Sourcing .tmux-codefactory.conf");
             let source_output = Command::new("tmux")
