@@ -119,6 +119,11 @@ async fn main() {
 async fn get_profiles(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
+    // Re-read from disk so external edits (e.g. codefactory-tui) are picked up
+    if let Ok(fresh) = config::load_config() {
+        let mut config = state.profile_config.write().unwrap();
+        *config = fresh;
+    }
     let config = state.profile_config.read().unwrap();
 
     // Build a response that includes an `id` field for frontend compatibility.
