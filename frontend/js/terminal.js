@@ -99,6 +99,7 @@ var CodeFactoryTerminals = (function() {
             fontFamily: "'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'Hack Nerd Font', 'DejaVu Sans Mono', 'Menlo', 'Consolas', monospace",
             theme: TERMINAL_THEME,
             allowTransparency: false,
+            allowProposedApi: true,
             scrollback: 0,  // tmux manages scrollback
             minimumContrastRatio: 4.5,
         });
@@ -114,12 +115,11 @@ var CodeFactoryTerminals = (function() {
         if (fitAddon) xterm.loadAddon(fitAddon);
         if (webLinksAddon) xterm.loadAddon(webLinksAddon);
 
-        // Unicode11 addon for correct box-drawing and wide character alignment
+        // Load Unicode11 addon before open (registers the provider)
         if (Unicode11AddonCtor) {
             try {
                 var unicode11Addon = new Unicode11AddonCtor();
                 xterm.loadAddon(unicode11Addon);
-                xterm.unicode.activeVersion = '11';
             } catch(e) {
                 console.warn('Unicode11Addon not available');
             }
@@ -127,7 +127,17 @@ var CodeFactoryTerminals = (function() {
 
         xterm.open(container);
 
-        // Try to load canvas addon for GPU rendering
+        // Activate Unicode 11 width tables after open() so DOM measurements are ready
+        if (unicode11Addon) {
+            xterm.unicode.activeVersion = '11';
+        }
+
+        // Disable browser right-click menu so tmux menus work
+        container.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+
+        // Canvas renderer for GPU-accelerated rendering
         if (CanvasAddonCtor) {
             try {
                 var canvasAddon = new CanvasAddonCtor();

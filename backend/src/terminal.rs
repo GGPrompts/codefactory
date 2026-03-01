@@ -87,6 +87,11 @@ impl TerminalManager {
                 cols.to_string(),
                 "-y".to_string(),
                 rows.to_string(),
+                // Pass env vars into the tmux session so spawned shells inherit them.
+                "-e".to_string(), "COLORFGBG=15;0".to_string(),
+                "-e".to_string(), "COLORTERM=truecolor".to_string(),
+                "-e".to_string(), "NCURSES_NO_UTF8_ACS=1".to_string(),
+                "-e".to_string(), "FORCE_COLOR=1".to_string(),
             ];
 
             if let Some(ref dir) = resolved_cwd {
@@ -152,6 +157,10 @@ impl TerminalManager {
         cmd.env("LC_ALL", "en_US.UTF-8");
         cmd.env("COLORTERM", "truecolor");
         cmd.env("FORCE_COLOR", "1");
+        // Force UTF-8 box drawing chars (prevents ACS misrender in xterm.js).
+        cmd.env("NCURSES_NO_UTF8_ACS", "1");
+        // Tell lipgloss/charm apps the terminal has a dark background.
+        cmd.env("COLORFGBG", "15;0");
 
         // Remove parent TMUX env var to prevent nested tmux errors.
         cmd.env_remove("TMUX");
@@ -206,14 +215,17 @@ impl TerminalManager {
         Ok(())
     }
 
-    /// Resize the PTY and tmux window for a given floor.
+    /// Resize the PTY for a given floor.
+    ///
+    /// Only the PTY is resized — tmux receives SIGWINCH and adapts automatically,
+    /// accounting for its own status bar. Explicitly calling `tmux resize-window`
+    /// would fight with tmux's layout and cause off-by-one row mismatches.
     pub fn resize(&self, floor_id: &str, cols: u16, rows: u16) -> Result<()> {
         let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
         let session = sessions
             .get_mut(floor_id)
             .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
 
-        // Resize the PTY.
         session
             .pty_master
             .resize(PtySize {
@@ -223,30 +235,6 @@ impl TerminalManager {
                 pixel_height: 0,
             })
             .context("Failed to resize PTY")?;
-
-        // Sync tmux window size.
-        let tmux_name = &session.tmux_session;
-        let output = Command::new("tmux")
-            .args([
-                "resize-window",
-                "-t",
-                tmux_name,
-                "-x",
-                &cols.to_string(),
-                "-y",
-                &rows.to_string(),
-            ])
-            .output()
-            .context("Failed to run tmux resize-window")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!(
-                floor_id = %floor_id,
-                stderr = %stderr,
-                "tmux resize-window failed (non-fatal)"
-            );
-        }
 
         session.cols = cols;
         session.rows = rows;
