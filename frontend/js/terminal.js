@@ -90,6 +90,10 @@ var CodeFactoryTerminals = (function() {
             floorSection.classList.remove('powered-off');
         }
 
+        // Force reflow after display:none → display:flex transition so
+        // xterm.open() and fitAddon.fit() get correct container dimensions.
+        void container.offsetHeight;
+
         // Clear any previous terminal content
         container.innerHTML = '';
 
@@ -161,45 +165,78 @@ var CodeFactoryTerminals = (function() {
             outputBuffer: [],
             config: config || null,
             resizeObserver: null,
+            outputGuardTimer: null,
+            inputGuardTimer: null,
         };
         terminals[floorId] = entry;
 
-        // Output guard: buffer output for first 1000ms to prevent escape sequence corruption.
-        // Concatenate all buffered chunks into one Uint8Array before writing so escape
-        // sequences that span chunk boundaries are not broken.
-        setTimeout(function() {
+        // Output guard: buffer output to prevent escape sequence corruption.
+        // Concatenate all buffered chunks into one Uint8Array before writing so
+        // escape sequences that span chunk boundaries are not broken.
+        // Timer is set here but RESET on terminal-spawned so the guard covers
+        // the actual tmux redraw period, not just the DOM setup time.
+        entry.flushOutputGuard = function() {
             if (!entry.powered) return;
             entry.outputGuarded = false;
             if (entry.outputBuffer.length > 0) {
                 var totalLen = 0;
                 entry.outputBuffer.forEach(function(chunk) { totalLen += chunk.length; });
                 var merged = new Uint8Array(totalLen);
-                var offset = 0;
+                var off = 0;
                 entry.outputBuffer.forEach(function(chunk) {
-                    merged.set(chunk, offset);
-                    offset += chunk.length;
+                    merged.set(chunk, off);
+                    off += chunk.length;
                 });
-                xterm.write(merged);
+                // Use write callback to know when xterm has finished
+                // processing ALL buffered output (and generated any
+                // auto-responses).  Only then drop the input guard.
+                xterm.write(merged, function() {
+                    // Allow a settling period for any trailing auto-responses
+                    clearTimeout(entry.inputGuardTimer);
+                    entry.inputGuardTimer = setTimeout(function() {
+                        entry.inputGuarded = false;
+                    }, 500);
+                });
+            } else {
+                clearTimeout(entry.inputGuardTimer);
+                entry.inputGuardTimer = setTimeout(function() {
+                    entry.inputGuarded = false;
+                }, 500);
             }
             entry.outputBuffer = [];
-        }, 1000);
+        };
+        entry.outputGuardTimer = setTimeout(entry.flushOutputGuard, 1000);
 
-        // Input guard: suppress input for first 1500ms to prevent stray
-        // keypresses (e.g. Enter from address bar, F5) leaking into the PTY
-        // during reconnect.
-        setTimeout(function() {
+        // Input guard: stays up until the output guard flush completes AND
+        // xterm finishes processing (see flushOutputGuard above).
+        // The timer here is a fallback for cases where terminal-spawned
+        // never arrives or the flush callback never fires.
+        entry.inputGuardTimer = setTimeout(function() {
             entry.inputGuarded = false;
-        }, 1500);
+        }, 5000);
 
-        // Handle user input
+        // Handle user input.
+        // Permanently strip terminal auto-response patterns that xterm.js
+        // generates when processing terminal output.  These must NOT be
+        // relayed to tmux because with escape-time 0 tmux misparses them
+        // as literal keypresses.  The regex catches complete responses;
+        // any data starting with ESC that doesn't look like a user key
+        // sequence is also blocked as a safety net for split chunks.
+        var autoResponseRe = new RegExp(
+            '\\x1b\\[\\?[0-9;]*c'           // DA1 response
+            + '|\\x1b\\[>[0-9;]*c'           // DA2 response
+            + '|\\x1b\\[[0-9;]*R'            // DSR cursor position report
+            + '|\\x1b\\][0-9;]+;[^\\x07]*(?:\\x07|\\x1b\\\\)'  // OSC responses (e.g. color)
+            + '|\\x1b\\[[IO]'                // Focus in/out reports
+        , 'g');
         xterm.onData(function(data) {
             if (entry.inputGuarded) {
-                console.warn('[Floor ' + floorId + '] Input suppressed during guard period:',
-                    JSON.stringify(data));
                 return;
             }
+            var filtered = data.replace(autoResponseRe, '');
+            if (filtered.length === 0) return;
             if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
-                var encoded = btoa(unescape(encodeURIComponent(data)));
+                var encoded = btoa(unescape(encodeURIComponent(filtered)));
                 entry.ws.send(JSON.stringify({
                     type: 'terminal-input',
                     data: encoded
@@ -209,16 +246,23 @@ var CodeFactoryTerminals = (function() {
 
         // ResizeObserver for container size changes
         var resizeTimeout = null;
+        entry.lastSentCols = 0;
+        entry.lastSentRows = 0;
         var resizeObserver = new ResizeObserver(function() {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(function() {
                 if (fitAddon && entry.powered) fitAddon.fit();
-                if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
-                    entry.ws.send(JSON.stringify({
-                        type: 'terminal-resize',
-                        cols: xterm.cols,
-                        rows: xterm.rows
-                    }));
+                // Only send resize if dimensions actually changed
+                if (xterm.cols !== entry.lastSentCols || xterm.rows !== entry.lastSentRows) {
+                    entry.lastSentCols = xterm.cols;
+                    entry.lastSentRows = xterm.rows;
+                    if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+                        entry.ws.send(JSON.stringify({
+                            type: 'terminal-resize',
+                            cols: xterm.cols,
+                            rows: xterm.rows
+                        }));
+                    }
                 }
             }, 150);
         });
@@ -254,6 +298,10 @@ var CodeFactoryTerminals = (function() {
             clearTimeout(reconnectTimers[floorId]);
             delete reconnectTimers[floorId];
         }
+
+        // Cancel guard timers
+        clearTimeout(entry.outputGuardTimer);
+        clearTimeout(entry.inputGuardTimer);
 
         // Tell the backend what to do before closing
         if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
@@ -360,6 +408,8 @@ var CodeFactoryTerminals = (function() {
                     var cfg = entry.config;
                     console.log('[Floor ' + floorId + '] Server confirmed connection, sending spawn' +
                         (isReconnect ? ' (reconnect)' : ''));
+                    entry.lastSentCols = entry.xterm.cols;
+                    entry.lastSentRows = entry.xterm.rows;
                     ws.send(JSON.stringify({
                         type: 'terminal-spawn',
                         cols: entry.xterm.cols,
@@ -380,9 +430,30 @@ var CodeFactoryTerminals = (function() {
                         statusEl.textContent = 'ONLINE';
                         statusEl.className = 'floor-status online';
                     }
+
+                    // Reset guards so they cover the actual data-flow period
+                    // (tmux redraw + post-spawn resize), not just DOM setup time.
+                    // Input guard stays up until the output flush completes
+                    // AND xterm finishes processing (callback in flushOutputGuard).
+                    entry.outputGuarded = true;
+                    clearTimeout(entry.outputGuardTimer);
+                    entry.outputGuardTimer = setTimeout(entry.flushOutputGuard, 1000);
+
+                    entry.inputGuarded = true;
+                    clearTimeout(entry.inputGuardTimer);
+                    // Fallback: drop guard after 5s if flush callback never fires
+                    entry.inputGuardTimer = setTimeout(function() {
+                        entry.inputGuarded = false;
+                    }, 5000);
+
+                    // Re-fit after DOM settles; only send resize if
+                    // dimensions actually changed from the spawn size.
+                    var spawnCols = msg.cols;
+                    var spawnRows = msg.rows;
                     setTimeout(function() {
                         if (entry.fitAddon && entry.powered) entry.fitAddon.fit();
-                        if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+                        if (entry.ws && entry.ws.readyState === WebSocket.OPEN &&
+                            (entry.xterm.cols !== spawnCols || entry.xterm.rows !== spawnRows)) {
                             ws.send(JSON.stringify({
                                 type: 'terminal-resize',
                                 cols: entry.xterm.cols,
@@ -558,6 +629,16 @@ var CodeFactoryTerminals = (function() {
 
     // Check initial statuses after a short delay (DOM needs to be ready)
     setTimeout(fetchInitialStatuses, 1500);
+
+    // Suppress input to all terminals during page unload / refresh so that
+    // stray keystrokes (Enter from address bar, browser shortcut keys) don't
+    // leak into focused tmux panes right before navigation.
+    window.addEventListener('beforeunload', function() {
+        Object.keys(terminals).forEach(function(id) {
+            var entry = terminals[id];
+            if (entry) entry.inputGuarded = true;
+        });
+    });
 
     /**
      * Focus the xterm instance for a given floor so it receives keyboard input.

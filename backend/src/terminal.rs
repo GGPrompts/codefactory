@@ -138,6 +138,21 @@ impl TerminalManager {
             }
         }
 
+        // Diagnostic: capture pane content before PTY attach
+        if tmux_exists {
+            if let Ok(output) = Command::new("tmux")
+                .args(["capture-pane", "-t", &tmux_session_name, "-p", "-S", "-5"])
+                .output()
+            {
+                let pane = String::from_utf8_lossy(&output.stdout);
+                warn!(
+                    floor_id = %floor_id,
+                    pane_before = %pane.trim_end(),
+                    "Pane content BEFORE attach (last 5 lines)"
+                );
+            }
+        }
+
         // Open a PTY and attach to the tmux session.
         info!(floor_id = %floor_id, "Opening PTY for tmux attach");
         let pty_system = native_pty_system();
@@ -193,6 +208,27 @@ impl TerminalManager {
         };
 
         sessions.insert(floor_id.to_string(), session);
+
+        // Diagnostic: capture pane content after PTY attach
+        if tmux_exists {
+            let diag_tmux = tmux_session_name.clone();
+            let diag_floor = floor_id.to_string();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                if let Ok(output) = Command::new("tmux")
+                    .args(["capture-pane", "-t", &diag_tmux, "-p", "-S", "-5"])
+                    .output()
+                {
+                    let pane = String::from_utf8_lossy(&output.stdout);
+                    eprintln!(
+                        "[DIAG] Floor {} pane AFTER attach (last 5 lines):\n{}",
+                        diag_floor,
+                        pane.trim_end()
+                    );
+                }
+            });
+        }
+
         info!(
             floor_id = %floor_id,
             tmux = %tmux_session_name,
@@ -209,6 +245,15 @@ impl TerminalManager {
         let session = sessions
             .get_mut(floor_id)
             .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
+
+        // Diagnostic: log all PTY writes to trace phantom input
+        warn!(
+            floor_id = %floor_id,
+            len = data.len(),
+            hex = %data.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" "),
+            text = %String::from_utf8_lossy(data),
+            "PTY write_input"
+        );
 
         session
             .pty_writer

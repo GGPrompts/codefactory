@@ -510,10 +510,13 @@ section.floor.powered-off .floor-side-panel {
    ══════════════════════════════════════════════════════════ */
 nav.elevator-panel {
     position: fixed;
-    left: 20px;
+    left: 0;
+    width: 90px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 100;
+    display: flex;
+    justify-content: center;
 }
 
 .panel-frame {
@@ -1392,6 +1395,7 @@ section.floor.powered-on .profile-edit-form {
         left: 0;
         right: 0;
         top: auto;
+        width: auto;
         transform: none;
         z-index: 100;
     }

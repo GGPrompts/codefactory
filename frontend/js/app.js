@@ -497,7 +497,9 @@
         // Create iframe
         var iframe = document.createElement('iframe');
         iframe.className = 'page-iframe';
-        iframe.src = '/api/pages/' + encodeURIComponent(profile.page);
+        iframe.src = /^https?:\/\//.test(profile.page)
+            ? profile.page
+            : '/api/pages/' + encodeURIComponent(profile.page);
         container.innerHTML = '';
         container.appendChild(iframe);
 

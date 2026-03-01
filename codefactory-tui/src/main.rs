@@ -524,59 +524,55 @@ impl App {
                         self.input = self.pending_profile.command.clone().unwrap_or_default();
                         self.mode = Mode::EditPrompt(EditField::Command);
                         self.status =
-                            "Edit command (Enter to keep, type to change):".to_string();
+                            "Edit command (clear to remove, or type new value):".to_string();
                     }
                     EditField::Command => {
                         self.pending_profile.command = if self.input.trim().is_empty() {
-                            self.config.profiles[idx].command.clone()
+                            None
                         } else {
                             Some(self.input.trim().to_string())
                         };
                         self.input = self.pending_profile.cwd.clone().unwrap_or_default();
                         self.mode = Mode::EditPrompt(EditField::Cwd);
                         self.status =
-                            "Edit cwd (blank = inherit global cwd, Enter to keep):".to_string();
+                            "Edit cwd (clear to remove, or type new value):".to_string();
                     }
                     EditField::Cwd => {
                         self.pending_profile.cwd = if self.input.trim().is_empty() {
-                            self.config.profiles[idx].cwd.clone()
+                            None
                         } else {
                             Some(self.input.trim().to_string())
                         };
                         self.input = self.pending_profile.icon.clone().unwrap_or_default();
                         self.mode = Mode::EditPrompt(EditField::Icon);
                         self.status =
-                            "Edit icon (Enter to keep, type to change):".to_string();
+                            "Edit icon (clear to remove, or type new value):".to_string();
                     }
                     EditField::Icon => {
                         self.pending_profile.icon = if self.input.trim().is_empty() {
-                            self.config.profiles[idx].icon.clone()
+                            None
                         } else {
                             Some(self.input.trim().to_string())
                         };
                         self.input = self.pending_profile.panel.clone().unwrap_or_default();
                         self.mode = Mode::EditPrompt(EditField::Panel);
                         self.status =
-                            "Edit panel filename (Enter to keep, type to change, space to clear):".to_string();
+                            "Edit panel filename (clear to remove, or type new value):".to_string();
                     }
                     EditField::Panel => {
-                        self.pending_profile.panel = if self.input.trim() == "-" {
+                        self.pending_profile.panel = if self.input.trim().is_empty() {
                             None
-                        } else if self.input.trim().is_empty() {
-                            self.config.profiles[idx].panel.clone()
                         } else {
                             Some(self.input.trim().to_string())
                         };
                         self.input = self.pending_profile.page.clone().unwrap_or_default();
                         self.mode = Mode::EditPrompt(EditField::Page);
                         self.status =
-                            "Edit page path (Enter to keep, type to change, - to clear):".to_string();
+                            "Edit page path (clear to remove, or type new value):".to_string();
                     }
                     EditField::Page => {
-                        self.pending_profile.page = if self.input.trim() == "-" {
+                        self.pending_profile.page = if self.input.trim().is_empty() {
                             None
-                        } else if self.input.trim().is_empty() {
-                            self.config.profiles[idx].page.clone()
                         } else {
                             Some(self.input.trim().to_string())
                         };
