@@ -934,6 +934,7 @@
                 var newRank = floorRank[bestFloor] || 0;
 
                 currentFloor = bestFloor;
+                var wasJump = !!jumpTarget;
                 var arrived = !jumpTarget || bestFloor === jumpTarget;
                 if (arrived && jumpTarget) {
                     jumpTarget = null;
@@ -942,6 +943,13 @@
 
                 if (arrived) {
                     playDing();
+                    // Focus terminal only on explicit jump (button/keyboard), not manual scroll
+                    if (wasJump) {
+                        var floorNum = bestFloor.replace('floor-', '');
+                        if (floorNum !== 'lobby') {
+                            CodeFactoryTerminals.focus(floorNum);
+                        }
+                    }
                 }
 
                 indicator.classList.add('flash');
