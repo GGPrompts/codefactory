@@ -1053,14 +1053,28 @@ section.floor.powered-on .profile-edit-form {
     box-shadow: 0 0 16px rgba(45, 139, 71, 0.3);
 }
 
-.power-off-btn {
+.detach-btn {
+    border-color: var(--hazard-yellow);
+    color: var(--hazard-yellow);
+    font-size: 0.75rem;
+    padding: 6px 14px;
+}
+
+.detach-btn:hover {
+    border-color: var(--hazard-yellow);
+    color: var(--hazard-yellow);
+    background: rgba(255, 184, 0, 0.15);
+    box-shadow: 0 0 12px rgba(255, 184, 0, 0.3);
+}
+
+.kill-btn {
     border-color: var(--caution-red);
     color: var(--caution-red);
     font-size: 0.75rem;
     padding: 6px 14px;
 }
 
-.power-off-btn:hover {
+.kill-btn:hover {
     border-color: var(--caution-red);
     color: var(--caution-red);
     background: rgba(212, 44, 44, 0.15);
@@ -1082,6 +1096,7 @@ section.floor.powered-on .profile-edit-form {
 .power-off-bar {
     display: flex;
     justify-content: flex-end;
+    gap: 8px;
     width: calc(100vw - 160px);
     max-width: 1400px;
     padding: 8px 0;

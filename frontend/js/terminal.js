@@ -226,11 +226,11 @@ var CodeFactoryTerminals = (function() {
     }
 
     /**
-     * Power OFF a floor: disconnect WebSocket, destroy xterm, show offline card.
-     * The tmux session is preserved on the backend.
+     * Tear down the frontend side of a floor (shared by detach and kill).
      * @param {string} floorId
+     * @param {string} wsMessage - WebSocket message type to send before closing
      */
-    function powerOff(floorId) {
+    function teardown(floorId, wsMessage) {
         var entry = terminals[floorId];
         if (!entry) return;
 
@@ -240,6 +240,11 @@ var CodeFactoryTerminals = (function() {
         if (reconnectTimers[floorId]) {
             clearTimeout(reconnectTimers[floorId]);
             delete reconnectTimers[floorId];
+        }
+
+        // Tell the backend what to do before closing
+        if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+            entry.ws.send(JSON.stringify({ type: wsMessage }));
         }
 
         // Close WebSocket without triggering reconnect
@@ -286,6 +291,22 @@ var CodeFactoryTerminals = (function() {
             statusEl.textContent = 'OFFLINE';
             statusEl.className = 'floor-status offline';
         }
+    }
+
+    /**
+     * Detach from a floor: drop the PTY connection but preserve the tmux session.
+     * Power On will reattach to the same session.
+     */
+    function detach(floorId) {
+        teardown(floorId, 'terminal-disconnect');
+    }
+
+    /**
+     * Kill a floor: destroy the PTY and the tmux session.
+     * Power On will create a fresh session.
+     */
+    function kill(floorId) {
+        teardown(floorId, 'terminal-close');
     }
 
     function connectWebSocket(floorId) {
@@ -375,8 +396,8 @@ var CodeFactoryTerminals = (function() {
                     break;
 
                 case 'terminal-closed':
-                    console.log('[Floor ' + floorId + '] Terminal exited, powering off');
-                    powerOff(floorId);
+                    console.log('[Floor ' + floorId + '] Terminal exited');
+                    teardown(floorId, 'terminal-disconnect');
                     break;
 
                 case 'terminal-error':
@@ -510,10 +531,23 @@ var CodeFactoryTerminals = (function() {
     // Check initial statuses after a short delay (DOM needs to be ready)
     setTimeout(fetchInitialStatuses, 1500);
 
+    /**
+     * Focus the xterm instance for a given floor so it receives keyboard input.
+     * @param {string} floorId
+     */
+    function focusTerminal(floorId) {
+        var entry = terminals[floorId];
+        if (entry && entry.xterm) {
+            entry.xterm.focus();
+        }
+    }
+
     // Public API
     return {
         powerOn: powerOn,
-        powerOff: powerOff,
+        detach: detach,
+        kill: kill,
+        focus: focusTerminal,
         getTerminal: function(floorId) { return terminals[floorId]; },
         isInitialized: function(floorId) { return !!terminals[floorId]; },
         isPowered: function(floorId) { return !!(terminals[floorId] && terminals[floorId].powered); },

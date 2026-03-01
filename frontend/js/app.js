@@ -182,9 +182,10 @@
                         '<div class="terminal-container" id="terminal-' + floorId + '"></div>' +
                         sidePanelHTML +
                     '</div>' +
-                    '<!-- Power off button (shown when powered on) -->' +
+                    '<!-- Detach / Kill buttons (shown when powered on) -->' +
                     '<div class="power-off-bar" id="power-off-bar-' + floorId + '">' +
-                        '<button class="power-btn power-off-btn" data-floor="' + floorId + '">[POWER OFF]</button>' +
+                        '<button class="power-btn detach-btn" data-floor="' + floorId + '">[DETACH]</button>' +
+                        '<button class="power-btn kill-btn" data-floor="' + floorId + '">[KILL]</button>' +
                     '</div>' +
                 '</div>' +
             '</section>';
@@ -246,6 +247,8 @@
                         cwd: profile.cwd || defaultCwd || null
                     });
                     CodeFactoryTerminals.powerOn(floorId, resolved);
+                    // Focus terminal after it connects
+                    setTimeout(function() { CodeFactoryTerminals.focus(floorId); }, 200);
                     // If panel is configured and was open, load its content
                     if (profile.panel && getPanelState(floorId)) {
                         var content = document.getElementById('panel-content-' + floorId);
@@ -257,12 +260,21 @@
             });
         });
 
-        // Power OFF buttons
-        document.querySelectorAll('.power-off-btn').forEach(function(btn) {
+        // Detach buttons (disconnect PTY, preserve tmux session)
+        document.querySelectorAll('.detach-btn').forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
-                CodeFactoryTerminals.powerOff(floorId);
+                CodeFactoryTerminals.detach(floorId);
+            });
+        });
+
+        // Kill buttons (disconnect PTY and destroy tmux session)
+        document.querySelectorAll('.kill-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var floorId = btn.dataset.floor;
+                CodeFactoryTerminals.kill(floorId);
             });
         });
 
@@ -838,7 +850,14 @@
                 }
                 indicator.textContent = floorLabels[bestFloor] || '?';
 
-                if (arrived) playDing();
+                if (arrived) {
+                    playDing();
+                    // Auto-focus the terminal on the arrived floor
+                    var floorNum = bestFloor.replace('floor-', '');
+                    if (floorNum !== 'lobby') {
+                        CodeFactoryTerminals.focus(floorNum);
+                    }
+                }
 
                 indicator.classList.add('flash');
                 setTimeout(function () {
