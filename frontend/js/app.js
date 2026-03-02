@@ -613,24 +613,44 @@
 
     /**
      * Apply swipe panel config for the given floor.
-     * Reads profile.panels (a map of edge -> identifier) and registers
-     * iframe content in each configured SwipePanels slot.
+     * On mobile: loads the floor's markdown panel into the left swipe edge.
+     * Also handles profile.panels (map of edge -> identifier) for iframe panels.
      */
     function applyFloorPanels(floorId) {
         clearFloorPanels();
 
         var profile = findProfile(floorId);
-        if (!profile || !profile.panels) return;
+        if (!profile) return;
 
-        var panelConfig = profile.panels;
-        PANEL_EDGES.forEach(function (edge) {
-            if (panelConfig[edge]) {
-                var url = resolvePanelUrl(panelConfig[edge]);
-                var iframe = buildPanelIframe(url);
-                SwipePanels.registerPanel(edge, iframe);
-                activeFloorPanelEdges.push(edge);
-            }
-        });
+        // On mobile, route the markdown side panel to the left swipe edge
+        var isMobile = mobileMediaQuery.matches;
+        if (isMobile && profile.panel) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'swipe-markdown-panel';
+            var header = document.createElement('div');
+            header.className = 'swipe-markdown-header';
+            header.textContent = 'REFERENCE';
+            wrapper.appendChild(header);
+            var content = document.createElement('div');
+            content.className = 'swipe-markdown-content industrial-prose';
+            wrapper.appendChild(content);
+            SwipePanels.registerPanel('left', wrapper);
+            activeFloorPanelEdges.push('left');
+            MarkdownPanel.load(content, profile.panel);
+        }
+
+        // Apply profile.panels config (iframe-based panels)
+        if (profile.panels) {
+            var panelConfig = profile.panels;
+            PANEL_EDGES.forEach(function (edge) {
+                if (panelConfig[edge] && activeFloorPanelEdges.indexOf(edge) === -1) {
+                    var url = resolvePanelUrl(panelConfig[edge]);
+                    var iframe = buildPanelIframe(url);
+                    SwipePanels.registerPanel(edge, iframe);
+                    activeFloorPanelEdges.push(edge);
+                }
+            });
+        }
     }
 
     // ==============================================================

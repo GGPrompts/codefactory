@@ -1519,6 +1519,34 @@ section.floor.powered-on .profile-edit-form {
     min-height: 100%;
 }
 
+/* Markdown reference panel in left swipe edge */
+.swipe-markdown-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.swipe-markdown-header {
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--steel-light);
+    text-align: center;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--steel-mid);
+    flex-shrink: 0;
+}
+
+.swipe-markdown-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
 .mobile-elevator-header {
     font-family: var(--font-heading);
     font-size: 0.7rem;
