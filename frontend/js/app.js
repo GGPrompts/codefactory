@@ -175,7 +175,7 @@
 
         // Side panel div (always present for terminal floors -- used by .md panel and/or terminal text view)
         var savedWidth = getPanelWidth(floorId);
-        var widthStyle = savedWidth ? ' style="width:' + savedWidth + 'px"' : '';
+        var widthStyle = (panelOpen && savedWidth) ? ' style="width:' + savedWidth + 'px"' : '';
         var sidePanelHTML =
             '<div class="floor-side-panel' + (panelOpen ? '' : ' collapsed') + '" id="side-panel-' + floorId + '"' + widthStyle + '>' +
                 '<div class="panel-resize-handle" data-floor="' + floorId + '"></div>' +
