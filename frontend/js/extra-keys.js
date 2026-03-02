@@ -18,6 +18,8 @@ var ExtraKeys = (function () {
         { label: '\u2190', type: 'sequence', value: '\x1b[D' },
         { label: '\u2192', type: 'sequence', value: '\x1b[C' },
         { label: 'PGUP', type: 'sequence', value: '\x1b[5~' },
+        { label: 'C-B',  type: 'sequence', value: '\x02' },
+        { label: 'RET',  type: 'text',     value: '\r' },
     ];
 
     var ROW2 = [
