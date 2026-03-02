@@ -603,8 +603,7 @@ nav.elevator-panel {
     align-items: center;
     justify-content: center;
     position: relative;
-    overflow: hidden;
-    text-overflow: clip;
+    overflow: visible;
     padding: 0;
 }
 
@@ -633,9 +632,9 @@ nav.elevator-panel {
 .floor-btn::after {
     content: attr(data-label);
     position: absolute;
-    right: calc(100% + 10px);
+    left: calc(100% + 10px);
     top: 50%;
-    transform: translateY(-50%) translateX(6px);
+    transform: translateY(-50%) translateX(-6px);
     font-family: var(--font-heading);
     font-size: 0.75rem;
     font-weight: 500;
@@ -916,6 +915,340 @@ nav.elevator-panel {
     letter-spacing: 0.15em;
     color: rgba(232, 228, 220, 0.35);
     text-align: left;
+}
+
+/* ── Lobby Profile Management ── */
+.lobby-profiles {
+    width: 100%;
+    max-width: 580px;
+    margin: 24px 0 20px;
+    padding: 16px 18px;
+    border: 2px solid var(--steel-mid);
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent 0, transparent 2px,
+            rgba(74, 84, 89, 0.04) 2px, rgba(74, 84, 89, 0.04) 4px
+        ),
+        linear-gradient(180deg, var(--steel-dark) 0%, var(--iron-black) 100%);
+}
+
+.lobby-profiles .workdir-label {
+    margin-bottom: 12px;
+}
+
+.lobby-profile-list {
+    max-height: 60vh;
+    overflow-y: auto;
+    scrollbar-color: var(--steel-mid) var(--iron-black);
+    scrollbar-width: thin;
+}
+
+.lobby-profile-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.lobby-profile-list::-webkit-scrollbar-track {
+    background: var(--iron-black);
+    border-left: 1px solid var(--steel-mid);
+}
+
+.lobby-profile-list::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--steel-light) 0%, var(--steel-mid) 100%);
+    border: 1px solid var(--steel-dark);
+}
+
+.lobby-profile-list::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--brushed-steel) 0%, var(--steel-light) 100%);
+}
+
+.lobby-profile-item {
+    border-bottom: 1px solid rgba(74, 84, 89, 0.4);
+}
+
+.lobby-profile-item:last-child {
+    border-bottom: none;
+}
+
+.lobby-profile-item.disabled {
+    opacity: 0.45;
+}
+
+.lobby-profile-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.lobby-profile-summary:hover {
+    background: rgba(255, 184, 0, 0.06);
+}
+
+.lobby-profile-icon {
+    width: 36px;
+    min-width: 36px;
+    font-size: 1.5rem;
+    text-align: center;
+    line-height: 1;
+}
+
+.lobby-profile-name {
+    flex: 1;
+    font-family: var(--font-heading);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--dirty-white);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lobby-profile-type {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+    padding: 1px 5px;
+    border: 1px solid;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.lobby-profile-type.type-trm {
+    color: var(--brushed-steel);
+    border-color: var(--steel-mid);
+}
+
+.lobby-profile-type.type-page {
+    color: var(--rust-accent);
+    border-color: var(--rust-accent);
+}
+
+.lobby-profile-cmd {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--steel-light);
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lobby-profile-status {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    border: 1px solid;
+    text-transform: uppercase;
+}
+
+.lobby-profile-status.enabled {
+    color: var(--safety-green);
+    border-color: var(--safety-green);
+}
+
+.lobby-profile-status.disabled-badge {
+    color: var(--caution-red);
+    border-color: var(--caution-red);
+}
+
+.lobby-move-btn {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--brushed-steel);
+    background: transparent;
+    border: 1px solid var(--steel-mid);
+    min-width: 32px;
+    min-height: 32px;
+    padding: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    line-height: 1;
+}
+
+.lobby-move-btn:hover {
+    color: var(--hazard-yellow);
+    border-color: var(--hazard-yellow);
+    background: rgba(255, 184, 0, 0.08);
+}
+
+.lobby-move-btn:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.lobby-move-btn:disabled:hover {
+    color: var(--brushed-steel);
+    border-color: var(--steel-mid);
+    background: transparent;
+}
+
+.lobby-profile-edit {
+    padding: 12px 8px;
+    background: rgba(26, 29, 31, 0.6);
+    display: none;
+}
+
+.lobby-profile-edit .edit-field {
+    margin-bottom: 10px;
+}
+
+.lobby-profile-edit .edit-field label {
+    display: block;
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--brushed-steel);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.lobby-profile-edit .edit-input {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--dirty-white);
+    background: var(--iron-black);
+    border: 1px solid var(--steel-mid);
+    padding: 6px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.lobby-profile-edit .edit-input:focus {
+    border-color: var(--hazard-yellow);
+}
+
+.lobby-profile-edit .edit-input.input-error {
+    border-color: var(--caution-red);
+}
+
+.lobby-profile-edit .label-hint {
+    font-weight: 400;
+    font-size: 0.6rem;
+    color: var(--steel-light);
+    letter-spacing: 0.05em;
+}
+
+.lobby-edit-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.lobby-edit-actions button {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    min-height: 32px;
+}
+
+.lobby-save-btn {
+    color: var(--safety-green);
+    background: transparent;
+    border: 1px solid var(--safety-green);
+}
+
+.lobby-save-btn:hover {
+    background: rgba(45, 139, 71, 0.15);
+}
+
+.lobby-cancel-btn {
+    color: var(--brushed-steel);
+    background: transparent;
+    border: 1px solid var(--steel-mid);
+}
+
+.lobby-cancel-btn:hover {
+    background: rgba(74, 84, 89, 0.2);
+}
+
+.lobby-toggle-btn {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--brushed-steel);
+    background: transparent;
+    border: 1px solid var(--steel-mid);
+    padding: 4px 10px;
+    cursor: pointer;
+    min-height: 32px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.lobby-toggle-btn:hover {
+    color: var(--hazard-yellow);
+    border-color: var(--hazard-yellow);
+    background: rgba(255, 184, 0, 0.08);
+}
+
+.lobby-delete-btn {
+    color: var(--caution-red);
+    background: transparent;
+    border: 1px solid var(--caution-red);
+}
+
+.lobby-delete-btn:hover {
+    background: rgba(212, 44, 44, 0.15);
+}
+
+.lobby-add-btn {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    color: var(--hazard-yellow);
+    background: transparent;
+    border: 1px dashed var(--hazard-yellow);
+    padding: 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-style 0.15s;
+}
+
+.lobby-add-btn:hover {
+    background: rgba(255, 184, 0, 0.08);
+    border-style: solid;
+}
+
+@media (max-width: 768px) {
+    .lobby-profiles {
+        max-width: 100%;
+        padding: 12px;
+    }
+
+    .lobby-move-btn {
+        min-width: 40px;
+        min-height: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .lobby-profile-cmd {
+        display: none;
+    }
+
+    .lobby-profile-summary {
+        gap: 6px;
+        padding: 8px 4px;
+    }
+
+    .lobby-profile-icon {
+        width: 28px;
+        min-width: 28px;
+        font-size: 1.2rem;
+    }
 }
 
 .lobby-desc {

@@ -23,6 +23,7 @@
     var buttons = [];  // NodeList -> array of .floor-btn elements
     var floorLabels = {};  // id -> label string
     var floorRank = {};    // id -> numeric rank
+    var viewObserver = null; // IntersectionObserver, created in initElevatorMechanics
 
     // ==============================================================
     // FETCH PROFILES & RENDER
@@ -36,6 +37,7 @@
             initElevatorMechanics();
             setupMobileElevator();
             initLobbyWorkdir();
+            initLobbySettings();
             reconnectExistingSessions();
             console.log('[CodeFactory] Loaded ' + profiles.length + ' profiles');
         })
@@ -89,8 +91,22 @@
         // Rebuild references
         rebuildDOMReferences(enabledProfiles);
 
+        // Re-observe new floor elements for entrance animations
+        if (viewObserver) {
+            floors.forEach(function(floor) {
+                viewObserver.observe(floor);
+            });
+        }
+
         // Attach floor event listeners (power on/off, edit)
         attachFloorListeners(enabledProfiles);
+
+        // Rebuild mobile bottom bar to reflect new floors
+        if (mobileBottomBar) {
+            mobileBottomBar.remove();
+            mobileBottomBar = null;
+        }
+        setupMobileElevator();
 
         // Auto-load page floors
         autoLoadPageFloors(enabledProfiles);
@@ -108,6 +124,19 @@
     function setPanelState(floorId, open) {
         try {
             localStorage.setItem('cf-panel-' + floorId, open ? 'open' : 'closed');
+        } catch (e) { /* ignore */ }
+    }
+
+    function getPanelWidth(floorId) {
+        try {
+            var w = parseInt(localStorage.getItem('cf-panel-width-' + floorId), 10);
+            return w > 0 ? w : 0;
+        } catch (e) { return 0; }
+    }
+
+    function setPanelWidth(floorId, width) {
+        try {
+            localStorage.setItem('cf-panel-width-' + floorId, String(width));
         } catch (e) { /* ignore */ }
     }
 
@@ -134,8 +163,10 @@
             : '';
 
         // Side panel div (only when panel is configured)
+        var savedWidth = hasPanel ? getPanelWidth(floorId) : 0;
+        var widthStyle = savedWidth ? ' style="width:' + savedWidth + 'px"' : '';
         var sidePanelHTML = hasPanel
-            ? '<div class="floor-side-panel' + (panelOpen ? '' : ' collapsed') + '" id="side-panel-' + floorId + '">' +
+            ? '<div class="floor-side-panel' + (panelOpen ? '' : ' collapsed') + '" id="side-panel-' + floorId + '"' + widthStyle + '>' +
                   '<div class="panel-resize-handle" data-floor="' + floorId + '"></div>' +
                   '<div class="panel-content" id="panel-content-' + floorId + '"></div>' +
               '</div>'
@@ -252,7 +283,7 @@
                 '</div>' +
                 '<div class="edit-field">' +
                     '<label>ICON</label>' +
-                    '<input type="text" class="edit-input edit-input-icon" id="edit-icon-' + floorId + '" value="' + escapeAttr(icon) + '" placeholder="emoji or leave blank">' +
+                    '<input type="text" class="edit-input edit-input-icon" id="edit-icon-' + floorId + '" value="' + escapeAttr(icon) + '" placeholder="emoji">' +
                 '</div>' +
                 '<div class="edit-field">' +
                     '<label>PANEL <span class="label-hint">(markdown filename, e.g. claude.md)</span></label>' +
@@ -491,6 +522,7 @@
             document.removeEventListener('mousemove', onDrag);
             document.removeEventListener('mouseup', onStop);
             handle.classList.remove('dragging');
+            setPanelWidth(floorId, panel.offsetWidth);
             refitTerminal(floorId);
         }
     }
@@ -1038,6 +1070,253 @@
     }
 
     // ==============================================================
+    // LOBBY PROFILE MANAGEMENT
+    // ==============================================================
+    function buildLobbyProfileCardHTML(profile, index) {
+        var name = profile.name || 'Untitled';
+        var icon = profile.icon || '';
+        var command = profile.command || '';
+        var cwd = profile.cwd || '';
+        var panel = profile.panel || '';
+        var page = profile.page || '';
+        var enabled = profile.enabled !== false;
+        var isFirst = index === 0;
+        var isLast = index === profiles.length - 1;
+
+        var statusClass = enabled ? 'enabled' : 'disabled-badge';
+        var statusText = enabled ? 'ON' : 'OFF';
+        var disabledClass = enabled ? '' : ' disabled';
+
+        return '' +
+            '<div class="lobby-profile-item' + disabledClass + '" data-index="' + index + '">' +
+                '<div class="lobby-profile-summary" data-index="' + index + '">' +
+                    '<span class="lobby-profile-icon">' + escapeHtml(icon || String(index + 1)) + '</span>' +
+                    '<span class="lobby-profile-name">' + escapeHtml(name) + '</span>' +
+                    '<span class="lobby-profile-type ' + (page ? 'type-page' : 'type-trm') + '">' + (page ? 'PAGE' : 'TRM') + '</span>' +
+                    '<span class="lobby-profile-cmd">' + escapeHtml(command || '—') + '</span>' +
+                    '<span class="lobby-profile-status ' + statusClass + '">' + statusText + '</span>' +
+                    '<button class="lobby-move-btn" data-action="move-up" data-index="' + index + '"' + (isFirst ? ' disabled' : '') + '>&#9650;</button>' +
+                    '<button class="lobby-move-btn" data-action="move-down" data-index="' + index + '"' + (isLast ? ' disabled' : '') + '>&#9660;</button>' +
+                '</div>' +
+                '<div class="lobby-profile-edit" data-index="' + index + '">' +
+                    '<div class="edit-field">' +
+                        '<label>NAME</label>' +
+                        '<input type="text" class="edit-input lobby-edit-name" value="' + escapeAttr(name) + '">' +
+                    '</div>' +
+                    '<div class="edit-field">' +
+                        '<label>COMMAND <span class="label-hint">(blank for page floors)</span></label>' +
+                        '<input type="text" class="edit-input lobby-edit-command" value="' + escapeAttr(command) + '">' +
+                    '</div>' +
+                    '<div class="edit-field">' +
+                        '<label>CWD <span class="label-hint">(blank = inherit global)</span></label>' +
+                        '<input type="text" class="edit-input lobby-edit-cwd" value="' + escapeAttr(cwd) + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
+                    '</div>' +
+                    '<div class="edit-field">' +
+                        '<label>ICON</label>' +
+                        '<input type="text" class="edit-input edit-input-icon lobby-edit-icon" value="' + escapeAttr(icon) + '" placeholder="emoji">' +
+                    '</div>' +
+                    '<div class="edit-field">' +
+                        '<label>PANEL <span class="label-hint">(markdown filename)</span></label>' +
+                        '<input type="text" class="edit-input lobby-edit-panel" value="' + escapeAttr(panel) + '" placeholder="(optional)">' +
+                    '</div>' +
+                    '<div class="edit-field">' +
+                        '<label>PAGE <span class="label-hint">(HTML path — sets floor as page type)</span></label>' +
+                        '<input type="text" class="edit-input lobby-edit-page" value="' + escapeAttr(page) + '" placeholder="(optional)">' +
+                    '</div>' +
+                    '<div class="lobby-edit-actions">' +
+                        '<button class="lobby-save-btn" data-action="save" data-index="' + index + '">[SAVE]</button>' +
+                        '<button class="lobby-cancel-btn" data-action="cancel" data-index="' + index + '">[CANCEL]</button>' +
+                        '<button class="lobby-toggle-btn" data-action="toggle" data-index="' + index + '">[' + (enabled ? 'DISABLE' : 'ENABLE') + ']</button>' +
+                        '<button class="lobby-delete-btn" data-action="delete" data-index="' + index + '">[DELETE]</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+    }
+
+    function renderLobbyProfiles() {
+        var container = document.getElementById('lobby-profile-list');
+        if (!container) return;
+
+        var html = '';
+        for (var i = profiles.length - 1; i >= 0; i--) {
+            html += buildLobbyProfileCardHTML(profiles[i], i);
+        }
+        container.innerHTML = html;
+    }
+
+    function serializeProfiles() {
+        return profiles.map(function(p) {
+            return {
+                name: p.name,
+                command: p.command || null,
+                cwd: (p.cwd && p.cwd !== defaultCwd) ? p.cwd : null,
+                icon: p.icon || null,
+                panel: p.panel || null,
+                page: p.page || null,
+                enabled: p.enabled !== false,
+            };
+        });
+    }
+
+    function saveLobbyProfiles(onSuccess) {
+        var body = JSON.stringify({
+            default_cwd: defaultCwd,
+            profiles: serializeProfiles(),
+        });
+
+        fetch('/api/profiles', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: body,
+        })
+        .then(function(res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
+        .then(function() {
+            renderLobbyProfiles();
+            renderFloors(profiles);
+            if (onSuccess) onSuccess();
+            console.log('[CodeFactory] Lobby profiles saved');
+        })
+        .catch(function(err) {
+            console.error('[CodeFactory] Failed to save lobby profiles:', err);
+        });
+    }
+
+    function initLobbySettings() {
+        var container = document.getElementById('lobby-profiles');
+        var addBtn = document.getElementById('lobby-add-btn');
+        if (!container) return;
+
+        renderLobbyProfiles();
+
+        // Event delegation on the profile list
+        container.addEventListener('click', function(e) {
+            var target = e.target;
+
+            // Move up/down buttons
+            if (target.classList.contains('lobby-move-btn')) {
+                e.stopPropagation();
+                var action = target.dataset.action;
+                var idx = parseInt(target.dataset.index, 10);
+                if (action === 'move-up' && idx > 0) {
+                    var tmp = profiles[idx];
+                    profiles[idx] = profiles[idx - 1];
+                    profiles[idx - 1] = tmp;
+                    saveLobbyProfiles();
+                } else if (action === 'move-down' && idx < profiles.length - 1) {
+                    var tmp2 = profiles[idx];
+                    profiles[idx] = profiles[idx + 1];
+                    profiles[idx + 1] = tmp2;
+                    saveLobbyProfiles();
+                }
+                return;
+            }
+
+            // Edit form action buttons
+            var actionBtn = target.closest('[data-action]');
+            if (actionBtn && actionBtn.dataset.action !== 'move-up' && actionBtn.dataset.action !== 'move-down') {
+                e.stopPropagation();
+                var btnAction = actionBtn.dataset.action;
+                var btnIdx = parseInt(actionBtn.dataset.index, 10);
+
+                if (btnAction === 'save') {
+                    var editDiv = container.querySelector('.lobby-profile-edit[data-index="' + btnIdx + '"]');
+                    if (!editDiv) return;
+
+                    var newName = editDiv.querySelector('.lobby-edit-name').value.trim();
+                    if (!newName) {
+                        editDiv.querySelector('.lobby-edit-name').classList.add('input-error');
+                        setTimeout(function() {
+                            editDiv.querySelector('.lobby-edit-name').classList.remove('input-error');
+                        }, 1000);
+                        return;
+                    }
+
+                    var newCmd = editDiv.querySelector('.lobby-edit-command').value.trim();
+                    var newCwd = editDiv.querySelector('.lobby-edit-cwd').value.trim();
+                    var newIcon = editDiv.querySelector('.lobby-edit-icon').value.trim();
+                    var newPanel = editDiv.querySelector('.lobby-edit-panel').value.trim();
+                    var newPage = editDiv.querySelector('.lobby-edit-page').value.trim();
+
+                    profiles[btnIdx].name = newName;
+                    profiles[btnIdx].command = newCmd || null;
+                    profiles[btnIdx].cwd = (newCwd && newCwd !== defaultCwd) ? newCwd : null;
+                    profiles[btnIdx].icon = newIcon || null;
+                    profiles[btnIdx].panel = newPanel || null;
+                    profiles[btnIdx].page = newPage || null;
+
+                    actionBtn.textContent = '[SAVING...]';
+                    saveLobbyProfiles(function() {
+                        // Collapse form after save
+                        editDiv.style.display = 'none';
+                    });
+
+                } else if (btnAction === 'cancel') {
+                    var editForm = container.querySelector('.lobby-profile-edit[data-index="' + btnIdx + '"]');
+                    if (editForm) editForm.style.display = 'none';
+
+                } else if (btnAction === 'toggle') {
+                    var wasEnabled = profiles[btnIdx].enabled !== false;
+                    profiles[btnIdx].enabled = !wasEnabled;
+                    saveLobbyProfiles();
+
+                } else if (btnAction === 'delete') {
+                    var profileName = profiles[btnIdx].name || 'this profile';
+                    if (!confirm('Delete "' + profileName + '"? This cannot be undone.')) return;
+                    profiles.splice(btnIdx, 1);
+                    saveLobbyProfiles();
+                }
+                return;
+            }
+
+            // Click on summary row to expand/collapse edit form
+            var summary = target.closest('.lobby-profile-summary');
+            if (summary) {
+                var summaryIdx = parseInt(summary.dataset.index, 10);
+                var editPanel = container.querySelector('.lobby-profile-edit[data-index="' + summaryIdx + '"]');
+                if (editPanel) {
+                    var isVisible = editPanel.style.display === 'block';
+                    // Collapse all others first
+                    container.querySelectorAll('.lobby-profile-edit').forEach(function(el) {
+                        el.style.display = 'none';
+                    });
+                    if (!isVisible) {
+                        editPanel.style.display = 'block';
+                    }
+                }
+            }
+        });
+
+        // Add profile button
+        if (addBtn) {
+            addBtn.addEventListener('click', function() {
+                profiles.push({
+                    name: 'New Profile',
+                    command: null,
+                    cwd: null,
+                    icon: null,
+                    panel: null,
+                    page: null,
+                    enabled: true,
+                });
+                saveLobbyProfiles(function() {
+                    // Auto-expand the new profile's edit form
+                    var lastEdit = container.querySelector('.lobby-profile-edit[data-index="' + (profiles.length - 1) + '"]');
+                    if (lastEdit) {
+                        lastEdit.style.display = 'block';
+                        var nameInput = lastEdit.querySelector('.lobby-edit-name');
+                        if (nameInput) {
+                            setTimeout(function() { nameInput.focus(); nameInput.select(); }, 50);
+                        }
+                    }
+                });
+            });
+        }
+    }
+
+    // ==============================================================
     // ELEVATOR SOUNDS (Web Audio API)
     // ==============================================================
     var audioCtx = null;
@@ -1235,7 +1514,7 @@
         });
 
         // Intersection observer for entrance animations
-        var viewObserver = new IntersectionObserver(function (entries) {
+        viewObserver = new IntersectionObserver(function (entries) {
             entries.forEach(function (entry) {
                 if (entry.isIntersecting) {
                     entry.target.classList.add('in-view');
@@ -1340,17 +1619,17 @@
             }
         }
 
-        // Button clicks (smooth scroll to target floor)
-        buttons.forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                playClick();
-                var targetId = btn.dataset.target;
-                var target = document.getElementById(targetId);
-                if (target) {
-                    jumpTarget = targetId;
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            });
+        // Button clicks — delegated so they survive DOM rebuilds
+        document.querySelector('.panel-frame').addEventListener('click', function (e) {
+            var btn = e.target.closest('.floor-btn');
+            if (!btn) return;
+            playClick();
+            var targetId = btn.dataset.target;
+            var target = document.getElementById(targetId);
+            if (target) {
+                jumpTarget = targetId;
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         });
 
         // Keyboard navigation (1-9 adapts to floor count, L for lobby)
