@@ -553,6 +553,8 @@
         if (isCollapsed) {
             // Expand panel
             panel.classList.remove('collapsed');
+            var savedWidth = getPanelWidth(floorId);
+            if (savedWidth) panel.style.width = savedWidth + 'px';
             btn.classList.add('panel-active');
             setPanelState(floorId, true);
 
@@ -572,6 +574,7 @@
         } else {
             // Collapse panel
             panel.classList.add('collapsed');
+            panel.style.width = '';
             btn.classList.remove('panel-active');
             setPanelState(floorId, false);
             // Also deactivate eye button
@@ -656,6 +659,7 @@
         // If panel is open on terminal tab, close it
         if (!isCollapsed && activePanelTab[floorId] === 'terminal') {
             panel.classList.add('collapsed');
+            panel.style.width = '';
             if (eyeBtn) eyeBtn.classList.remove('panel-active');
             refitTerminal(floorId);
             return;
@@ -664,6 +668,8 @@
         // Expand panel if collapsed
         if (isCollapsed) {
             panel.classList.remove('collapsed');
+            var savedWidth = getPanelWidth(floorId);
+            if (savedWidth) panel.style.width = savedWidth + 'px';
         }
         if (eyeBtn) eyeBtn.classList.add('panel-active');
 
