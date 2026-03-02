@@ -208,20 +208,14 @@ async fn get_sessions(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
     match state.terminal_manager.list_orphaned_sessions() {
-        Ok(sessions) => {
-            info!("GET /api/sessions returning: {:?}", sessions);
-            (
-                StatusCode::OK,
-                Json(SessionsResponse { sessions }),
-            )
-        }
-        Err(e) => {
-            warn!("GET /api/sessions error: {}", e);
-            (
-                StatusCode::OK,
-                Json(SessionsResponse { sessions: Vec::new() }),
-            )
-        }
+        Ok(sessions) => (
+            StatusCode::OK,
+            Json(SessionsResponse { sessions }),
+        ),
+        Err(_) => (
+            StatusCode::OK,
+            Json(SessionsResponse { sessions: Vec::new() }),
+        ),
     }
 }
 
