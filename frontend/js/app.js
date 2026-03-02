@@ -589,7 +589,10 @@
      */
     function resolvePanelUrl(identifier) {
         if (/^https?:\/\//.test(identifier)) return identifier;
-        if (identifier.charAt(0) === '/' || identifier.charAt(0) === '~') return identifier;
+        // Absolute or ~ paths go through the pages API for server-side resolution
+        if (identifier.charAt(0) === '/' || identifier.charAt(0) === '~') {
+            return '/api/pages/' + encodeURIComponent(identifier);
+        }
         // Bare name -> page endpoint; append .html if no extension
         var name = identifier;
         if (name.indexOf('.') === -1) name = name + '.html';
