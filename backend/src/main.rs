@@ -146,14 +146,22 @@ async fn get_profiles(
     }
     let config = state.profile_config.read().unwrap();
 
-    // Build a response that includes an `id` field for frontend compatibility.
+    // Build a response that includes a stable `id` derived from the profile name.
+    // This ensures tmux sessions stay mapped correctly when profiles are reordered or inserted.
     let profiles_with_id: Vec<serde_json::Value> = config
         .profiles
         .iter()
-        .enumerate()
-        .map(|(i, p)| {
+        .map(|p| {
+            let slug = p.name.to_lowercase()
+                .chars()
+                .map(|c| if c.is_alphanumeric() { c } else { '-' })
+                .collect::<String>()
+                .split('-')
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<&str>>()
+                .join("-");
             serde_json::json!({
-                "id": (i + 1).to_string(),
+                "id": slug,
                 "name": p.name,
                 "command": p.command,
                 "cwd": p.cwd,
