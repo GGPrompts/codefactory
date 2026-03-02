@@ -34,6 +34,29 @@ html, body {
   overflow: hidden;
 }
 
+/* ── Scrollbars ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--iron-black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--steel-mid);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--steel-light);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--iron-black);
+}
+
 #app {
   height: 100%;
   display: flex;
@@ -93,6 +116,8 @@ html, body {
 #beads-board-container {
   flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Top Bar ── */

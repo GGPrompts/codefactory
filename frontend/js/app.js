@@ -498,9 +498,12 @@
         // Create iframe
         var iframe = document.createElement('iframe');
         iframe.className = 'page-iframe';
-        iframe.src = /^https?:\/\//.test(profile.page)
-            ? profile.page
-            : '/api/pages/' + encodeURIComponent(profile.page);
+        var pageUrl = resolvePanelUrl(profile.page);
+        var pageCwd = profile.cwd || defaultCwd || '';
+        if (pageCwd) {
+            pageUrl += (pageUrl.indexOf('?') === -1 ? '?' : '&') + 'path=' + encodeURIComponent(pageCwd);
+        }
+        iframe.src = pageUrl;
         container.innerHTML = '';
         container.appendChild(iframe);
 
