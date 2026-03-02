@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -18,6 +19,10 @@ pub struct Profile {
     /// Optional HTML page path (bare name → ~/.config/codefactory/pages/, or absolute/~ path).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page: Option<String>,
+    /// Per-edge swipe panel configuration. Keys are edge names ("left", "right",
+    /// "top", "bottom") and values are panel identifiers or paths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panels: Option<HashMap<String, String>>,
     /// Whether this profile is enabled (hidden when false). Defaults to true.
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -53,6 +58,7 @@ impl Default for ProfileConfig {
                     icon: Some("\u{2699}\u{FE0F}".to_string()),
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 },
                 Profile {
@@ -62,6 +68,7 @@ impl Default for ProfileConfig {
                     icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 },
                 Profile {
@@ -71,6 +78,7 @@ impl Default for ProfileConfig {
                     icon: Some("\u{2328}\u{FE0F}".to_string()),
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 },
                 Profile {
@@ -80,6 +88,7 @@ impl Default for ProfileConfig {
                     icon: Some("\u{1F4BB}".to_string()),
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 },
             ],

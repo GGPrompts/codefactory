@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 
@@ -33,6 +34,9 @@ struct Profile {
     /// Optional HTML page path (bare name or absolute/~ path).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     page: Option<String>,
+    /// Per-edge swipe panel configuration (edge name -> panel identifier).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    panels: Option<HashMap<String, String>>,
     /// Whether this profile is enabled (hidden when false). Defaults to true.
     #[serde(default = "default_true")]
     enabled: bool,
@@ -65,6 +69,7 @@ impl Default for ProfileConfig {
                     icon: Some("\u{1F5A5}\u{FE0F}".to_string()),
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 },
                 Profile {
@@ -74,6 +79,7 @@ impl Default for ProfileConfig {
                     icon: Some("\u{2328}\u{FE0F}".to_string()),
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 },
                 Profile {
@@ -83,6 +89,7 @@ impl Default for ProfileConfig {
                     icon: Some("\u{1F4BB}".to_string()),
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 },
             ],
@@ -182,6 +189,7 @@ fn detect_tools() -> Vec<Profile> {
             icon: t.icon.map(|s| s.to_string()),
             panel: None,
             page: None,
+            panels: None,
             enabled: true,
         })
         .collect()
@@ -266,6 +274,7 @@ impl App {
                 icon: None,
                 panel: None,
                 page: None,
+                panels: None,
                 enabled: true,
             },
             status: String::new(),
@@ -373,6 +382,7 @@ impl App {
                     icon: None,
                     panel: None,
                     page: None,
+                    panels: None,
                     enabled: true,
                 };
                 self.input.clear();

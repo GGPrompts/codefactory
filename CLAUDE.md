@@ -32,6 +32,7 @@ cargo check --workspace       # verify both crates compile
 | `icon` | string? | Emoji icon for elevator button |
 | `panel` | string? | Markdown side panel (bare name or absolute/~ path) |
 | `page` | string? | HTML page path (bare name or absolute/~ path) |
+| `panels` | object? | Per-edge swipe panels: `{"left": "id", "right": "id", ...}` |
 | `enabled` | bool | Show/hide floor without removing it (default: true) |
 
 ## Conventions

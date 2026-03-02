@@ -566,6 +566,74 @@
     }
 
     // ==============================================================
+    // PER-FLOOR SWIPE PANELS
+    // ==============================================================
+    var PANEL_EDGES = ['left', 'right', 'top', 'bottom'];
+    var activeFloorPanelEdges = []; // edges currently claimed by floor config
+
+    /**
+     * Resolve a panel identifier to a URL.
+     * - Full URLs (http:/https:) pass through unchanged.
+     * - Absolute or ~-prefixed paths pass through unchanged.
+     * - Bare names map to /api/pages/{name}.html
+     */
+    function resolvePanelUrl(identifier) {
+        if (/^https?:\/\//.test(identifier)) return identifier;
+        if (identifier.charAt(0) === '/' || identifier.charAt(0) === '~') return identifier;
+        // Bare name -> page endpoint; append .html if no extension
+        var name = identifier;
+        if (name.indexOf('.') === -1) name = name + '.html';
+        return '/api/pages/' + encodeURIComponent(name);
+    }
+
+    /**
+     * Build an iframe element for a swipe panel.
+     */
+    function buildPanelIframe(url) {
+        var iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.className = 'swipe-panel-iframe';
+        iframe.setAttribute('frameborder', '0');
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        return iframe;
+    }
+
+    /**
+     * Clear all per-floor swipe panel registrations.
+     * Does not touch edges that were not claimed by floor config.
+     */
+    function clearFloorPanels() {
+        activeFloorPanelEdges.forEach(function (edge) {
+            SwipePanels.unregisterPanel(edge);
+        });
+        activeFloorPanelEdges = [];
+    }
+
+    /**
+     * Apply swipe panel config for the given floor.
+     * Reads profile.panels (a map of edge -> identifier) and registers
+     * iframe content in each configured SwipePanels slot.
+     */
+    function applyFloorPanels(floorId) {
+        clearFloorPanels();
+
+        var profile = findProfile(floorId);
+        if (!profile || !profile.panels) return;
+
+        var panelConfig = profile.panels;
+        PANEL_EDGES.forEach(function (edge) {
+            if (panelConfig[edge]) {
+                var url = resolvePanelUrl(panelConfig[edge]);
+                var iframe = buildPanelIframe(url);
+                SwipePanels.registerPanel(edge, iframe);
+                activeFloorPanelEdges.push(edge);
+            }
+        });
+    }
+
+    // ==============================================================
     // EDIT MODE
     // ==============================================================
     function enterEditMode(floorId) {
@@ -1033,7 +1101,10 @@
     function setupMobileElevator() {
         var isMobile = mobileMediaQuery.matches;
 
-        if (isMobile && !mobileElevatorRegistered && floorCount > 0) {
+        // Don't register mobile elevator if a floor panel claims the right edge
+        var rightClaimedByFloor = activeFloorPanelEdges.indexOf('right') !== -1;
+
+        if (isMobile && !mobileElevatorRegistered && floorCount > 0 && !rightClaimedByFloor) {
             var wrapper = document.createElement('div');
             wrapper.className = 'mobile-elevator';
 
@@ -1203,6 +1274,12 @@
                     jumpTarget = null;
                 }
                 indicator.textContent = floorLabels[bestFloor] || '?';
+
+                // Apply per-floor swipe panels for the new floor
+                applyFloorPanels(bestFloor.replace('floor-', ''));
+
+                // Re-register mobile elevator if needed (floor panels may have claimed right edge)
+                setupMobileElevator();
 
                 if (arrived) {
                     playDing();
