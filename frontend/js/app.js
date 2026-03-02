@@ -1438,7 +1438,75 @@
             }
             mobileBarTrack.appendChild(keysPanel);
 
-            // Panel 1: Elevator nav
+            // Panel 1: Chat input
+            var chatPanel = document.createElement('div');
+            chatPanel.className = 'mobile-bar-panel mobile-bar-chat';
+
+            var chatInput = document.createElement('input');
+            chatInput.type = 'text';
+            chatInput.className = 'mobile-bar-chat-input';
+            chatInput.placeholder = 'type here...';
+            chatInput.autocomplete = 'off';
+            chatInput.autocapitalize = 'off';
+            chatInput.spellcheck = false;
+
+            // Prevent swipe detection when interacting with input
+            chatInput.addEventListener('touchstart', function(e) {
+                e.stopPropagation();
+            }, { passive: true });
+
+            var chatSend = document.createElement('button');
+            chatSend.className = 'mobile-bar-chat-send';
+            chatSend.textContent = '\u25B6';
+
+            function sendChatInput() {
+                var text = chatInput.value;
+                if (!text) return;
+                var floorId = currentFloor ? currentFloor.replace('floor-', '') : null;
+                if (!floorId || floorId === 'lobby') return;
+                if (typeof CodeFactoryTerminals === 'undefined') return;
+
+                var entry = CodeFactoryTerminals.getTerminal(floorId);
+                if (!entry || entry.inputGuarded || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+
+                // Send text first
+                var encoded = btoa(unescape(encodeURIComponent(text)));
+                entry.ws.send(JSON.stringify({ type: 'terminal-input', data: encoded }));
+
+                // Send Enter after 400ms delay (needed for apps like Claude Code)
+                setTimeout(function() {
+                    if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+                        var enterEncoded = btoa('\n');
+                        entry.ws.send(JSON.stringify({ type: 'terminal-input', data: enterEncoded }));
+                    }
+                }, 400);
+
+                chatInput.value = '';
+            }
+
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendChatInput();
+                }
+            });
+
+            chatSend.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendChatInput();
+            }, { passive: false });
+
+            chatSend.addEventListener('click', function(e) {
+                e.preventDefault();
+                sendChatInput();
+            });
+
+            chatPanel.appendChild(chatInput);
+            chatPanel.appendChild(chatSend);
+            mobileBarTrack.appendChild(chatPanel);
+
+            // Panel 2: Elevator nav
             var navPanel = document.createElement('div');
             navPanel.className = 'mobile-bar-panel mobile-bar-nav';
 
@@ -1498,7 +1566,7 @@
             // Dot indicators
             mobileBarDots = document.createElement('div');
             mobileBarDots.className = 'mobile-bar-dots';
-            mobileBarDots.innerHTML = '<span class="mobile-bar-dot"></span><span class="mobile-bar-dot"></span>';
+            mobileBarDots.innerHTML = '<span class="mobile-bar-dot"></span><span class="mobile-bar-dot"></span><span class="mobile-bar-dot"></span>';
             mobileBar.appendChild(mobileBarDots);
 
             // Swipe gesture
@@ -1526,7 +1594,8 @@
     function setBarPanel(index) {
         mobileBarPanel = index;
         if (mobileBarTrack) {
-            mobileBarTrack.style.transform = index === 0 ? 'translateX(0)' : 'translateX(-50%)';
+            var pct = index * -33.333;
+            mobileBarTrack.style.transform = 'translateX(' + pct + '%)';
         }
         if (mobileBarDots) {
             var dots = mobileBarDots.querySelectorAll('.mobile-bar-dot');
@@ -1540,7 +1609,7 @@
         if (typeof ExtraKeys !== 'undefined' && ExtraKeys.isTerminalFloor(currentFloor)) {
             setBarPanel(0);
         } else {
-            setBarPanel(1);
+            setBarPanel(2);
         }
     }
 
@@ -1549,6 +1618,7 @@
         var startY = 0;
         var tracking = false;
         var barWidth = 0;
+        var panelCount = 3;
 
         mobileBar.addEventListener('touchstart', function(e) {
             // Don't intercept key button taps (they stopPropagation)
@@ -1579,10 +1649,11 @@
             if (tracking) {
                 e.preventDefault();
                 // Translate track following finger
-                var baseOffset = mobileBarPanel === 0 ? 0 : -barWidth;
+                var baseOffset = -mobileBarPanel * barWidth;
                 var offset = baseOffset + dx;
                 // Clamp: don't scroll past edges
-                offset = Math.max(-barWidth, Math.min(0, offset));
+                var maxOffset = -(panelCount - 1) * barWidth;
+                offset = Math.max(maxOffset, Math.min(0, offset));
                 mobileBarTrack.style.transform = 'translateX(' + offset + 'px)';
             }
         }, { passive: false });
@@ -1595,18 +1666,19 @@
             var dx = e.changedTouches[0].clientX - startX;
             var threshold = barWidth * 0.25;
 
-            if (mobileBarPanel === 0 && dx < -threshold) {
-                // Swipe left: show nav
-                mobileBarUserOverride = true;
-                setBarPanel(1);
-            } else if (mobileBarPanel === 1 && dx > threshold) {
-                // Swipe right: show keys
-                mobileBarUserOverride = true;
-                setBarPanel(0);
-            } else {
-                // Snap back
-                setBarPanel(mobileBarPanel);
+            var newPanel = mobileBarPanel;
+            if (dx < -threshold && mobileBarPanel < panelCount - 1) {
+                // Swipe left: next panel
+                newPanel = mobileBarPanel + 1;
+            } else if (dx > threshold && mobileBarPanel > 0) {
+                // Swipe right: previous panel
+                newPanel = mobileBarPanel - 1;
             }
+
+            if (newPanel !== mobileBarPanel) {
+                mobileBarUserOverride = true;
+            }
+            setBarPanel(newPanel);
         }, { passive: true });
     }
 
