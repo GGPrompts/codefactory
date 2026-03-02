@@ -43,4 +43,13 @@ cargo check --workspace       # verify both crates compile
 - Profiles with `cwd: null` inherit `default_cwd` from config — resolution happens frontend-side
 - Disabled profiles (`enabled: false`) are filtered out at render time
 
+## Beads (Issue Tracking)
+
+- Issues are tracked with beads (`bd`), backed by a Dolt SQL server on port 3307
+- Data dir: `~/beads-dolt/` — shared across projects
+- Remotes sync via `~/ObsidianVault/beads-remotes/` (file-based Dolt remotes)
+- On session start: `bd dolt pull` to get latest issues
+- On session end (after git push): `bd dolt push` to sync issues, then `cd ~/ObsidianVault && git add -A && git commit -m "beads sync" && git push`
+- See `BEADS_SETUP.md` for full setup details
+
 See `backend/CLAUDE.md` and `frontend/CLAUDE.md` for crate/directory-specific details.
