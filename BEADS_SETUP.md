@@ -142,10 +142,30 @@ dolt push origin main
 
 ### 7. Pull existing data from the other machine
 
-Wait for the ObsidianVault to sync, then:
+If the other machine (laptop) has already pushed its data to the remotes, the desktop needs to replace its fresh `dolt init` databases with that data. A regular `dolt pull` will fail because the histories diverged (empty init vs. laptop's history).
+
+**Fix: force reset each database to match the remote:**
+
 ```bash
-cd ~/beads-dolt/beads_codefactory
-dolt pull origin main
+# Stop the dolt server first, then for each database:
+for db in ~/beads-dolt/beads_*/; do
+  echo "=== $(basename $db) ==="
+  cd "$db"
+  dolt fetch origin
+  dolt reset --hard origin/main
+  cd ~
+done
+# Restart the dolt server after
+```
+
+If `dolt reset --hard` doesn't work, the nuclear option is to delete and re-clone:
+
+```bash
+# Stop the dolt server first
+cd ~/beads-dolt
+rm -rf beads_codefactory
+dolt clone file:///path/to/ObsidianVault/beads-remotes/beads_codefactory
+# Repeat for each database, then restart the server
 ```
 
 ## Setting Up on the Laptop (Adding Remotes)
@@ -210,3 +230,6 @@ Other projects still use local SQLite (`beads.db`) and aren't synced.
 - **bd dolt show**: Quick way to verify connection and config
 - **bd dolt test**: Tests the server connection
 - **bd dolt push fails with "no store available"**: Use `dolt push origin main` directly from the database directory instead
+- **Diverged histories after setup**: If both machines initialized independently, the laptop's data is the source of truth. On the desktop, stop the server, then `dolt fetch origin && dolt reset --hard origin/main` in each database dir, then restart the server
+- **Force push from laptop**: If the desktop overwrote remotes with empty inits, run `dolt push --force origin main` from each database dir on the laptop, commit+push ObsidianVault, then pull on desktop
+- **Laptop database locations**: Not all databases are in one data-dir. Some may be at `~/projects/<project>/.beads/dolt/<db_name>/` depending on which project initialized the server. Use `ps aux | grep dolt` to find the server's data-dir, and check each project's `.beads/dolt/` for additional databases
