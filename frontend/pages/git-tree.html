@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Tree</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Path Selector ── */
+.gg-path-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--steel-dark);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+.gg-path-bar label {
+  color: var(--brushed-steel);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gg-path-bar input {
+  flex: 1;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.gg-path-bar input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.gg-path-bar button {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.gg-path-bar button:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+#git-graph-container {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Git Graph Styles ── */
+.gg-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--brushed-steel);
+  gap: 12px;
+}
+
+.gg-error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--caution-red);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.gg-error-text {
+  color: #f87171;
+  font-size: 13px;
+}
+
+.gg-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: gg-spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes gg-spin {
+  to { transform: rotate(360deg); }
+}
+
+.gg-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.gg-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+}
+
+.gg-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Header */
+.gg-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--steel-dark);
+  border-bottom: 1px solid var(--steel-mid);
+}
+
+.gg-header-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dirty-white);
+}
+
+.gg-refresh-btn {
+  background: none;
+  border: none;
+  color: var(--brushed-steel);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: 3px;
+}
+
+.gg-refresh-btn:hover {
+  background: var(--iron-black);
+  color: var(--dirty-white);
+}
+
+/* Graph area */
+.gg-graph {
+  position: relative;
+}
+
+.gg-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.gg-nodes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.gg-node {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.gg-node:hover {
+  transform: scale(1.3);
+}
+
+/* Rows */
+.gg-rows {
+  position: relative;
+}
+
+.gg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+  overflow: hidden;
+}
+
+.gg-row:hover {
+  background: var(--steel-dark) !important;
+}
+
+.gg-chevron {
+  color: var(--steel-light);
+  font-size: 10px;
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+}
+
+.gg-hash {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.gg-refs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.gg-ref {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+.gg-ref-branch {
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+  color: var(--hazard-yellow);
+  border-color: color-mix(in srgb, var(--hazard-yellow) 35%, transparent);
+}
+
+.gg-ref-remote {
+  background: color-mix(in srgb, var(--brushed-steel) 12%, transparent);
+  color: var(--brushed-steel);
+  border-color: color-mix(in srgb, var(--brushed-steel) 25%, transparent);
+}
+
+.gg-ref-tag {
+  background: color-mix(in srgb, #fbbf24 15%, transparent);
+  color: #fbbf24;
+  border-color: color-mix(in srgb, #fbbf24 35%, transparent);
+}
+
+.gg-msg {
+  flex: 1;
+  font-size: 13px;
+  color: var(--dirty-white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.gg-merge-badge {
+  font-size: 10px;
+  color: var(--brushed-steel);
+  margin-right: 4px;
+}
+
+.gg-author {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.gg-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--steel-dark);
+  color: var(--brushed-steel);
+  border: 1px solid var(--steel-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.gg-author-name {
+  font-size: 11px;
+  color: var(--brushed-steel);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hide author name on small screens */
+@media (max-width: 500px) {
+  .gg-author-name { display: none; }
+  .gg-msg { font-size: 12px; }
+  .gg-refs { display: none; }
+}
+
+.gg-time {
+  font-size: 11px;
+  color: var(--brushed-steel);
+  flex-shrink: 0;
+  width: 50px;
+  text-align: right;
+}
+
+/* ── Details Panel ── */
+.gg-details {
+  background: var(--steel-dark);
+  border-top: 1px solid var(--steel-mid);
+  padding: 10px 12px;
+}
+
+.gg-details-loading {
+  color: var(--brushed-steel);
+  font-size: 12px;
+}
+
+.gg-details-error {
+  color: #f87171;
+  font-size: 12px;
+}
+
+.gg-detail-msg {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dirty-white);
+  margin-bottom: 4px;
+}
+
+.gg-detail-body {
+  font-size: 12px;
+  color: var(--brushed-steel);
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+
+.gg-detail-meta {
+  font-size: 11px;
+  color: var(--brushed-steel);
+  margin-bottom: 10px;
+}
+
+.gg-detail-files-header {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--brushed-steel);
+  margin-bottom: 4px;
+}
+
+.gg-detail-files {
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  border-radius: 3px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.gg-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--steel-dark);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.gg-file:last-child { border-bottom: none; }
+
+.gg-file:hover {
+  background: var(--steel-dark);
+}
+
+.gg-file-status {
+  font-family: var(--font-mono);
+  font-weight: bold;
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+}
+
+.gg-file-path {
+  font-family: var(--font-mono);
+  color: var(--dirty-white);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.gg-file-stat {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.gg-detail-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Diff View ── */
+.gg-diff-container {
+  margin: 0;
+  border-bottom: 1px solid var(--steel-dark);
+}
+
+.gg-diff-loading, .gg-diff-empty, .gg-diff-error {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--brushed-steel);
+}
+
+.gg-diff-error { color: #f87171; }
+
+.gg-diff {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--brushed-steel);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.gg-diff-add { color: #4ade80; }
+.gg-diff-del { color: #f87171; }
+.gg-diff-hunk { color: #60a5fa; }
+.gg-diff-meta { color: var(--steel-light); }
+
+/* ── Footer ── */
+.gg-loading-more {
+  text-align: center;
+  padding: 12px;
+  color: var(--brushed-steel);
+  font-size: 12px;
+}
+
+.gg-end {
+  text-align: center;
+  padding: 12px;
+  color: var(--steel-light);
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="gg-path-bar">
+    <label for="repo-path">Repo:</label>
+    <input type="text" id="repo-path" placeholder="/path/to/repo">
+    <button id="load-btn">Load</button>
+  </div>
+  <div id="git-graph-container"></div>
+</div>
+
+<script src="/js/git-graph.js"></script>
+<script>
+(function () {
+  var pathInput = document.getElementById("repo-path");
+  var loadBtn = document.getElementById("load-btn");
+  var container = document.getElementById("git-graph-container");
+
+  // Read repo path from query param or default
+  var params = new URLSearchParams(window.location.search);
+  var initialPath = params.get("path") || params.get("repo") || "";
+  if (initialPath) {
+    pathInput.value = initialPath;
+  }
+
+  function loadGraph() {
+    var repoPath = pathInput.value.trim();
+    if (!repoPath) {
+      container.innerHTML = '<div class="gg-center">Enter a repo path above</div>';
+      return;
+    }
+    container.innerHTML = "";
+    GitGraph.init(container, repoPath);
+  }
+
+  loadBtn.addEventListener("click", loadGraph);
+  pathInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") loadGraph();
+  });
+
+  // Auto-load if path is provided
+  if (initialPath) {
+    loadGraph();
+  }
+})();
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@ mod ws;
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
@@ -64,6 +64,9 @@ async fn main() {
         .route("/api/session-status", get(get_session_status))
         .route("/api/panels/{*name}", get(get_panel))
         .route("/api/pages/{*name}", get(get_page))
+        .route("/api/git/graph", get(git_graph))
+        .route("/api/git/commit/{hash}", get(git_commit_details))
+        .route("/api/git/diff", get(git_diff))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -442,6 +445,423 @@ async fn session_status_poller(state: Arc<AppState>) {
             });
         }
     }
+}
+
+// ── Git API Endpoints ──────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct GitGraphParams {
+    path: Option<String>,
+    limit: Option<usize>,
+    skip: Option<usize>,
+}
+
+/// Resolve a path, expanding `~` to `$HOME`.
+fn expand_path(raw: &str) -> String {
+    if raw.starts_with('~') {
+        if let Ok(home) = std::env::var("HOME") {
+            return format!("{}{}", home, &raw[1..]);
+        }
+    }
+    raw.to_string()
+}
+
+/// Walk upward from `start` to find the git repository root.
+fn find_git_root(start: &str) -> Option<String> {
+    let mut path = std::path::PathBuf::from(start);
+    loop {
+        if path.join(".git").exists() {
+            return Some(path.to_string_lossy().to_string());
+        }
+        if !path.pop() {
+            return None;
+        }
+    }
+}
+
+/// GET /api/git/graph?path=&limit=&skip=
+/// Returns commit graph data for visualization.
+async fn git_graph(Query(params): Query<GitGraphParams>) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            );
+        }
+    };
+
+    let expanded = expand_path(&raw_path);
+    let git_root = match find_git_root(&expanded) {
+        Some(r) => r,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "not a git repository"})),
+            );
+        }
+    };
+
+    let limit = params.limit.unwrap_or(50);
+    let skip = params.skip.unwrap_or(0);
+
+    // Request limit+1 to detect hasMore
+    let format_str = "%H|%h|%an|%ae|%aI|%P|%D|%s";
+    let output = tokio::process::Command::new("git")
+        .args([
+            "-C",
+            &git_root,
+            "log",
+            "--all",
+            &format!("--format={}", format_str),
+            &format!("-n{}", limit + 1),
+            &format!("--skip={}", skip),
+        ])
+        .output()
+        .await;
+
+    let output = match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("git log failed: {}", stderr)})),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("failed to run git: {}", e)})),
+            );
+        }
+    };
+
+    let mut commits: Vec<serde_json::Value> = Vec::new();
+    for line in output.trim().lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(8, '|').collect();
+        if parts.len() < 8 {
+            continue;
+        }
+
+        let parents: Vec<&str> = if parts[5].is_empty() {
+            Vec::new()
+        } else {
+            parts[5].split_whitespace().collect()
+        };
+
+        let refs: Vec<&str> = if parts[6].is_empty() {
+            Vec::new()
+        } else {
+            parts[6].split(", ").map(|s| s.trim()).collect()
+        };
+
+        commits.push(serde_json::json!({
+            "hash": parts[0],
+            "shortHash": parts[1],
+            "author": parts[2],
+            "email": parts[3],
+            "date": parts[4],
+            "parents": parents,
+            "refs": refs,
+            "message": parts[7],
+        }));
+    }
+
+    let has_more = commits.len() > limit;
+    if has_more {
+        commits.truncate(limit);
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "data": {
+                "commits": commits,
+                "hasMore": has_more,
+            }
+        })),
+    )
+}
+
+#[derive(Deserialize)]
+struct GitCommitParams {
+    path: Option<String>,
+}
+
+/// GET /api/git/commit/:hash?path=
+/// Returns detailed commit info including changed files.
+async fn git_commit_details(
+    Path(hash): Path<String>,
+    Query(params): Query<GitCommitParams>,
+) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            );
+        }
+    };
+
+    let expanded = expand_path(&raw_path);
+    let git_root = match find_git_root(&expanded) {
+        Some(r) => r,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "not a git repository"})),
+            );
+        }
+    };
+
+    // Get commit info with body
+    let format_str = "%H|%h|%an|%ae|%aI|%P|%D|%s|%b";
+    let output = tokio::process::Command::new("git")
+        .args(["-C", &git_root, "log", "-1", &format!("--format={}", format_str), &hash])
+        .output()
+        .await;
+
+    let commit_line = match output {
+        Ok(o) if o.status.success() => {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if s.is_empty() {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({"error": "commit not found"})),
+                );
+            }
+            s
+        }
+        _ => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "commit not found"})),
+            );
+        }
+    };
+
+    let parts: Vec<&str> = commit_line.splitn(9, '|').collect();
+    if parts.len() < 9 {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "failed to parse commit"})),
+        );
+    }
+
+    let parents: Vec<&str> = if parts[5].is_empty() {
+        Vec::new()
+    } else {
+        parts[5].split_whitespace().collect()
+    };
+
+    let refs: Vec<&str> = if parts[6].is_empty() {
+        Vec::new()
+    } else {
+        parts[6].split(", ").map(|s| s.trim()).collect()
+    };
+
+    let body = parts[8].trim();
+
+    // Get changed files via name-status
+    let status_output = tokio::process::Command::new("git")
+        .args(["-C", &git_root, "diff-tree", "--no-commit-id", "--name-status", "-r", &hash])
+        .output()
+        .await;
+
+    // Get numstat for additions/deletions
+    let numstat_output = tokio::process::Command::new("git")
+        .args(["-C", &git_root, "diff-tree", "--no-commit-id", "--numstat", "-r", &hash])
+        .output()
+        .await;
+
+    // Parse name-status into a map
+    let mut status_map = std::collections::HashMap::new();
+    if let Ok(o) = &status_output {
+        if o.status.success() {
+            let text = String::from_utf8_lossy(&o.stdout);
+            for line in text.trim().lines() {
+                let fields: Vec<&str> = line.split('\t').collect();
+                if fields.len() >= 2 {
+                    let status = fields[0];
+                    let path = if status.starts_with('R') && fields.len() >= 3 {
+                        fields[2]
+                    } else {
+                        fields[1]
+                    };
+                    // Take just the first character of status (R100 -> R)
+                    status_map.insert(
+                        path.to_string(),
+                        status.chars().next().unwrap_or('M').to_string(),
+                    );
+                }
+            }
+        }
+    }
+
+    // Parse numstat to build file list
+    let mut files: Vec<serde_json::Value> = Vec::new();
+    if let Ok(o) = &numstat_output {
+        if o.status.success() {
+            let text = String::from_utf8_lossy(&o.stdout);
+            for line in text.trim().lines() {
+                if line.is_empty() {
+                    continue;
+                }
+                let fields: Vec<&str> = line.split('\t').collect();
+                if fields.len() < 3 {
+                    continue;
+                }
+                let additions: i64 = fields[0].parse().unwrap_or(0);
+                let deletions: i64 = fields[1].parse().unwrap_or(0);
+                let mut file_path = fields[2].to_string();
+
+                // Handle renames: {old => new} or old => new
+                if file_path.contains("=>") {
+                    let after = file_path.split("=>").last().unwrap_or("").trim();
+                    file_path = after.trim_end_matches('}').to_string();
+                }
+
+                let status = status_map
+                    .get(&file_path)
+                    .cloned()
+                    .unwrap_or_else(|| "M".to_string());
+
+                files.push(serde_json::json!({
+                    "path": file_path,
+                    "status": status,
+                    "additions": additions,
+                    "deletions": deletions,
+                }));
+            }
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "data": {
+                "hash": parts[0],
+                "shortHash": parts[1],
+                "author": parts[2],
+                "email": parts[3],
+                "date": parts[4],
+                "parents": parents,
+                "refs": refs,
+                "message": parts[7],
+                "body": if body.is_empty() { None } else { Some(body) },
+                "files": files,
+            }
+        })),
+    )
+}
+
+#[derive(Deserialize)]
+struct GitDiffParams {
+    path: Option<String>,
+    base: Option<String>,
+    file: Option<String>,
+}
+
+/// GET /api/git/diff?path=&base=&file=
+/// Returns raw diff text for a commit's file.
+async fn git_diff(Query(params): Query<GitDiffParams>) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                [("content-type", "application/json")],
+                r#"{"error":"path parameter required"}"#.to_string(),
+            );
+        }
+    };
+
+    let expanded = expand_path(&raw_path);
+    let git_root = match find_git_root(&expanded) {
+        Some(r) => r,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                [("content-type", "application/json")],
+                r#"{"error":"not a git repository"}"#.to_string(),
+            );
+        }
+    };
+
+    let base = params.base.unwrap_or_default();
+    let file = params.file.unwrap_or_default();
+
+    let mut args = vec!["-C".to_string(), git_root.clone(), "diff".to_string()];
+
+    if !base.is_empty() {
+        if base == "HEAD" {
+            args.push("HEAD".to_string());
+        } else {
+            args.push(format!("{}^", base));
+            args.push(base.clone());
+        }
+    }
+
+    if !file.is_empty() {
+        args.push("--".to_string());
+        args.push(file.clone());
+    }
+
+    let output = tokio::process::Command::new("git")
+        .args(&args)
+        .output()
+        .await;
+
+    let diff_text = match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => {
+            // Fallback for first commit (no parent): use git show
+            if !base.is_empty() && base != "HEAD" {
+                let mut show_args = vec![
+                    "-C".to_string(),
+                    git_root,
+                    "show".to_string(),
+                    base,
+                    "--format=".to_string(),
+                ];
+                if !file.is_empty() {
+                    show_args.push("--".to_string());
+                    show_args.push(file.clone());
+                }
+                match tokio::process::Command::new("git")
+                    .args(&show_args)
+                    .output()
+                    .await
+                {
+                    Ok(o) if o.status.success() => {
+                        String::from_utf8_lossy(&o.stdout).to_string()
+                    }
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            }
+        }
+    };
+
+    let body = serde_json::json!({
+        "data": {
+            "diff": diff_text,
+            "filePath": file,
+        }
+    });
+
+    (
+        StatusCode::OK,
+        [("content-type", "application/json")],
+        body.to_string(),
+    )
 }
 
 /// Wait for Ctrl+C to trigger graceful shutdown.
