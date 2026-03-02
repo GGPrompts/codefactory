@@ -446,6 +446,10 @@ section.floor.powered-off .floor-side-panel {
     overscroll-behavior: contain;
 }
 
+.terminal-container .xterm-screen {
+    touch-action: none;
+}
+
 .terminal-container .xterm-viewport {
     overflow-y: hidden !important;
     overscroll-behavior: none;

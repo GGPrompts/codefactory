@@ -166,24 +166,21 @@ var CodeFactoryTerminals = (function() {
         // SGR mouse wheel escape sequences to enter copy-mode / scroll.
         (function() {
             var touchStartY = 0;
-            var touchTracking = false;
+            var scrolling = false;
             var SCROLL_THRESHOLD = 20; // px per scroll tick
 
             container.addEventListener('touchstart', function(e) {
                 if (e.touches.length === 1) {
                     touchStartY = e.touches[0].clientY;
-                    touchTracking = true;
+                    scrolling = false;
                 }
             }, { passive: true });
 
             container.addEventListener('touchmove', function(e) {
-                if (!touchTracking || e.touches.length !== 1) return;
-                e.preventDefault(); // stop page scroll
+                if (e.touches.length !== 1) return;
+                e.preventDefault(); // always stop page scroll on terminal
                 var dy = touchStartY - e.touches[0].clientY;
                 if (Math.abs(dy) >= SCROLL_THRESHOLD) {
-                    // Send mouse wheel escape sequence directly to tmux:
-                    // SGR encoding: \x1b[<btn;col;rowM
-                    // btn 64 = wheel up, btn 65 = wheel down
                     var btn = dy > 0 ? 65 : 64;
                     var seq = '\x1b[<' + btn + ';1;1M';
                     if (entry.ws && entry.ws.readyState === WebSocket.OPEN && !entry.inputGuarded) {
@@ -195,7 +192,7 @@ var CodeFactoryTerminals = (function() {
             }, { passive: false });
 
             container.addEventListener('touchend', function() {
-                touchTracking = false;
+                scrolling = false;
             }, { passive: true });
         })();
 
