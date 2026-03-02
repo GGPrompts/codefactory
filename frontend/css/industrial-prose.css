@@ -374,21 +374,25 @@
 /* ══════════════════════════════════════════════════════════
    SCROLLBAR STYLING
    ══════════════════════════════════════════════════════════ */
+.floor-side-panel::-webkit-scrollbar,
 .floor-side-panel ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
 
+.floor-side-panel::-webkit-scrollbar-track,
 .floor-side-panel ::-webkit-scrollbar-track {
     background: var(--iron-black);
     border-left: 1px solid var(--steel-mid);
 }
 
+.floor-side-panel::-webkit-scrollbar-thumb,
 .floor-side-panel ::-webkit-scrollbar-thumb {
     background: linear-gradient(180deg, var(--steel-light) 0%, var(--steel-mid) 100%);
     border: 1px solid var(--steel-dark);
 }
 
+.floor-side-panel::-webkit-scrollbar-thumb:hover,
 .floor-side-panel ::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(180deg, var(--brushed-steel) 0%, var(--steel-light) 100%);
 }

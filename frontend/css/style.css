@@ -298,6 +298,8 @@ section.floor {
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-color: var(--steel-mid) var(--iron-black);
+    scrollbar-width: thin;
     background:
         repeating-linear-gradient(
             0deg,
