@@ -76,6 +76,8 @@ async fn main() {
         .route("/api/git/commit", post(git_commit_action))
         .route("/api/git/generate-message", post(git_generate_message))
         .route("/api/beads/issues", get(beads_issues))
+        // Terminal capture endpoint
+        .route("/api/terminal/{session}/capture", get(terminal_capture))
         // Termux API endpoints
         .route("/api/termux/battery", get(termux_battery))
         .route("/api/termux/wifi", get(termux_wifi))
@@ -1416,6 +1418,63 @@ async fn beads_issues(Query(params): Query<BeadsIssuesParams>) -> impl IntoRespo
         StatusCode::OK,
         Json(serde_json::json!({ "issues": issues })),
     )
+}
+
+// ── Terminal Capture Endpoint ─────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+struct CaptureParams {
+    lines: Option<u32>,
+}
+
+async fn terminal_capture(
+    Path(session): Path<String>,
+    Query(params): Query<CaptureParams>,
+) -> impl IntoResponse {
+    let lines = params.lines.unwrap_or(200);
+    let tmux_session = format!("codefactory-floor-{session}");
+    let start_arg = format!("-{lines}");
+
+    let output = tokio::process::Command::new("tmux")
+        .args(["capture-pane", "-p", "-t", &tmux_session, "-S", &start_arg])
+        .output()
+        .await;
+
+    match output {
+        Ok(o) if o.status.success() => {
+            let body = String::from_utf8_lossy(&o.stdout).to_string();
+            (
+                StatusCode::OK,
+                [("content-type", "text/plain; charset=utf-8")],
+                body,
+            )
+                .into_response()
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            if stderr.contains("can't find") || stderr.contains("no such session") {
+                (
+                    StatusCode::NOT_FOUND,
+                    [("content-type", "text/plain; charset=utf-8")],
+                    format!("session '{}' not found", tmux_session),
+                )
+                    .into_response()
+            } else {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [("content-type", "text/plain; charset=utf-8")],
+                    format!("tmux capture failed: {}", stderr),
+                )
+                    .into_response()
+            }
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            [("content-type", "text/plain; charset=utf-8")],
+            format!("failed to run tmux: {}", e),
+        )
+            .into_response(),
+    }
 }
 
 // ── Termux API Endpoints ───────────────────────────────────────────────────

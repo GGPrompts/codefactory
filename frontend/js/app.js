@@ -165,15 +165,28 @@
             ? '<button class="power-btn panel-toggle-btn' + (panelOpen ? ' panel-active' : '') + '" data-floor="' + floorId + '" data-panel="' + escapeAttr(profile.panel) + '" title="Toggle side panel">[PANEL]</button>'
             : '';
 
-        // Side panel div (only when panel is configured)
-        var savedWidth = hasPanel ? getPanelWidth(floorId) : 0;
+        // Eye button for terminal text view (always present on terminal floors)
+        var eyeBtn = '<button class="power-btn term-view-btn" data-floor="' + floorId + '" title="View terminal text">' +
+            '<svg class="term-view-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>' +
+                '<circle cx="12" cy="12" r="3"/>' +
+            '</svg>' +
+        '</button>';
+
+        // Side panel div (always present for terminal floors -- used by .md panel and/or terminal text view)
+        var savedWidth = getPanelWidth(floorId);
         var widthStyle = savedWidth ? ' style="width:' + savedWidth + 'px"' : '';
-        var sidePanelHTML = hasPanel
-            ? '<div class="floor-side-panel' + (panelOpen ? '' : ' collapsed') + '" id="side-panel-' + floorId + '"' + widthStyle + '>' +
-                  '<div class="panel-resize-handle" data-floor="' + floorId + '"></div>' +
-                  '<div class="panel-content" id="panel-content-' + floorId + '"></div>' +
-              '</div>'
-            : '';
+        var sidePanelHTML =
+            '<div class="floor-side-panel' + (panelOpen ? '' : ' collapsed') + '" id="side-panel-' + floorId + '"' + widthStyle + '>' +
+                '<div class="panel-resize-handle" data-floor="' + floorId + '"></div>' +
+                (hasPanel
+                    ? '<div class="panel-tabs" id="panel-tabs-' + floorId + '">' +
+                          '<button class="panel-tab panel-tab-active" data-floor="' + floorId + '" data-tab="reference">REFERENCE</button>' +
+                          '<button class="panel-tab" data-floor="' + floorId + '" data-tab="terminal">TERMINAL</button>' +
+                      '</div>'
+                    : '') +
+                '<div class="panel-content" id="panel-content-' + floorId + '"></div>' +
+            '</div>';
 
         return '' +
             '<section class="floor powered-off" id="floor-' + floorId + '">' +
@@ -186,6 +199,7 @@
                         '<span class="floor-label">' + (icon ? escapeHtml(icon) + ' ' : '') + 'Floor ' + floorId + '</span>' +
                         '<span class="floor-title">' + escapeHtml(name) + '</span>' +
                         panelToggleBtn +
+                        eyeBtn +
                         '<span class="floor-status" id="status-' + floorId + '">OFFLINE</span>' +
                     '</div>' +
                     '<!-- Offline profile card -->' +
@@ -207,7 +221,7 @@
                     '</div>' +
                     '<!-- Edit form (hidden by default) -->' +
                     buildEditFormHTML(floorId, profile) +
-                    '<!-- Terminal + optional side panel in flex row -->' +
+                    '<!-- Terminal + side panel in flex row -->' +
                     '<div class="floor-content-row" id="content-row-' + floorId + '">' +
                         '<div class="terminal-container" id="terminal-' + floorId + '"></div>' +
                         sidePanelHTML +
@@ -448,6 +462,25 @@
             });
         });
 
+        // Terminal text view (eye) buttons
+        document.querySelectorAll('.term-view-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var floorId = btn.dataset.floor;
+                openTerminalTextView(floorId);
+            });
+        });
+
+        // Panel tab buttons (REFERENCE / TERMINAL)
+        document.querySelectorAll('.panel-tab').forEach(function(tab) {
+            tab.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var floorId = tab.dataset.floor;
+                var tabName = tab.dataset.tab;
+                switchPanelTab(floorId, tabName);
+            });
+        });
+
         // Panel resize handles
         document.querySelectorAll('.panel-resize-handle').forEach(function(handle) {
             initPanelResize(handle);
@@ -477,9 +510,17 @@
             btn.classList.add('panel-active');
             setPanelState(floorId, true);
 
+            // Switch to reference tab when opening via [PANEL] button
+            activePanelTab[floorId] = 'reference';
+            updatePanelTabs(floorId);
+
             // Load content if not yet loaded
             var content = document.getElementById('panel-content-' + floorId);
             if (content && !content.hasChildNodes()) {
+                MarkdownPanel.load(content, panelName);
+            } else if (activePanelTab[floorId] === 'reference') {
+                // Re-load reference content if we were on terminal tab
+                content.innerHTML = '';
                 MarkdownPanel.load(content, panelName);
             }
         } else {
@@ -487,6 +528,9 @@
             panel.classList.add('collapsed');
             btn.classList.remove('panel-active');
             setPanelState(floorId, false);
+            // Also deactivate eye button
+            var eyeBtn = document.querySelector('.term-view-btn[data-floor="' + floorId + '"]');
+            if (eyeBtn) eyeBtn.classList.remove('panel-active');
         }
 
         // Refit terminal after panel toggle
@@ -533,6 +577,193 @@
             setPanelWidth(floorId, panel.offsetWidth);
             refitTerminal(floorId);
         }
+    }
+
+    // ==============================================================
+    // TERMINAL TEXT VIEW (eye button)
+    // ==============================================================
+    // Track which tab is active per floor: 'reference' or 'terminal'
+    var activePanelTab = {};  // floorId -> 'reference' | 'terminal'
+
+    /**
+     * Open the terminal text view in the side panel.
+     * On desktop: expands the side panel with captured text.
+     * On mobile: opens the left swipe panel with captured text.
+     */
+    function openTerminalTextView(floorId) {
+        var isMobile = mobileMediaQuery.matches;
+
+        if (isMobile) {
+            openTerminalTextMobile(floorId);
+        } else {
+            openTerminalTextDesktop(floorId);
+        }
+    }
+
+    function openTerminalTextDesktop(floorId) {
+        var panel = document.getElementById('side-panel-' + floorId);
+        if (!panel) return;
+
+        var profile = findProfile(floorId);
+        var hasRefPanel = !!(profile && profile.panel);
+
+        // Expand panel if collapsed
+        var isCollapsed = panel.classList.contains('collapsed');
+        if (isCollapsed) {
+            panel.classList.remove('collapsed');
+            // Activate eye button visually
+            var eyeBtn = document.querySelector('.term-view-btn[data-floor="' + floorId + '"]');
+            if (eyeBtn) eyeBtn.classList.add('panel-active');
+        }
+
+        // Switch to terminal tab
+        activePanelTab[floorId] = 'terminal';
+        updatePanelTabs(floorId);
+
+        // Load terminal capture
+        var content = document.getElementById('panel-content-' + floorId);
+        if (content) {
+            captureTerminalText(floorId, content);
+        }
+
+        refitTerminal(floorId);
+    }
+
+    function openTerminalTextMobile(floorId) {
+        clearFloorPanels();
+
+        var profile = findProfile(floorId);
+        var hasRefPanel = !!(profile && profile.panel);
+
+        var wrapper = document.createElement('div');
+        wrapper.className = 'swipe-markdown-panel';
+
+        // Header with optional tabs
+        if (hasRefPanel) {
+            var tabBar = document.createElement('div');
+            tabBar.className = 'swipe-panel-tabs';
+            var refTab = document.createElement('button');
+            refTab.className = 'swipe-panel-tab';
+            refTab.textContent = 'REFERENCE';
+            refTab.addEventListener('click', function() {
+                refTab.classList.add('swipe-panel-tab-active');
+                termTab.classList.remove('swipe-panel-tab-active');
+                MarkdownPanel.load(contentDiv, profile.panel);
+            });
+            var termTab = document.createElement('button');
+            termTab.className = 'swipe-panel-tab swipe-panel-tab-active';
+            termTab.textContent = 'TERMINAL';
+            termTab.addEventListener('click', function() {
+                termTab.classList.add('swipe-panel-tab-active');
+                refTab.classList.remove('swipe-panel-tab-active');
+                captureTerminalText(floorId, contentDiv);
+            });
+            tabBar.appendChild(refTab);
+            tabBar.appendChild(termTab);
+            wrapper.appendChild(tabBar);
+        } else {
+            var header = document.createElement('div');
+            header.className = 'swipe-markdown-header';
+            header.textContent = 'TERMINAL OUTPUT';
+            wrapper.appendChild(header);
+        }
+
+        var contentDiv = document.createElement('div');
+        contentDiv.className = 'swipe-markdown-content industrial-prose';
+        wrapper.appendChild(contentDiv);
+
+        SwipePanels.registerPanel('left', wrapper);
+        activeFloorPanelEdges.push('left');
+
+        // Load the captured text
+        captureTerminalText(floorId, contentDiv);
+
+        // Open the swipe panel
+        SwipePanels.open('left');
+    }
+
+    /**
+     * Fetch terminal capture and render as a markdown code block.
+     * Adds a REFRESH button at the top.
+     */
+    function captureTerminalText(floorId, container) {
+        container.innerHTML =
+            '<div class="panel-loading">' +
+            '<span class="panel-loading-text">CAPTURING...</span>' +
+            '</div>';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/terminal/' + encodeURIComponent(floorId) + '/capture?lines=200', true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== 4) return;
+            if (xhr.status === 200) {
+                var text = xhr.responseText;
+                // Build refresh bar + markdown code block
+                var refreshBar = document.createElement('div');
+                refreshBar.className = 'term-view-refresh-bar';
+                var refreshBtn = document.createElement('button');
+                refreshBtn.className = 'power-btn term-view-refresh-btn';
+                refreshBtn.textContent = '[REFRESH]';
+                refreshBtn.addEventListener('click', function() {
+                    captureTerminalText(floorId, container);
+                });
+                refreshBar.appendChild(refreshBtn);
+
+                var markdown = '```\n' + text + '\n```';
+                var contentWrap = document.createElement('div');
+                contentWrap.className = 'term-view-content industrial-prose';
+
+                container.innerHTML = '';
+                container.appendChild(refreshBar);
+                container.appendChild(contentWrap);
+
+                MarkdownPanel.render(contentWrap, markdown);
+            } else {
+                container.innerHTML =
+                    '<div class="panel-error">' +
+                    '<span class="panel-error-text">CAPTURE FAILED</span>' +
+                    '<span class="panel-error-detail">HTTP ' + xhr.status + '</span>' +
+                    '</div>';
+            }
+        };
+        xhr.send();
+    }
+
+    /**
+     * Switch between REFERENCE and TERMINAL tabs on desktop side panel.
+     */
+    function switchPanelTab(floorId, tabName) {
+        activePanelTab[floorId] = tabName;
+        updatePanelTabs(floorId);
+
+        var content = document.getElementById('panel-content-' + floorId);
+        if (!content) return;
+
+        if (tabName === 'terminal') {
+            captureTerminalText(floorId, content);
+        } else {
+            // Load markdown reference panel
+            var profile = findProfile(floorId);
+            if (profile && profile.panel) {
+                content.innerHTML = '';
+                MarkdownPanel.load(content, profile.panel);
+            }
+        }
+    }
+
+    /**
+     * Update tab active states in the panel header.
+     */
+    function updatePanelTabs(floorId) {
+        var tabs = document.querySelectorAll('.panel-tab[data-floor="' + floorId + '"]');
+        var active = activePanelTab[floorId] || 'reference';
+        tabs.forEach(function(tab) {
+            if (tab.dataset.tab === active) {
+                tab.classList.add('panel-tab-active');
+            } else {
+                tab.classList.remove('panel-tab-active');
+            }
+        });
     }
 
     // ==============================================================
@@ -675,21 +906,87 @@
         var profile = findProfile(floorId);
         if (!profile) return;
 
-        // On mobile, route the markdown side panel to the left swipe edge
+        var isTerminal = !profile.page;
         var isMobile = mobileMediaQuery.matches;
-        if (isMobile && profile.panel) {
+
+        // On mobile, set up the left swipe panel for terminal floors
+        if (isMobile && isTerminal) {
+            var hasRefPanel = !!profile.panel;
             var wrapper = document.createElement('div');
             wrapper.className = 'swipe-markdown-panel';
-            var header = document.createElement('div');
-            header.className = 'swipe-markdown-header';
-            header.textContent = 'REFERENCE';
-            wrapper.appendChild(header);
-            var content = document.createElement('div');
-            content.className = 'swipe-markdown-content industrial-prose';
-            wrapper.appendChild(content);
-            SwipePanels.registerPanel('left', wrapper);
+
+            if (hasRefPanel) {
+                // Tabbed header: REFERENCE / TERMINAL
+                var tabBar = document.createElement('div');
+                tabBar.className = 'swipe-panel-tabs';
+                var refTab = document.createElement('button');
+                refTab.className = 'swipe-panel-tab swipe-panel-tab-active';
+                refTab.textContent = 'REFERENCE';
+                var termTab = document.createElement('button');
+                termTab.className = 'swipe-panel-tab';
+                termTab.textContent = 'TERMINAL';
+                var contentDiv = document.createElement('div');
+                contentDiv.className = 'swipe-markdown-content industrial-prose';
+
+                refTab.addEventListener('click', function() {
+                    refTab.classList.add('swipe-panel-tab-active');
+                    termTab.classList.remove('swipe-panel-tab-active');
+                    MarkdownPanel.load(contentDiv, profile.panel);
+                });
+                termTab.addEventListener('click', function() {
+                    termTab.classList.add('swipe-panel-tab-active');
+                    refTab.classList.remove('swipe-panel-tab-active');
+                    captureTerminalText(floorId, contentDiv);
+                });
+
+                tabBar.appendChild(refTab);
+                tabBar.appendChild(termTab);
+                wrapper.appendChild(tabBar);
+                wrapper.appendChild(contentDiv);
+
+                SwipePanels.registerPanel('left', wrapper);
+                activeFloorPanelEdges.push('left');
+                MarkdownPanel.load(contentDiv, profile.panel);
+            } else {
+                // No markdown panel -- just terminal header
+                var header = document.createElement('div');
+                header.className = 'swipe-markdown-header';
+                header.textContent = 'TERMINAL OUTPUT';
+                wrapper.appendChild(header);
+
+                var contentDiv2 = document.createElement('div');
+                contentDiv2.className = 'swipe-markdown-content industrial-prose';
+                wrapper.appendChild(contentDiv2);
+
+                // Add refresh button
+                var refreshBar = document.createElement('div');
+                refreshBar.className = 'term-view-refresh-bar';
+                var refreshBtn = document.createElement('button');
+                refreshBtn.className = 'power-btn term-view-refresh-btn';
+                refreshBtn.textContent = '[REFRESH]';
+                refreshBtn.addEventListener('click', function() {
+                    captureTerminalText(floorId, contentDiv2);
+                });
+                refreshBar.appendChild(refreshBtn);
+                contentDiv2.appendChild(refreshBar);
+
+                SwipePanels.registerPanel('left', wrapper);
+                activeFloorPanelEdges.push('left');
+            }
+        } else if (isMobile && profile.panel) {
+            // Non-terminal floor with markdown panel (legacy path)
+            var wrapper2 = document.createElement('div');
+            wrapper2.className = 'swipe-markdown-panel';
+            var header2 = document.createElement('div');
+            header2.className = 'swipe-markdown-header';
+            header2.textContent = 'REFERENCE';
+            wrapper2.appendChild(header2);
+            var content2 = document.createElement('div');
+            content2.className = 'swipe-markdown-content industrial-prose';
+            wrapper2.appendChild(content2);
+            SwipePanels.registerPanel('left', wrapper2);
             activeFloorPanelEdges.push('left');
-            MarkdownPanel.load(content, profile.panel);
+            MarkdownPanel.load(content2, profile.panel);
         }
 
         // Apply profile.panels config (iframe-based panels)
