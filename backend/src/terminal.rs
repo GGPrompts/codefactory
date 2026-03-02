@@ -468,9 +468,11 @@ impl TerminalManager {
         }
     }
 
-    /// List floor IDs that have tmux sessions alive but no active PTY connection.
+    /// List floor IDs that have live tmux sessions available for reconnection.
     ///
-    /// Useful for recovery on backend restart: these sessions can be reattached.
+    /// Returns ALL codefactory tmux sessions — both orphaned (no PTY) and
+    /// persistent (PTY alive but subscriber disconnected).  `spawn_session`
+    /// handles both cases: it reuses an existing PTY or creates a new one.
     pub fn list_orphaned_sessions(&self) -> Result<Vec<String>> {
         let output = Command::new("tmux")
             .args(["list-sessions", "-F", "#{session_name}"])
@@ -486,20 +488,17 @@ impl TerminalManager {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let prefix = "codefactory-floor-";
 
-        let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
-
-        let orphaned: Vec<String> = stdout
+        let existing: Vec<String> = stdout
             .lines()
             .filter_map(|line| line.strip_prefix(prefix))
             .map(|id| id.to_string())
-            .filter(|id| !sessions.contains_key(id))
             .collect();
 
-        if !orphaned.is_empty() {
-            info!(count = orphaned.len(), "Found orphaned tmux sessions: {:?}", orphaned);
+        if !existing.is_empty() {
+            info!(count = existing.len(), "Found existing tmux sessions: {:?}", existing);
         }
 
-        Ok(orphaned)
+        Ok(existing)
     }
 }
 
