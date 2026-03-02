@@ -67,6 +67,14 @@ async fn main() {
         .route("/api/git/graph", get(git_graph))
         .route("/api/git/commit/{hash}", get(git_commit_details))
         .route("/api/git/diff", get(git_diff))
+        .route("/api/git/status", get(git_status))
+        .route("/api/git/fetch", post(git_fetch))
+        .route("/api/git/pull", post(git_pull))
+        .route("/api/git/push", post(git_push))
+        .route("/api/git/stage", post(git_stage))
+        .route("/api/git/unstage", post(git_unstage))
+        .route("/api/git/commit", post(git_commit_action))
+        .route("/api/git/generate-message", post(git_generate_message))
         .route("/api/beads/issues", get(beads_issues))
         // Termux API endpoints
         .route("/api/termux/battery", get(termux_battery))
@@ -871,6 +879,478 @@ async fn git_diff(Query(params): Query<GitDiffParams>) -> impl IntoResponse {
         [("content-type", "application/json")],
         body.to_string(),
     )
+}
+
+// ── Git Status Endpoint ───────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct GitStatusParams {
+    path: Option<String>,
+}
+
+/// GET /api/git/status?path=
+/// Returns branch, ahead/behind, staged, unstaged, and untracked files.
+async fn git_status(Query(params): Query<GitStatusParams>) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            );
+        }
+    };
+
+    let expanded = expand_path(&raw_path);
+    let git_root = match find_git_root(&expanded) {
+        Some(r) => r,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "not a git repository"})),
+            );
+        }
+    };
+
+    // --- git status --porcelain=v1 -b ---
+    let status_output = tokio::process::Command::new("git")
+        .args(["-C", &git_root, "status", "--porcelain=v1", "-b"])
+        .output()
+        .await;
+
+    let status_text = match status_output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("git status failed: {}", stderr)})),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("failed to run git: {}", e)})),
+            );
+        }
+    };
+
+    let mut branch = String::new();
+    let mut remote_branch: Option<String> = None;
+    let mut staged: Vec<serde_json::Value> = Vec::new();
+    let mut unstaged: Vec<serde_json::Value> = Vec::new();
+    let mut untracked: Vec<String> = Vec::new();
+
+    for line in status_text.lines() {
+        if line.starts_with("## ") {
+            // Parse branch line: "## main...origin/main" or "## HEAD (no branch)"
+            let branch_info = &line[3..];
+            if let Some(dots) = branch_info.find("...") {
+                branch = branch_info[..dots].to_string();
+                // Remote part may have trailing info like " [ahead 2, behind 1]"
+                let rest = &branch_info[dots + 3..];
+                if let Some(space) = rest.find(' ') {
+                    remote_branch = Some(rest[..space].to_string());
+                } else {
+                    remote_branch = Some(rest.to_string());
+                }
+            } else {
+                // No remote tracking, may have " [gone]" etc.
+                if let Some(space) = branch_info.find(' ') {
+                    branch = branch_info[..space].to_string();
+                } else {
+                    branch = branch_info.to_string();
+                }
+            }
+            continue;
+        }
+
+        if line.len() < 4 {
+            continue;
+        }
+
+        let index_status = line.as_bytes()[0] as char;
+        let worktree_status = line.as_bytes()[1] as char;
+        // File path starts at position 3
+        let file_path = &line[3..];
+        // Handle renames: "R  old -> new" — use the new name
+        let display_path = if let Some(arrow) = file_path.find(" -> ") {
+            &file_path[arrow + 4..]
+        } else {
+            file_path
+        };
+
+        if index_status == '?' && worktree_status == '?' {
+            untracked.push(display_path.to_string());
+            continue;
+        }
+
+        // Staged changes (index column)
+        if index_status != ' ' && index_status != '?' {
+            let code = match index_status {
+                'M' => "M",
+                'A' => "A",
+                'D' => "D",
+                'R' => "R",
+                'C' => "A", // copied, treat as added
+                _ => "M",
+            };
+            staged.push(serde_json::json!({"path": display_path, "status": code}));
+        }
+
+        // Unstaged changes (worktree column)
+        if worktree_status != ' ' && worktree_status != '?' {
+            let code = match worktree_status {
+                'M' => "M",
+                'D' => "D",
+                _ => "M",
+            };
+            unstaged.push(serde_json::json!({"path": display_path, "status": code}));
+        }
+    }
+
+    // --- ahead/behind via rev-list ---
+    let mut ahead: i64 = 0;
+    let mut behind: i64 = 0;
+
+    if remote_branch.is_some() {
+        let revlist = tokio::process::Command::new("git")
+            .args([
+                "-C",
+                &git_root,
+                "rev-list",
+                "--left-right",
+                "--count",
+                "HEAD...@{upstream}",
+            ])
+            .output()
+            .await;
+
+        if let Ok(o) = revlist {
+            if o.status.success() {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let parts: Vec<&str> = text.trim().split('\t').collect();
+                if parts.len() == 2 {
+                    ahead = parts[0].parse().unwrap_or(0);
+                    behind = parts[1].parse().unwrap_or(0);
+                }
+            }
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "branch": branch,
+            "remote_branch": remote_branch.unwrap_or_default(),
+            "ahead": ahead,
+            "behind": behind,
+            "staged": staged,
+            "unstaged": unstaged,
+            "untracked": untracked,
+        })),
+    )
+}
+
+// ── Git Action Endpoints ───────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct GitActionParams {
+    path: Option<String>,
+}
+
+/// Helper: resolve git root from a `?path=` query param.
+fn resolve_git_root(path: Option<String>) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+    let raw_path = match path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            ));
+        }
+    };
+    let expanded = expand_path(&raw_path);
+    match find_git_root(&expanded) {
+        Some(r) => Ok(r),
+        None => Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "not a git repository"})),
+        )),
+    }
+}
+
+/// Helper: run a git command in a given directory and return success/error JSON.
+async fn run_git_command(git_root: &str, args: &[&str]) -> (StatusCode, Json<serde_json::Value>) {
+    let output = tokio::process::Command::new("git")
+        .args(args)
+        .current_dir(git_root)
+        .output()
+        .await;
+
+    match output {
+        Ok(o) if o.status.success() => {
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"success": true, "output": stdout.trim()})),
+            )
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"success": false, "error": stderr.trim()})),
+            )
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"success": false, "error": format!("failed to run git: {}", e)})),
+        ),
+    }
+}
+
+/// POST /api/git/fetch?path=
+async fn git_fetch(Query(params): Query<GitActionParams>) -> impl IntoResponse {
+    let git_root = match resolve_git_root(params.path) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    run_git_command(&git_root, &["fetch"]).await
+}
+
+/// POST /api/git/pull?path=
+async fn git_pull(Query(params): Query<GitActionParams>) -> impl IntoResponse {
+    let git_root = match resolve_git_root(params.path) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    run_git_command(&git_root, &["pull"]).await
+}
+
+/// POST /api/git/push?path=
+async fn git_push(Query(params): Query<GitActionParams>) -> impl IntoResponse {
+    let git_root = match resolve_git_root(params.path) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    run_git_command(&git_root, &["push"]).await
+}
+
+#[derive(Deserialize)]
+struct GitStageBody {
+    files: Option<Vec<String>>,
+    all: Option<bool>,
+}
+
+/// POST /api/git/stage?path= — body: {"files": [...]} or {"all": true}
+async fn git_stage(
+    Query(params): Query<GitActionParams>,
+    Json(body): Json<GitStageBody>,
+) -> impl IntoResponse {
+    let git_root = match resolve_git_root(params.path) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+
+    if body.all.unwrap_or(false) {
+        return run_git_command(&git_root, &["add", "-A"]).await;
+    }
+
+    match &body.files {
+        Some(files) if !files.is_empty() => {
+            let mut args: Vec<&str> = vec!["add", "--"];
+            for f in files {
+                args.push(f.as_str());
+            }
+            run_git_command(&git_root, &args).await
+        }
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"success": false, "error": "files array or all:true required"})),
+        ),
+    }
+}
+
+/// POST /api/git/unstage?path= — body: {"files": [...]} or {"all": true}
+async fn git_unstage(
+    Query(params): Query<GitActionParams>,
+    Json(body): Json<GitStageBody>,
+) -> impl IntoResponse {
+    let git_root = match resolve_git_root(params.path) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+
+    if body.all.unwrap_or(false) {
+        return run_git_command(&git_root, &["reset", "HEAD"]).await;
+    }
+
+    match &body.files {
+        Some(files) if !files.is_empty() => {
+            let mut args: Vec<&str> = vec!["reset", "HEAD", "--"];
+            for f in files {
+                args.push(f.as_str());
+            }
+            run_git_command(&git_root, &args).await
+        }
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"success": false, "error": "files array or all:true required"})),
+        ),
+    }
+}
+
+#[derive(Deserialize)]
+struct GitCommitBody {
+    message: String,
+}
+
+/// POST /api/git/commit?path= — body: {"message": "..."}
+async fn git_commit_action(
+    Query(params): Query<GitActionParams>,
+    Json(body): Json<GitCommitBody>,
+) -> impl IntoResponse {
+    let git_root = match resolve_git_root(params.path) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+
+    if body.message.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"success": false, "error": "commit message required"})),
+        );
+    }
+
+    run_git_command(&git_root, &["commit", "-m", &body.message]).await
+}
+
+/// POST /api/git/generate-message?path= — generate commit message via Claude Haiku
+async fn git_generate_message(Query(params): Query<GitActionParams>) -> impl IntoResponse {
+    let git_root = match resolve_git_root(params.path) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+
+    // Get staged diff
+    let diff_output = tokio::process::Command::new("git")
+        .args(["-C", &git_root, "diff", "--cached"])
+        .output()
+        .await;
+
+    let diff = match diff_output {
+        Ok(o) if o.status.success() => {
+            let s = String::from_utf8_lossy(&o.stdout).to_string();
+            if s.trim().is_empty() {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"success": false, "error": "no_staged_changes"})),
+                );
+            }
+            s
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"success": false, "error": stderr.trim()})),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"success": false, "error": format!("failed to run git: {}", e)})),
+            );
+        }
+    };
+
+    // Truncate at 50KB
+    let max_len = 50 * 1024;
+    let truncated_diff = if diff.len() > max_len {
+        let mut end = max_len;
+        // Don't cut in the middle of a multi-byte char
+        while end > 0 && !diff.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}\n\n[diff truncated at 50KB]", &diff[..end])
+    } else {
+        diff
+    };
+
+    let prompt = format!(
+        "Write a git commit message for this diff.\n\n\
+         OUTPUT RULES:\n\
+         - Output ONLY the commit message, nothing else\n\
+         - NO markdown, backticks, XML tags, or preamble\n\
+         - NO Co-Authored-By lines\n\n\
+         FORMAT:\n\
+         - Conventional commit prefix: feat:, fix:, refactor:, docs:, chore:\n\
+         - First line under 72 chars\n\
+         - Optional blank line + bullet points for details\n\n\
+         DIFF:\n{}",
+        truncated_diff
+    );
+
+    // Spawn claude with 30s timeout
+    use std::process::Stdio;
+    use tokio::io::AsyncWriteExt;
+
+    let child = tokio::process::Command::new("claude")
+        .args(["--model", "haiku", "--print", "-p", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn();
+
+    let mut child = match child {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({"success": false, "error": "claude_not_available"})),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"success": false, "error": format!("failed to spawn claude: {}", e)})),
+            );
+        }
+    };
+
+    // Write prompt to stdin
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(prompt.as_bytes()).await;
+        drop(stdin);
+    }
+
+    // Wait with 30s timeout
+    let timeout = std::time::Duration::from_secs(30);
+    match tokio::time::timeout(timeout, child.wait_with_output()).await {
+        Ok(Ok(output)) if output.status.success() => {
+            let message = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"success": true, "message": message})),
+            )
+        }
+        Ok(Ok(output)) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"success": false, "error": stderr.trim()})),
+            )
+        }
+        Ok(Err(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"success": false, "error": format!("claude process error: {}", e)})),
+        ),
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            Json(serde_json::json!({"success": false, "error": "timeout generating commit message"})),
+        ),
+    }
 }
 
 // ── Beads API Endpoint ─────────────────────────────────────────────────────

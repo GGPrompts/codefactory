@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gp-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px;
+}
+
+/* ── Header Bar ── */
+.gp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.gp-branch-badge {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+  color: var(--hazard-yellow);
+  border: 1px solid color-mix(in srgb, var(--hazard-yellow) 35%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.gp-count-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.gp-count-ahead {
+  background: color-mix(in srgb, var(--safety-green) 20%, transparent);
+  color: #4ade80;
+  border: 1px solid color-mix(in srgb, var(--safety-green) 40%, transparent);
+}
+
+.gp-count-behind {
+  background: color-mix(in srgb, var(--caution-red) 20%, transparent);
+  color: #f87171;
+  border: 1px solid color-mix(in srgb, var(--caution-red) 40%, transparent);
+}
+
+.gp-header-spacer {
+  flex: 1;
+}
+
+.gp-refresh-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gp-refresh-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Section Card ── */
+.gp-section {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.gp-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--bright-steel);
+}
+
+.gp-section-body {
+  padding: 10px;
+}
+
+/* ── File List ── */
+.gp-file-controls {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.gp-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.gp-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.gp-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.gp-btn-primary {
+  background: var(--safety-green);
+  border-color: var(--safety-green);
+}
+
+.gp-btn-primary:hover {
+  background: #36a556;
+  border-color: #36a556;
+  color: var(--dirty-white);
+}
+
+.gp-btn-warn {
+  background: var(--rust-mid);
+  border-color: var(--rust-mid);
+}
+
+.gp-btn-warn:hover {
+  background: var(--rust-light);
+  border-color: var(--rust-light);
+  color: var(--dirty-white);
+}
+
+.gp-file-list {
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  border-radius: 3px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.gp-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--steel-dark);
+  cursor: pointer;
+  transition: background 0.1s;
+  min-height: 44px;
+}
+
+.gp-file-item:last-child {
+  border-bottom: none;
+}
+
+.gp-file-item:hover {
+  background: var(--steel-dark);
+}
+
+.gp-file-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--hazard-yellow);
+  cursor: pointer;
+}
+
+.gp-file-status {
+  font-family: var(--font-mono);
+  font-weight: bold;
+  font-size: 12px;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.gp-file-status-M { color: var(--hazard-yellow); }
+.gp-file-status-A { color: #4ade80; }
+.gp-file-status-D { color: #f87171; }
+.gp-file-status-R { color: #60a5fa; }
+.gp-file-status-U { color: var(--brushed-steel); }
+
+.gp-file-path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--dirty-white);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.gp-empty-msg {
+  padding: 12px;
+  color: var(--steel-light);
+  font-size: 12px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ── Commit Form ── */
+.gp-commit-form {
+  position: relative;
+}
+
+.gp-commit-textarea {
+  width: 100%;
+  min-height: 80px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px;
+  padding-right: 44px;
+  border-radius: 3px;
+  outline: none;
+  resize: vertical;
+}
+
+.gp-commit-textarea:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.gp-sparkle-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--hazard-yellow);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.gp-sparkle-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.gp-sparkle-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.gp-commit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* ── Action Bar ── */
+.gp-action-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gp-action-btn {
+  flex: 1;
+  min-width: 100px;
+  min-height: 48px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* ── Spinner ── */
+.gp-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: gp-spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+@keyframes gp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Feedback Toast ── */
+.gp-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.gp-toast.gp-toast-visible {
+  opacity: 1;
+}
+
+.gp-toast-success {
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  border: 1px solid #36a556;
+}
+
+.gp-toast-error {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border: 1px solid #e43c3c;
+}
+
+/* ── Loading Overlay ── */
+.gp-loading-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 12px;
+  color: var(--brushed-steel);
+}
+
+.gp-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: gp-spin 0.6s linear infinite;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .gp-header {
+    padding: 6px 8px;
+  }
+
+  .gp-branch-badge {
+    font-size: 12px;
+    max-width: 140px;
+  }
+
+  .gp-scroll {
+    padding: 8px;
+  }
+
+  .gp-section-body {
+    padding: 8px;
+  }
+
+  .gp-action-btn {
+    min-height: 52px;
+    font-size: 15px;
+  }
+
+  .gp-commit-textarea {
+    min-height: 100px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="gp-header" id="header-bar">
+    <span class="gp-branch-badge" id="branch-badge">--</span>
+    <span class="gp-count-badge gp-count-ahead" id="ahead-badge" style="display:none"></span>
+    <span class="gp-count-badge gp-count-behind" id="behind-badge" style="display:none"></span>
+    <span class="gp-header-spacer"></span>
+    <button class="gp-refresh-btn" id="refresh-btn" title="Refresh">Refresh</button>
+  </div>
+
+  <div class="gp-scroll" id="main-scroll">
+    <div class="gp-loading-center" id="initial-loading">
+      <div class="gp-loading-spinner"></div>
+      <span>Loading git status...</span>
+    </div>
+
+    <div id="content-area" style="display:none">
+      <!-- Staged Files -->
+      <div class="gp-section">
+        <div class="gp-section-header">Staged</div>
+        <div class="gp-section-body">
+          <div class="gp-file-controls" id="staged-controls" style="display:none">
+            <button class="gp-btn" id="staged-select-all">Select All</button>
+            <button class="gp-btn" id="staged-deselect-all">Deselect All</button>
+            <button class="gp-btn gp-btn-warn" id="unstage-btn" disabled>Unstage Selected</button>
+          </div>
+          <div class="gp-file-list" id="staged-list"></div>
+        </div>
+      </div>
+
+      <!-- Unstaged + Untracked Files -->
+      <div class="gp-section">
+        <div class="gp-section-header">Changes</div>
+        <div class="gp-section-body">
+          <div class="gp-file-controls" id="unstaged-controls" style="display:none">
+            <button class="gp-btn" id="unstaged-select-all">Select All</button>
+            <button class="gp-btn" id="unstaged-deselect-all">Deselect All</button>
+            <button class="gp-btn gp-btn-primary" id="stage-btn" disabled>Stage Selected</button>
+          </div>
+          <div class="gp-file-list" id="unstaged-list"></div>
+        </div>
+      </div>
+
+      <!-- Commit Form -->
+      <div class="gp-section">
+        <div class="gp-section-header">Commit</div>
+        <div class="gp-section-body">
+          <div class="gp-commit-form">
+            <textarea class="gp-commit-textarea" id="commit-msg" placeholder="Commit message..."></textarea>
+            <button class="gp-sparkle-btn" id="sparkle-btn" title="Auto-generate commit message">&#10024;</button>
+          </div>
+          <div class="gp-commit-actions">
+            <button class="gp-btn gp-btn-primary gp-action-btn" id="commit-btn" disabled>Commit</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="gp-section">
+        <div class="gp-section-header">Actions</div>
+        <div class="gp-section-body">
+          <div class="gp-action-bar">
+            <button class="gp-btn gp-action-btn" id="fetch-btn">Fetch</button>
+            <button class="gp-btn gp-action-btn" id="pull-btn">Pull</button>
+            <button class="gp-btn gp-btn-primary gp-action-btn" id="push-btn">Push</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="gp-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var repoPath = params.get("path") || "";
+  var operating = false;
+  var claudeAvailable = true;
+  var toastTimer = null;
+
+  // ── DOM refs ──
+  var branchBadge = document.getElementById("branch-badge");
+  var aheadBadge = document.getElementById("ahead-badge");
+  var behindBadge = document.getElementById("behind-badge");
+  var refreshBtn = document.getElementById("refresh-btn");
+  var initialLoading = document.getElementById("initial-loading");
+  var contentArea = document.getElementById("content-area");
+  var stagedList = document.getElementById("staged-list");
+  var unstagedList = document.getElementById("unstaged-list");
+  var stagedControls = document.getElementById("staged-controls");
+  var unstagedControls = document.getElementById("unstaged-controls");
+  var stagedSelectAll = document.getElementById("staged-select-all");
+  var stagedDeselectAll = document.getElementById("staged-deselect-all");
+  var unstagedSelectAll = document.getElementById("unstaged-select-all");
+  var unstagedDeselectAll = document.getElementById("unstaged-deselect-all");
+  var stageBtn = document.getElementById("stage-btn");
+  var unstageBtn = document.getElementById("unstage-btn");
+  var commitMsg = document.getElementById("commit-msg");
+  var sparkleBtn = document.getElementById("sparkle-btn");
+  var commitBtn = document.getElementById("commit-btn");
+  var fetchBtn = document.getElementById("fetch-btn");
+  var pullBtn = document.getElementById("pull-btn");
+  var pushBtn = document.getElementById("push-btn");
+  var toast = document.getElementById("toast");
+
+  // ── Helpers ──
+
+  function apiUrl(endpoint) {
+    return endpoint + (endpoint.indexOf("?") === -1 ? "?" : "&") + "path=" + encodeURIComponent(repoPath);
+  }
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          cb(null, JSON.parse(xhr.responseText));
+        } catch (e) {
+          cb("Invalid JSON response");
+        }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) {
+          cb("HTTP " + xhr.status);
+        }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function xhrPost(url, body, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          cb(null, JSON.parse(xhr.responseText));
+        } catch (e) {
+          cb(null, { success: true });
+        }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) {
+          cb("HTTP " + xhr.status);
+        }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send(body ? JSON.stringify(body) : "");
+  }
+
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = "gp-toast gp-toast-visible " + (type === "error" ? "gp-toast-error" : "gp-toast-success");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toast.className = "gp-toast";
+    }, 3000);
+  }
+
+  function setButtonLoading(btn, loading, originalText) {
+    if (loading) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="gp-spinner"></span>' + originalText;
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  }
+
+  function setAllOperating(val) {
+    operating = val;
+    var btns = [refreshBtn, stageBtn, unstageBtn, commitBtn, fetchBtn, pullBtn, pushBtn, sparkleBtn];
+    for (var i = 0; i < btns.length; i++) {
+      if (val) {
+        btns[i].disabled = true;
+      }
+    }
+  }
+
+  // ── File List Rendering ──
+
+  function buildFileItem(file, prefix) {
+    var status = file.status || "?";
+    var path = file.path || file;
+    var id = prefix + "-" + path.replace(/[^a-zA-Z0-9]/g, "_");
+    var div = document.createElement("div");
+    div.className = "gp-file-item";
+    div.innerHTML =
+      '<input type="checkbox" id="' + id + '" data-path="' + escapeAttr(typeof path === "string" ? path : "") + '">' +
+      '<span class="gp-file-status gp-file-status-' + status + '">' + escapeHtml(status) + '</span>' +
+      '<span class="gp-file-path">' + escapeHtml(typeof path === "string" ? path : "") + '</span>';
+    var label = div;
+    label.addEventListener("click", function (e) {
+      if (e.target.tagName !== "INPUT") {
+        var cb = div.querySelector("input");
+        cb.checked = !cb.checked;
+        updateSelectionButtons();
+      }
+    });
+    var cb = div.querySelector("input");
+    cb.addEventListener("change", updateSelectionButtons);
+    return div;
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+  }
+
+  function escapeAttr(s) {
+    return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function getCheckedPaths(listEl) {
+    var paths = [];
+    var cbs = listEl.querySelectorAll("input[type='checkbox']:checked");
+    for (var i = 0; i < cbs.length; i++) {
+      paths.push(cbs[i].getAttribute("data-path"));
+    }
+    return paths;
+  }
+
+  function selectAll(listEl) {
+    var cbs = listEl.querySelectorAll("input[type='checkbox']");
+    for (var i = 0; i < cbs.length; i++) { cbs[i].checked = true; }
+    updateSelectionButtons();
+  }
+
+  function deselectAll(listEl) {
+    var cbs = listEl.querySelectorAll("input[type='checkbox']");
+    for (var i = 0; i < cbs.length; i++) { cbs[i].checked = false; }
+    updateSelectionButtons();
+  }
+
+  function updateSelectionButtons() {
+    var stagedChecked = getCheckedPaths(stagedList).length;
+    var unstagedChecked = getCheckedPaths(unstagedList).length;
+    unstageBtn.disabled = operating || stagedChecked === 0;
+    stageBtn.disabled = operating || unstagedChecked === 0;
+    commitBtn.disabled = operating || commitMsg.value.trim() === "";
+  }
+
+  // ── Status Load ──
+
+  function loadStatus() {
+    xhrGet(apiUrl("/api/git/status"), function (err, data) {
+      initialLoading.style.display = "none";
+      contentArea.style.display = "block";
+
+      if (err) {
+        showToast("Status error: " + err, "error");
+        return;
+      }
+
+      // Header badges
+      branchBadge.textContent = data.branch || "detached";
+
+      if (data.ahead > 0) {
+        aheadBadge.textContent = "+" + data.ahead;
+        aheadBadge.style.display = "";
+      } else {
+        aheadBadge.style.display = "none";
+      }
+
+      if (data.behind > 0) {
+        behindBadge.textContent = "-" + data.behind;
+        behindBadge.style.display = "";
+      } else {
+        behindBadge.style.display = "none";
+      }
+
+      // Staged files
+      stagedList.innerHTML = "";
+      if (data.staged && data.staged.length > 0) {
+        stagedControls.style.display = "";
+        for (var i = 0; i < data.staged.length; i++) {
+          stagedList.appendChild(buildFileItem(data.staged[i], "staged"));
+        }
+      } else {
+        stagedControls.style.display = "none";
+        stagedList.innerHTML = '<div class="gp-empty-msg">No staged changes</div>';
+      }
+
+      // Unstaged + untracked
+      unstagedList.innerHTML = "";
+      var unstaged = data.unstaged || [];
+      var untracked = data.untracked || [];
+      var hasChanges = unstaged.length > 0 || untracked.length > 0;
+
+      if (hasChanges) {
+        unstagedControls.style.display = "";
+        for (var j = 0; j < unstaged.length; j++) {
+          unstagedList.appendChild(buildFileItem(unstaged[j], "unstaged"));
+        }
+        for (var k = 0; k < untracked.length; k++) {
+          unstagedList.appendChild(buildFileItem({ path: untracked[k], status: "?" }, "untracked"));
+        }
+      } else {
+        unstagedControls.style.display = "none";
+        unstagedList.innerHTML = '<div class="gp-empty-msg">No unstaged changes</div>';
+      }
+
+      updateSelectionButtons();
+    });
+  }
+
+  // ── Actions ──
+
+  function doStage() {
+    var files = getCheckedPaths(unstagedList);
+    if (files.length === 0) return;
+    setAllOperating(true);
+    setButtonLoading(stageBtn, true, "Stage Selected");
+    xhrPost(apiUrl("/api/git/stage"), { files: files }, function (err) {
+      setAllOperating(false);
+      setButtonLoading(stageBtn, false, "Stage Selected");
+      if (err) {
+        showToast("Stage failed: " + err, "error");
+      } else {
+        showToast("Staged " + files.length + " file(s)", "success");
+      }
+      loadStatus();
+    });
+  }
+
+  function doUnstage() {
+    var files = getCheckedPaths(stagedList);
+    if (files.length === 0) return;
+    setAllOperating(true);
+    setButtonLoading(unstageBtn, true, "Unstage Selected");
+    xhrPost(apiUrl("/api/git/unstage"), { files: files }, function (err) {
+      setAllOperating(false);
+      setButtonLoading(unstageBtn, false, "Unstage Selected");
+      if (err) {
+        showToast("Unstage failed: " + err, "error");
+      } else {
+        showToast("Unstaged " + files.length + " file(s)", "success");
+      }
+      loadStatus();
+    });
+  }
+
+  function doCommit() {
+    var msg = commitMsg.value.trim();
+    if (!msg) return;
+    setAllOperating(true);
+    setButtonLoading(commitBtn, true, "Commit");
+    xhrPost(apiUrl("/api/git/commit"), { message: msg }, function (err) {
+      setAllOperating(false);
+      setButtonLoading(commitBtn, false, "Commit");
+      if (err) {
+        showToast("Commit failed: " + err, "error");
+      } else {
+        showToast("Committed successfully", "success");
+        commitMsg.value = "";
+      }
+      loadStatus();
+    });
+  }
+
+  function doGenerateMessage() {
+    setAllOperating(true);
+    setButtonLoading(sparkleBtn, true, "&#10024;");
+    xhrPost(apiUrl("/api/git/generate-message"), null, function (err, data) {
+      setAllOperating(false);
+      setButtonLoading(sparkleBtn, false, "&#10024;");
+      if (err) {
+        showToast("Generate failed: " + err, "error");
+        return;
+      }
+      if (data && data.success === false) {
+        if (data.error === "claude_not_available") {
+          claudeAvailable = false;
+          sparkleBtn.style.display = "none";
+          showToast("AI commit messages not available", "error");
+        } else if (data.error === "no_staged_changes") {
+          showToast("Stage changes first to generate a message", "error");
+        } else {
+          showToast("Generate failed: " + (data.error || "unknown error"), "error");
+        }
+        return;
+      }
+      if (data && data.message) {
+        commitMsg.value = data.message;
+        updateSelectionButtons();
+        showToast("Message generated", "success");
+      }
+    });
+  }
+
+  function doFetch() {
+    setAllOperating(true);
+    setButtonLoading(fetchBtn, true, "Fetch");
+    xhrPost(apiUrl("/api/git/fetch"), null, function (err) {
+      setAllOperating(false);
+      setButtonLoading(fetchBtn, false, "Fetch");
+      if (err) {
+        showToast("Fetch failed: " + err, "error");
+      } else {
+        showToast("Fetched successfully", "success");
+      }
+      loadStatus();
+    });
+  }
+
+  function doPull() {
+    setAllOperating(true);
+    setButtonLoading(pullBtn, true, "Pull");
+    xhrPost(apiUrl("/api/git/pull"), null, function (err) {
+      setAllOperating(false);
+      setButtonLoading(pullBtn, false, "Pull");
+      if (err) {
+        showToast("Pull failed: " + err, "error");
+      } else {
+        showToast("Pulled successfully", "success");
+      }
+      loadStatus();
+    });
+  }
+
+  function doPush() {
+    setAllOperating(true);
+    setButtonLoading(pushBtn, true, "Push");
+    xhrPost(apiUrl("/api/git/push"), null, function (err) {
+      setAllOperating(false);
+      setButtonLoading(pushBtn, false, "Push");
+      if (err) {
+        showToast("Push failed: " + err, "error");
+      } else {
+        showToast("Pushed successfully", "success");
+      }
+      loadStatus();
+    });
+  }
+
+  // ── Event Bindings ──
+  refreshBtn.addEventListener("click", function () {
+    if (!operating) loadStatus();
+  });
+
+  stagedSelectAll.addEventListener("click", function () { selectAll(stagedList); });
+  stagedDeselectAll.addEventListener("click", function () { deselectAll(stagedList); });
+  unstagedSelectAll.addEventListener("click", function () { selectAll(unstagedList); });
+  unstagedDeselectAll.addEventListener("click", function () { deselectAll(unstagedList); });
+
+  stageBtn.addEventListener("click", doStage);
+  unstageBtn.addEventListener("click", doUnstage);
+  commitBtn.addEventListener("click", doCommit);
+  sparkleBtn.addEventListener("click", doGenerateMessage);
+  fetchBtn.addEventListener("click", doFetch);
+  pullBtn.addEventListener("click", doPull);
+  pushBtn.addEventListener("click", doPush);
+
+  commitMsg.addEventListener("input", updateSelectionButtons);
+
+  // ── Init ──
+  if (!repoPath) {
+    initialLoading.innerHTML = '<span style="color:var(--caution-red)">No repo path provided (use ?path=)</span>';
+  } else {
+    loadStatus();
+  }
+})();
+</script>
+</body>
+</html>
