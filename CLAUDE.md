@@ -45,11 +45,12 @@ cargo check --workspace       # verify both crates compile
 
 ## Beads (Issue Tracking)
 
-- Issues are tracked with beads (`bd`), backed by a Dolt SQL server on port 3307
-- Data dir: `~/beads-dolt/` — shared across projects
-- Remotes sync via `~/ObsidianVault/beads-remotes/` (file-based Dolt remotes)
-- On session start: `cd ~/beads-dolt/beads_codefactory && dolt pull origin main`
-- On session end (after git push): `cd ~/beads-dolt/beads_codefactory && dolt push origin main && cd ~/ObsidianVault && git add -A && git commit -m "beads sync" && git push`
+- Issues are tracked with beads (`bd`)
+- On desktop/laptop: backed by Dolt SQL server on port 3307, data dir `~/beads-dolt/`
+- On Termux: uses local SQLite backend (no Dolt) — issues stay local
+- Dolt sync (desktop/laptop only, skip if `dolt` not available):
+  - Session start: `cd ~/beads-dolt/beads_codefactory && dolt pull origin main`
+  - Session end: `cd ~/beads-dolt/beads_codefactory && dolt push origin main && cd ~/ObsidianVault && git add -A && git commit -m "beads sync" && git push`
 - See `BEADS_SETUP.md` for full setup details
 
 See `backend/CLAUDE.md` and `frontend/CLAUDE.md` for crate/directory-specific details.
