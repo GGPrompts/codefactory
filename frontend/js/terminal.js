@@ -162,11 +162,13 @@ var CodeFactoryTerminals = (function() {
             powered: true,
             outputGuarded: true,
             inputGuarded: true,
+            escGuarded: true,
             outputBuffer: [],
             config: config || null,
             resizeObserver: null,
             outputGuardTimer: null,
             inputGuardTimer: null,
+            escGuardTimer: null,
         };
         terminals[floorId] = entry;
 
@@ -215,6 +217,13 @@ var CodeFactoryTerminals = (function() {
             entry.inputGuarded = false;
         }, 5000);
 
+        // ESC guard: blocks ALL escape-sequence-starting data for longer
+        // than the input guard to catch late auto-responses from tmux
+        // reattach queries (DCS, DECRPM, etc.) that the regex may miss.
+        entry.escGuardTimer = setTimeout(function() {
+            entry.escGuarded = false;
+        }, 8000);
+
         // Handle user input.
         // Permanently strip terminal auto-response patterns that xterm.js
         // generates when processing terminal output.  These must NOT be
@@ -225,12 +234,23 @@ var CodeFactoryTerminals = (function() {
         var autoResponseRe = new RegExp(
             '\\x1b\\[\\?[0-9;]*c'           // DA1 response
             + '|\\x1b\\[>[0-9;]*c'           // DA2 response
+            + '|\\x1b\\[=[0-9;]*c'           // DA3 response
             + '|\\x1b\\[[0-9;]*R'            // DSR cursor position report
             + '|\\x1b\\][0-9;]+;[^\\x07]*(?:\\x07|\\x1b\\\\)'  // OSC responses (e.g. color)
             + '|\\x1b\\[[IO]'                // Focus in/out reports
+            + '|\\x1bP[^\\x1b]*\\x1b\\\\'   // DCS responses (XTVERSION, DECRQSS, etc.)
+            + '|\\x1bP[^\\x07]*\\x07'        // DCS responses (BEL-terminated)
+            + '|\\x1b\\[\\?[0-9;]*\\$y'      // DECRPM mode reports
+            + '|\\x1b\\[\\?[0-9;]*u'         // Kitty keyboard mode report
+            + '|\\x1b\\[[0-9;]*t'            // Window manipulation responses
         , 'g');
         xterm.onData(function(data) {
             if (entry.inputGuarded) {
+                return;
+            }
+            // After reconnection, block ALL ESC-starting data for a longer
+            // period to catch any auto-responses not covered by the regex.
+            if (entry.escGuarded && data.charCodeAt(0) === 0x1b) {
                 return;
             }
             var filtered = data.replace(autoResponseRe, '');
@@ -302,6 +322,7 @@ var CodeFactoryTerminals = (function() {
         // Cancel guard timers
         clearTimeout(entry.outputGuardTimer);
         clearTimeout(entry.inputGuardTimer);
+        clearTimeout(entry.escGuardTimer);
 
         // Tell the backend what to do before closing
         if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
@@ -445,6 +466,14 @@ var CodeFactoryTerminals = (function() {
                     entry.inputGuardTimer = setTimeout(function() {
                         entry.inputGuarded = false;
                     }, 5000);
+
+                    // Reset ESC guard: blocks escape-starting data longer
+                    // than input guard to catch late tmux reattach queries
+                    entry.escGuarded = true;
+                    clearTimeout(entry.escGuardTimer);
+                    entry.escGuardTimer = setTimeout(function() {
+                        entry.escGuarded = false;
+                    }, 8000);
 
                     // Re-fit after DOM settles; only send resize if
                     // dimensions actually changed from the spawn size.
