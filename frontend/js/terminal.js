@@ -220,22 +220,22 @@ var CodeFactoryTerminals = (function() {
                 // processing ALL buffered output (and generated any
                 // auto-responses).  Only then drop the input guard.
                 xterm.write(merged, function() {
-                    // Allow a settling period for any trailing auto-responses
+                    // Brief settling period for any trailing auto-responses
                     clearTimeout(entry.inputGuardTimer);
                     entry.inputGuardTimer = setTimeout(function() {
                         entry.inputGuarded = false;
                         entry.unblockMouse();
-                    }, 500);
+                    }, 200);
                 });
             } else {
                 clearTimeout(entry.inputGuardTimer);
                 entry.inputGuardTimer = setTimeout(function() {
                     entry.inputGuarded = false;
-                }, 500);
+                }, 200);
             }
             entry.outputBuffer = [];
         };
-        entry.outputGuardTimer = setTimeout(entry.flushOutputGuard, 1000);
+        entry.outputGuardTimer = setTimeout(entry.flushOutputGuard, 500);
 
         // Input guard: stays up until the output guard flush completes AND
         // xterm finishes processing (see flushOutputGuard above).
@@ -244,14 +244,15 @@ var CodeFactoryTerminals = (function() {
         entry.inputGuardTimer = setTimeout(function() {
             entry.inputGuarded = false;
             entry.unblockMouse();
-        }, 5000);
+        }, 2000);
 
-        // ESC guard: blocks ALL escape-sequence-starting data for longer
-        // than the input guard to catch late auto-responses from tmux
-        // reattach queries (DCS, DECRPM, etc.) that the regex may miss.
+        // ESC guard: blocks escape-sequence-starting data to catch
+        // auto-responses (DA1, DCS, DECRPM, etc.) not covered by the
+        // regex filter.  Short since the PTY now persists across
+        // reconnections — no tmux reattach storm to absorb.
         entry.escGuardTimer = setTimeout(function() {
             entry.escGuarded = false;
-        }, 8000);
+        }, 2000);
 
         // Handle user input.
         // Permanently strip terminal auto-response patterns that xterm.js
@@ -484,27 +485,23 @@ var CodeFactoryTerminals = (function() {
 
                     // Reset guards so they cover the actual data-flow period
                     // (tmux redraw + post-spawn resize), not just DOM setup time.
-                    // Input guard stays up until the output flush completes
-                    // AND xterm finishes processing (callback in flushOutputGuard).
                     entry.outputGuarded = true;
                     clearTimeout(entry.outputGuardTimer);
-                    entry.outputGuardTimer = setTimeout(entry.flushOutputGuard, 1000);
+                    entry.outputGuardTimer = setTimeout(entry.flushOutputGuard, 500);
 
                     entry.inputGuarded = true;
                     clearTimeout(entry.inputGuardTimer);
-                    // Fallback: drop guard after 5s if flush callback never fires
+                    // Fallback: drop guard after 2s if flush callback never fires
                     entry.inputGuardTimer = setTimeout(function() {
                         entry.inputGuarded = false;
                         entry.unblockMouse();
-                    }, 5000);
+                    }, 2000);
 
-                    // Reset ESC guard: blocks escape-starting data longer
-                    // than input guard to catch late tmux reattach queries
                     entry.escGuarded = true;
                     clearTimeout(entry.escGuardTimer);
                     entry.escGuardTimer = setTimeout(function() {
                         entry.escGuarded = false;
-                    }, 8000);
+                    }, 2000);
 
                     // Re-fit after DOM settles; only send resize if
                     // dimensions actually changed from the spawn size.

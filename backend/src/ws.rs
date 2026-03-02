@@ -141,7 +141,7 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
 
     // Wait for the client to send a Spawn message before creating the terminal session.
     // This allows the frontend to fetch floor config and specify command/cwd.
-    let mut pty_read_handle: Option<tokio::task::JoinHandle<()>> = None;
+    let mut pty_fwd_handle: Option<tokio::task::JoinHandle<()>> = None;
     let mut session_closed = false;
     let mut spawned = false;
 
@@ -193,15 +193,15 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                     break;
                                 }
 
-                                // Take the PTY reader and start the read task
-                                let pty_reader = match state.terminal_manager.take_reader(&floor_id) {
-                                    Ok(reader) => reader,
+                                // Subscribe to the persistent PTY reader's output.
+                                let mut pty_rx = match state.terminal_manager.subscribe_output(&floor_id) {
+                                    Ok(rx) => rx,
                                     Err(e) => {
-                                        error!(floor_id = %floor_id, error = %e, "Failed to take PTY reader");
+                                        error!(floor_id = %floor_id, error = %e, "Failed to subscribe to PTY output");
                                         let _ = send_server_msg(
                                             &tx,
                                             ServerMessage::Error {
-                                                message: format!("Failed to take PTY reader: {e}"),
+                                                message: format!("Failed to subscribe to output: {e}"),
                                             },
                                         );
                                         let _ = state.terminal_manager.disconnect_session(&floor_id);
@@ -209,34 +209,27 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                     }
                                 };
 
+                                // Forwarding task: reads raw bytes from the PTY
+                                // subscription channel and base64-encodes them
+                                // for the WebSocket.
                                 let pty_tx = tx.clone();
                                 let pty_floor_id = floor_id.clone();
-                                pty_read_handle = Some(tokio::task::spawn_blocking(move || {
-                                    let mut reader = pty_reader;
-                                    let mut buf = [0u8; 4096];
-                                    loop {
-                                        match std::io::Read::read(&mut reader, &mut buf) {
-                                            Ok(0) => {
-                                                info!(floor_id = %pty_floor_id, "PTY reader returned EOF");
-                                                // Notify frontend that the session exited
-                                                let _ = pty_tx.send(ServerMessage::Closed {
-                                                    floor_id: pty_floor_id.clone(),
-                                                });
-                                                break;
-                                            }
-                                            Ok(n) => {
-                                                let encoded =
-                                                    base64::engine::general_purpose::STANDARD.encode(&buf[..n]);
-                                                let msg = ServerMessage::Output { data: encoded };
-                                                if pty_tx.send(msg).is_err() {
-                                                    info!(floor_id = %pty_floor_id, "PTY output channel closed, stopping reader");
-                                                    break;
-                                                }
-                                            }
-                                            Err(e) => {
-                                                error!(floor_id = %pty_floor_id, error = %e, "PTY read error");
-                                                break;
-                                            }
+                                pty_fwd_handle = Some(tokio::spawn(async move {
+                                    while let Some(data) = pty_rx.recv().await {
+                                        if data.is_empty() {
+                                            // EOF signal from persistent reader.
+                                            info!(floor_id = %pty_floor_id, "PTY reader signalled EOF");
+                                            let _ = pty_tx.send(ServerMessage::Closed {
+                                                floor_id: pty_floor_id.clone(),
+                                            });
+                                            break;
+                                        }
+                                        let encoded =
+                                            base64::engine::general_purpose::STANDARD.encode(&data);
+                                        let msg = ServerMessage::Output { data: encoded };
+                                        if pty_tx.send(msg).is_err() {
+                                            info!(floor_id = %pty_floor_id, "WS output channel closed, stopping forwarder");
+                                            break;
                                         }
                                     }
                                 }));
@@ -340,13 +333,14 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
         }
     }
 
-    // Cleanup: if we didn't explicitly close/disconnect, disconnect to preserve tmux
+    // Cleanup: disconnect subscriber but preserve the PTY + tmux session.
+    // On next page refresh the existing session will be reused (no re-attach).
     if !session_closed && spawned {
         let _ = state.terminal_manager.disconnect_session(&floor_id);
     }
 
-    // Abort the PTY read task if it was started
-    if let Some(handle) = pty_read_handle {
+    // Abort the forwarding task (async, non-blocking — safe to abort).
+    if let Some(handle) = pty_fwd_handle {
         handle.abort();
     }
 

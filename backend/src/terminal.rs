@@ -1,24 +1,31 @@
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 /// A single terminal session representing one floor's PTY + tmux pairing.
+///
+/// The session persists across WebSocket reconnections.  Only the output
+/// subscriber (mpsc sender) is swapped when a new WebSocket connects.
 struct TerminalSession {
-    floor_id: String,
     tmux_session: String,
     #[allow(dead_code)]
     pty_master: Box<dyn MasterPty + Send>,
-    pty_reader: Option<Box<dyn Read + Send>>,
     pty_writer: Box<dyn Write + Send>,
-    #[allow(dead_code)]
+    /// Current output subscriber.  Set to Some(tx) when a WebSocket is
+    /// connected, None when disconnected.  The persistent reader task
+    /// checks this on every read and discards data when None.
+    output_sink: Arc<Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>>,
+    /// Set to false when the persistent reader task exits (PTY EOF/error).
+    reader_alive: Arc<AtomicBool>,
     cols: u16,
-    #[allow(dead_code)]
     rows: u16,
     #[allow(dead_code)]
     created_at: Instant,
@@ -40,16 +47,32 @@ impl TerminalManager {
     /// Spawn a new terminal session for the given floor.
     ///
     /// Creates a detached tmux session (or reattaches to an existing one),
-    /// then opens a PTY that attaches to that tmux session.
+    /// then opens a PTY that attaches to that tmux session.  A persistent
+    /// reader task is started that outlives individual WebSocket connections.
+    ///
     /// Returns `Ok(true)` if a new tmux session was created, `Ok(false)` if
-    /// reattaching to an existing one.
+    /// reusing an existing session (either our own or an orphaned tmux one).
     pub fn spawn_session(&self, floor_id: &str, cols: u16, rows: u16, cwd: Option<&str>) -> Result<bool> {
         let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
 
-        // Return early if session already exists for this floor.
-        if sessions.contains_key(floor_id) {
-            info!(floor_id = %floor_id, "Session already exists, skipping spawn");
-            return Ok(false);
+        // If we already have a live PTY session, reuse it — no re-attach needed.
+        if let Some(session) = sessions.get(floor_id) {
+            if session.reader_alive.load(Ordering::SeqCst) {
+                // Verify the tmux session still exists.
+                let tmux_ok = Command::new("tmux")
+                    .args(["has-session", "-t", &session.tmux_session])
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
+
+                if tmux_ok {
+                    info!(floor_id = %floor_id, "Reusing existing PTY session (no re-attach)");
+                    return Ok(false);
+                }
+            }
+            // Stale session — remove it so we can recreate below.
+            info!(floor_id = %floor_id, "Removing stale session");
+            sessions.remove(floor_id);
         }
 
         let tmux_session_name = format!("codefactory-floor-{floor_id}");
@@ -152,15 +175,10 @@ impl TerminalManager {
         }
 
         // Detach any stale clients before opening a new PTY.
-        // On page refresh the old PTY reader keeps the master fd alive (via dup),
-        // so the old `tmux attach-session` may still be running.  Detaching it
-        // first prevents a dual-client window where tmux briefly has two clients
-        // attached, which causes resize churn and phantom input in TUI apps.
         if tmux_exists {
             let _ = Command::new("tmux")
                 .args(["detach-client", "-s", &tmux_session_name])
                 .output();
-            // Give the old client a moment to exit so the PTY pair closes
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
 
@@ -209,12 +227,60 @@ impl TerminalManager {
             .take_writer()
             .context("Failed to take PTY writer")?;
 
+        let output_sink: Arc<Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>> =
+            Arc::new(Mutex::new(None));
+        let reader_alive = Arc::new(AtomicBool::new(true));
+
+        // Start persistent reader task.  This task runs for the lifetime of
+        // the PTY (not the WebSocket connection).  It reads from the PTY and
+        // forwards to whatever output sink is currently subscribed.
+        let sink_clone = output_sink.clone();
+        let alive_clone = reader_alive.clone();
+        let reader_floor_id = floor_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let mut reader = reader;
+            let mut buf = [0u8; 4096];
+            loop {
+                match std::io::Read::read(&mut reader, &mut buf) {
+                    Ok(0) => {
+                        info!(floor_id = %reader_floor_id, "PTY reader EOF");
+                        alive_clone.store(false, Ordering::SeqCst);
+                        // Signal subscriber that session exited (empty vec = EOF).
+                        if let Ok(sink) = sink_clone.lock() {
+                            if let Some(ref tx) = *sink {
+                                let _ = tx.send(Vec::new());
+                            }
+                        }
+                        break;
+                    }
+                    Ok(n) => {
+                        if let Ok(sink) = sink_clone.lock() {
+                            if let Some(ref tx) = *sink {
+                                // Ignore send errors — subscriber disconnected.
+                                let _ = tx.send(buf[..n].to_vec());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!(floor_id = %reader_floor_id, error = %e, "PTY read error");
+                        alive_clone.store(false, Ordering::SeqCst);
+                        if let Ok(sink) = sink_clone.lock() {
+                            if let Some(ref tx) = *sink {
+                                let _ = tx.send(Vec::new());
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+
         let session = TerminalSession {
-            floor_id: floor_id.to_string(),
             tmux_session: tmux_session_name.clone(),
             pty_master: pair.master,
-            pty_reader: Some(reader),
             pty_writer: writer,
+            output_sink,
+            reader_alive,
             cols,
             rows,
             created_at: Instant::now(),
@@ -232,20 +298,30 @@ impl TerminalManager {
         Ok(!tmux_exists)
     }
 
+    /// Subscribe to the PTY output for a given floor.
+    ///
+    /// Returns an mpsc receiver that yields raw byte chunks from the PTY.
+    /// An empty Vec signals EOF (session exited).
+    /// Replaces any previous subscriber (only one WebSocket at a time).
+    pub fn subscribe_output(&self, floor_id: &str) -> Result<mpsc::UnboundedReceiver<Vec<u8>>> {
+        let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
+        let session = sessions
+            .get(floor_id)
+            .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
+
+        let (tx, rx) = mpsc::unbounded_channel();
+        // Replace any previous subscriber.
+        *session.output_sink.lock().map_err(|e| anyhow!("Sink lock poisoned: {e}"))? = Some(tx);
+
+        Ok(rx)
+    }
+
     /// Write input data to the PTY for a given floor.
     pub fn write_input(&self, floor_id: &str, data: &[u8]) -> Result<()> {
         let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
         let session = sessions
             .get_mut(floor_id)
             .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
-
-        warn!(
-            floor_id = %floor_id,
-            len = data.len(),
-            hex = %data.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" "),
-            text = %String::from_utf8_lossy(data),
-            "PTY write_input"
-        );
 
         session
             .pty_writer
@@ -283,41 +359,29 @@ impl TerminalManager {
         Ok(())
     }
 
-    /// Take the PTY reader out of the session so it can be moved to an async read task.
+    /// Disconnect the WebSocket subscriber without closing the PTY or tmux session.
     ///
-    /// This should only be called once per session. Subsequent calls will return an error.
-    pub fn take_reader(&self, floor_id: &str) -> Result<Box<dyn Read + Send>> {
-        let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
-        let session = sessions
-            .get_mut(floor_id)
-            .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
-
-        session
-            .pty_reader
-            .take()
-            .ok_or_else(|| anyhow!("Reader already taken for floor {floor_id}"))
-    }
-
-    /// Disconnect from a session without killing the tmux session.
-    ///
-    /// The PTY is dropped (detaching from tmux), but the tmux session stays alive
-    /// so it can be reattached later.
+    /// The persistent reader task keeps running; output is simply discarded
+    /// until a new subscriber connects via `subscribe_output`.
     pub fn disconnect_session(&self, floor_id: &str) -> Result<()> {
-        let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
+        let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
 
-        match sessions.remove(floor_id) {
+        match sessions.get(floor_id) {
             Some(session) => {
+                // Drop the output subscriber so reader discards data.
+                if let Ok(mut sink) = session.output_sink.lock() {
+                    *sink = None;
+                }
                 info!(
                     floor_id = %floor_id,
                     tmux = %session.tmux_session,
-                    "Disconnected from terminal session (tmux session preserved)"
+                    "Disconnected subscriber (PTY + tmux preserved)"
                 );
-                // Session is dropped here, which closes the PTY.
                 Ok(())
             }
             None => {
                 warn!(floor_id = %floor_id, "No session to disconnect");
-                Err(anyhow!("No session found for floor {floor_id}"))
+                Ok(()) // Not an error — session may have been closed already.
             }
         }
     }
@@ -334,6 +398,11 @@ impl TerminalManager {
                     tmux = %tmux_name,
                     "Closing terminal session and killing tmux"
                 );
+
+                // Clear output sink.
+                if let Ok(mut sink) = session.output_sink.lock() {
+                    *sink = None;
+                }
 
                 let output = Command::new("tmux")
                     .args(["kill-session", "-t", tmux_name])
@@ -360,7 +429,8 @@ impl TerminalManager {
                     }
                 }
 
-                // Session (and PTY) dropped here.
+                // Session (and PTY) dropped here.  Reader task will get an
+                // error on its next read and exit.
                 Ok(())
             }
             None => {
@@ -402,12 +472,6 @@ impl TerminalManager {
         }
 
         Ok(orphaned)
-    }
-
-    /// Get the set of floor IDs that currently have active sessions.
-    pub fn active_floor_ids(&self) -> Vec<String> {
-        let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
-        sessions.keys().cloned().collect()
     }
 }
 

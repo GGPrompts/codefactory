@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind},
@@ -861,27 +862,32 @@ fn main() -> io::Result<()> {
 
     let mut app = App::new(config);
 
-    // Debug log for tracing phantom input during tmux reattach
-    let debug_log = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/codefactory-tui-events.log")
-        .ok();
+    // Reattach grace period: when the terminal resizes (which happens on
+    // every tmux client re-attach), ignore all keyboard input briefly to
+    // absorb phantom keystrokes that tmux injects into pane stdin.
+    // Also set an initial grace period at startup for the first attach.
+    let mut resize_grace_until: Option<Instant> = Some(Instant::now() + Duration::from_millis(500));
 
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
         let evt = event::read()?;
-        if let Some(ref mut log) = debug_log.as_ref().ok_or(()).err() {
-            // no-op
-        }
-        // Log ALL events to file for debugging
-        if let Some(log) = &debug_log {
-            use std::io::Write;
-            let _ = writeln!(&*log, "{:?} {:?}", std::time::SystemTime::now(), evt);
-        }
         match evt {
-            Event::Key(key) => app.handle_key(key),
+            Event::Key(key) => {
+                // During the reattach grace period, silently discard all
+                // key events to prevent phantom bytes from triggering actions.
+                if let Some(until) = resize_grace_until {
+                    if Instant::now() < until {
+                        continue;
+                    }
+                    resize_grace_until = None;
+                }
+                app.handle_key(key);
+            }
+            Event::Resize(_, _) => {
+                // tmux client reattach triggers a resize — set grace period.
+                resize_grace_until = Some(Instant::now() + Duration::from_millis(500));
+            }
             Event::Mouse(mouse) => app.handle_mouse(mouse),
             _ => {}
         }
