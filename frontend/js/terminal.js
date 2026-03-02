@@ -161,12 +161,13 @@ var CodeFactoryTerminals = (function() {
             e.preventDefault();
         });
 
-        // Mobile: convert vertical touch-swipes into mouse wheel events so
-        // tmux scrollback works, and prevent the page from scrolling instead.
+        // Mobile: convert vertical touch-swipes into mouse scroll sequences
+        // sent directly to tmux via the websocket.  tmux mouse mode expects
+        // SGR mouse wheel escape sequences to enter copy-mode / scroll.
         (function() {
             var touchStartY = 0;
             var touchTracking = false;
-            var SCROLL_THRESHOLD = 15; // px per "wheel tick"
+            var SCROLL_THRESHOLD = 20; // px per scroll tick
 
             container.addEventListener('touchstart', function(e) {
                 if (e.touches.length === 1) {
@@ -180,14 +181,15 @@ var CodeFactoryTerminals = (function() {
                 e.preventDefault(); // stop page scroll
                 var dy = touchStartY - e.touches[0].clientY;
                 if (Math.abs(dy) >= SCROLL_THRESHOLD) {
-                    // Synthesize wheel event for xterm.js → tmux
-                    var wheelEvt = new WheelEvent('wheel', {
-                        deltaY: dy > 0 ? 1 : -1,
-                        deltaMode: 0,
-                        bubbles: true,
-                        cancelable: true
-                    });
-                    container.dispatchEvent(wheelEvt);
+                    // Send mouse wheel escape sequence directly to tmux:
+                    // SGR encoding: \x1b[<btn;col;rowM
+                    // btn 64 = wheel up, btn 65 = wheel down
+                    var btn = dy > 0 ? 65 : 64;
+                    var seq = '\x1b[<' + btn + ';1;1M';
+                    if (entry.ws && entry.ws.readyState === WebSocket.OPEN && !entry.inputGuarded) {
+                        var encoded = btoa(unescape(encodeURIComponent(seq)));
+                        entry.ws.send(JSON.stringify({ type: 'terminal-input', data: encoded }));
+                    }
                     touchStartY = e.touches[0].clientY;
                 }
             }, { passive: false });

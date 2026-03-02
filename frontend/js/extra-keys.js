@@ -17,6 +17,7 @@ var ExtraKeys = (function () {
         { label: '\u2193', type: 'sequence', value: '\x1b[B' },
         { label: '\u2190', type: 'sequence', value: '\x1b[D' },
         { label: '\u2192', type: 'sequence', value: '\x1b[C' },
+        { label: 'PGUP', type: 'sequence', value: '\x1b[5~' },
     ];
 
     var ROW2 = [
@@ -30,8 +31,6 @@ var ExtraKeys = (function () {
         { label: 'F8',   type: 'sequence', value: '\x1b[19~' },
         { label: 'F9',   type: 'sequence', value: '\x1b[20~' },
         { label: 'F10',  type: 'sequence', value: '\x1b[21~' },
-        { label: 'HOME', type: 'sequence', value: '\x1b[H' },
-        { label: 'PGUP', type: 'sequence', value: '\x1b[5~' },
         { label: 'PGDN', type: 'sequence', value: '\x1b[6~' },
     ];
 
