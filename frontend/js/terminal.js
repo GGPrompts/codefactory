@@ -206,6 +206,12 @@ var CodeFactoryTerminals = (function() {
         // the actual tmux redraw period, not just the DOM setup time.
         entry.flushOutputGuard = function() {
             if (!entry.powered) return;
+            // If xterm has no dimensions yet (container not visible on mobile),
+            // defer the flush until a resize gives it valid dimensions.
+            if (xterm.rows === 0 || xterm.cols === 0) {
+                entry.outputGuardTimer = setTimeout(entry.flushOutputGuard, 200);
+                return;
+            }
             entry.outputGuarded = false;
             if (entry.outputBuffer.length > 0) {
                 var totalLen = 0;
@@ -529,7 +535,7 @@ var CodeFactoryTerminals = (function() {
                         }
                         if (entry.outputGuarded) {
                             entry.outputBuffer.push(bytes);
-                        } else {
+                        } else if (entry.xterm.rows > 0 && entry.xterm.cols > 0) {
                             entry.xterm.write(bytes);
                         }
                     } catch(e) {
