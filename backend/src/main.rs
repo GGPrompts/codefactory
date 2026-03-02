@@ -67,6 +67,7 @@ async fn main() {
         .route("/api/git/graph", get(git_graph))
         .route("/api/git/commit/{hash}", get(git_commit_details))
         .route("/api/git/diff", get(git_diff))
+        .route("/api/beads/issues", get(beads_issues))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -144,6 +145,7 @@ async fn get_profiles(
                 "icon": p.icon,
                 "panel": p.panel,
                 "page": p.page,
+                "panels": p.panels,
                 "enabled": p.enabled,
             })
         })
@@ -861,6 +863,63 @@ async fn git_diff(Query(params): Query<GitDiffParams>) -> impl IntoResponse {
         StatusCode::OK,
         [("content-type", "application/json")],
         body.to_string(),
+    )
+}
+
+// ── Beads API Endpoint ─────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct BeadsIssuesParams {
+    path: Option<String>,
+}
+
+/// GET /api/beads/issues?path=
+/// Shells out to `bd list --json --status=all` in the given directory and
+/// forwards the parsed JSON array as `{ "issues": [...] }`.
+async fn beads_issues(Query(params): Query<BeadsIssuesParams>) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => ".".to_string(),
+    };
+
+    let expanded = expand_path(&raw_path);
+
+    let output = tokio::process::Command::new("bd")
+        .args(["list", "--json", "--status=all", "--limit", "0"])
+        .current_dir(&expanded)
+        .output()
+        .await;
+
+    let output = match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("bd list failed: {}", stderr)})),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("failed to run bd: {}", e)})),
+            );
+        }
+    };
+
+    let issues: serde_json::Value = match serde_json::from_str(&output) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("failed to parse bd output: {}", e)})),
+            );
+        }
+    };
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "issues": issues })),
     )
 }
 

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beads Board</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Path Bar ── */
+.bb-path-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--steel-dark);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+.bb-path-bar label {
+  color: var(--brushed-steel);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.bb-path-bar input {
+  flex: 1;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.bb-path-bar input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.bb-path-bar button {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.bb-path-bar button:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+#beads-board-container {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Top Bar ── */
+.bb-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--steel-dark);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+.bb-topbar-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dirty-white);
+}
+
+.bb-refresh-btn {
+  background: none;
+  border: none;
+  color: var(--brushed-steel);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: 3px;
+}
+
+.bb-refresh-btn:hover {
+  background: var(--iron-black);
+  color: var(--dirty-white);
+}
+
+/* ── Spinner ── */
+.bb-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: bb-spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes bb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Error ── */
+.bb-error {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #f87171;
+}
+
+/* ── Empty State ── */
+.bb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100% - 40px);
+  gap: 8px;
+  color: var(--brushed-steel);
+}
+
+.bb-empty-icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+
+.bb-empty-hint {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.bb-empty code {
+  font-family: var(--font-mono);
+}
+
+/* ── Board Layout ── */
+.bb-board {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 40px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.bb-column {
+  border-bottom: 1px solid var(--steel-mid);
+}
+
+/* ── Column Header ── */
+.bb-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border: none;
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.bb-column-header:hover {
+  background: color-mix(in srgb, var(--steel-dark) 80%, var(--hazard-yellow));
+}
+
+.bb-column-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bb-chevron {
+  font-size: 10px;
+  color: var(--steel-light);
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.bb-column-count {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  color: var(--brushed-steel);
+}
+
+.bb-column-count-active {
+  background: color-mix(in srgb, var(--hazard-yellow) 20%, transparent);
+  color: var(--hazard-yellow);
+}
+
+/* ── Column Body ── */
+.bb-column-body {
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bb-no-issues {
+  font-size: 11px;
+  color: var(--steel-light);
+  text-align: center;
+  padding: 8px;
+  width: 100%;
+  opacity: 0.6;
+}
+
+/* ── Card ── */
+.bb-card {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-left: 3px solid var(--steel-light);
+  border-radius: 4px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  width: calc(50% - 3px);
+  min-width: 180px;
+}
+
+.bb-card:hover {
+  background: color-mix(in srgb, var(--steel-dark) 70%, var(--iron-black));
+  border-color: var(--steel-light);
+}
+
+.bb-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.bb-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.bb-priority {
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.bb-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--dirty-white);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bb-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.bb-card-label {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--brushed-steel);
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+}
+
+.bb-blocked-badge {
+  font-size: 10px;
+  color: #f97316;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Detail View ── */
+.bb-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--steel-dark);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+.bb-back-btn {
+  background: none;
+  border: none;
+  color: var(--brushed-steel);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.bb-back-btn:hover {
+  color: var(--dirty-white);
+  background: var(--iron-black);
+}
+
+.bb-detail-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dirty-white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.bb-copy-id-btn {
+  background: none;
+  border: none;
+  color: var(--brushed-steel);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bb-copy-id-btn:hover {
+  color: var(--dirty-white);
+  background: var(--iron-black);
+}
+
+.bb-copy-icon {
+  font-size: 12px;
+}
+
+.bb-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.bb-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.bb-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.bb-label-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  color: var(--brushed-steel);
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+}
+
+/* ── Section ── */
+.bb-section {
+  margin-bottom: 16px;
+}
+
+.bb-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--brushed-steel);
+  margin-bottom: 6px;
+}
+
+.bb-section-content {
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 0;
+}
+
+/* ── Timestamps ── */
+.bb-detail-timestamps {
+  font-size: 11px;
+  color: var(--brushed-steel);
+  border-top: 1px solid var(--steel-mid);
+  padding-top: 10px;
+  margin-top: 8px;
+}
+
+.bb-detail-timestamps p {
+  margin-bottom: 4px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 500px) {
+  .bb-card {
+    width: 100%;
+  }
+
+  .bb-detail-header {
+    flex-wrap: wrap;
+  }
+
+  .bb-detail-title {
+    order: 3;
+    width: 100%;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bb-path-bar">
+    <label for="repo-path">Path:</label>
+    <input type="text" id="repo-path" placeholder="/path/to/project">
+    <button id="load-btn">Load</button>
+  </div>
+  <div id="beads-board-container"></div>
+</div>
+
+<script src="/js/beads-board.js"></script>
+<script>
+(function () {
+  var pathInput = document.getElementById("repo-path");
+  var loadBtn = document.getElementById("load-btn");
+  var container = document.getElementById("beads-board-container");
+
+  // Read path from query param
+  var params = new URLSearchParams(window.location.search);
+  var initialPath = params.get("path") || params.get("repo") || "";
+  if (initialPath) {
+    pathInput.value = initialPath;
+  }
+
+  function loadBoard() {
+    var repoPath = pathInput.value.trim();
+    if (!repoPath) {
+      container.innerHTML = '<div class="bb-empty">Enter a project path above</div>';
+      return;
+    }
+    container.innerHTML = "";
+    BeadsBoard.init(container, repoPath);
+  }
+
+  loadBtn.addEventListener("click", loadBoard);
+  pathInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") loadBoard();
+  });
+
+  // Auto-load if path is provided
+  if (initialPath) {
+    loadBoard();
+  }
+})();
+</script>
+</body>
+</html>
