@@ -79,6 +79,16 @@ pub enum ServerMessage {
         #[serde(rename = "subagentCount")]
         subagent_count: u32,
     },
+
+    #[serde(rename = "log-entry")]
+    LogEntry {
+        level: String,
+        source: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stack: Option<String>,
+        timestamp: String,
+    },
 }
 
 // ── WebSocket upgrade handler ───────────────────────────────────────────────

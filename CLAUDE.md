@@ -12,9 +12,11 @@ Vertical terminal complex — a web UI that manages multiple terminal profiles a
 ## Quick Reference
 
 ```bash
-cargo run              # start backend (default member), serves on :3001
+./start.sh             # clear log, start backend on :3001
+cargo run              # start backend directly (no log reset)
 cargo run -p codefactory-tui  # launch settings TUI
 cargo check --workspace       # verify both crates compile
+tail -f /tmp/codefactory.log  # monitor unified log stream in any terminal
 ```
 
 ## Floor Types
@@ -66,6 +68,15 @@ cargo check --workspace       # verify both crates compile
 - Backend polls these every 2s and broadcasts via WebSocket
 - Frontend shows status on elevator buttons (glow effects) and floor headers (badge)
 - Terminals dashboard page (`pages/terminals.html`) shows overview with context meters
+
+## Unified Log System
+
+Frontend JS console output and backend tracing events are merged into a single log stream:
+- **Log file**: `/tmp/codefactory.log` — `tail -f` in any terminal floor to monitor live
+- **Log Viewer page floor** (`pages/logs.html`): filterable, color-coded, live-streaming via WebSocket
+- **Console forwarder** (`js/console-forwarder.js`): loaded first in `index.html`, intercepts `console.log/warn/error/info` and `window.onerror`, batches POSTs to `/api/logs/ingest`
+- **Backend tracing layer** (`log_layer.rs`): captures tracing events and sends to same broadcast channel + log file
+- Start script (`start.sh`) truncates stale log and launches the backend
 
 ## Conventions
 

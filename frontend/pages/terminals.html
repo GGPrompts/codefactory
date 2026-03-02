@@ -424,6 +424,7 @@ html, body {
   function dotClass(status) {
     if (status === 'awaiting_input') return 'at-dot-green';
     if (status === 'tool_use' || status === 'processing') return 'at-dot-orange';
+    if (status === 'online') return 'at-dot-green';
     return 'at-dot-gray';
   }
 
@@ -432,6 +433,7 @@ html, body {
     if (status === 'tool_use') return 'Tool';
     if (status === 'processing') return 'Thinking';
     if (status === 'idle') return 'Idle';
+    if (status === 'online') return 'Online';
     return status || 'Offline';
   }
 
@@ -517,9 +519,54 @@ html, body {
 
   function renderTable(data) {
     var statuses = data.statuses || [];
-    var profiles = data.profiles || [];
+    var activeFloors = data.activeFloors || [];
 
-    if (statuses.length === 0) {
+    // Build a lookup of Claude statuses by floorId
+    var statusMap = {};
+    for (var si = 0; si < statuses.length; si++) {
+      statusMap[statuses[si].floorId] = statuses[si];
+    }
+
+    // Merge: start with all active tmux floors, overlay Claude status
+    var floors = [];
+    var seen = {};
+    for (var ai = 0; ai < activeFloors.length; ai++) {
+      var af = activeFloors[ai];
+      var cs = statusMap[af.floorId] || null;
+      seen[af.floorId] = true;
+      floors.push({
+        floorId: af.floorId,
+        name: af.name || af.floorId,
+        icon: af.icon || '',
+        command: af.command || '',
+        status: cs ? cs.status : 'online',
+        currentTool: cs ? cs.currentTool : '',
+        contextPercent: cs ? cs.contextPercent : null,
+        workingDir: cs ? cs.workingDir : null,
+        details: cs ? cs.details : null,
+        lastUpdated: cs ? cs.lastUpdated : null
+      });
+    }
+    // Add any Claude sessions not matched to a tmux floor
+    for (var sj = 0; sj < statuses.length; sj++) {
+      var st = statuses[sj];
+      if (!seen[st.floorId]) {
+        floors.push({
+          floorId: st.floorId,
+          name: sessionName(st),
+          icon: '',
+          command: '',
+          status: st.status,
+          currentTool: st.currentTool,
+          contextPercent: st.contextPercent,
+          workingDir: st.workingDir,
+          details: st.details,
+          lastUpdated: st.lastUpdated
+        });
+      }
+    }
+
+    if (floors.length === 0) {
       elTable.style.display = 'none';
       elEmpty.style.display = '';
       elCards.innerHTML = '';
@@ -529,35 +576,33 @@ html, body {
 
     elTable.style.display = '';
     elEmpty.style.display = 'none';
-    elCount.textContent = statuses.length + ' floor' + (statuses.length !== 1 ? 's' : '');
+    elCount.textContent = floors.length + ' floor' + (floors.length !== 1 ? 's' : '');
 
     var rows = '';
     var cards = '';
 
-    for (var i = 0; i < statuses.length; i++) {
-      var s = statuses[i];
-      var prof = findProfile(profiles, s.floorId);
-      var name = prof ? prof.name : sessionName(s);
-      var icon = (prof && prof.icon) ? prof.icon : '';
-      var dc = dotClass(s.status);
-      var label = statusLabel(s.status);
-      var detail = activityDetail(s);
-      var floorNum = prof ? s.floorId : '';
-      var workDir = s.workingDir ? truncatePath(s.workingDir) : '';
+    for (var i = 0; i < floors.length; i++) {
+      var f = floors[i];
+      var dc = dotClass(f.status);
+      var label = statusLabel(f.status);
+      var detail = activityDetail(f);
+      var workDir = f.workingDir ? truncatePath(f.workingDir) : '';
+      var cmdLabel = f.command ? f.command : '';
 
-      pushHistory(s.floorId, s.status, s.currentTool, detail, s.lastUpdated);
+      pushHistory(f.floorId, f.status, f.currentTool, detail, f.lastUpdated);
 
       // Table row
-      rows += '<tr data-floor="' + s.floorId + '">' +
+      rows += '<tr data-floor="' + f.floorId + '">' +
         '<td><span class="at-dot ' + dc + '"></span></td>' +
-        '<td>' + (icon ? icon + ' ' : '') + name + '</td>' +
+        '<td>' + (f.icon ? f.icon + ' ' : '') + f.name + '</td>' +
         '<td>' +
           '<div class="at-activity-label">' + label +
-            (s.currentTool ? ' — ' + s.currentTool : '') +
+            (f.currentTool ? ' — ' + f.currentTool : '') +
           '</div>' +
           (detail ? '<div class="at-activity-detail">' + detail + '</div>' : '') +
+          (!detail && cmdLabel ? '<div class="at-activity-detail">' + cmdLabel + '</div>' : '') +
         '</td>' +
-        '<td>' + buildMeterHTML(s.contextPercent) + '</td>' +
+        '<td>' + buildMeterHTML(f.contextPercent) + '</td>' +
         '<td style="font-size:11px;color:var(--brushed-steel)">' + workDir + '</td>' +
         '</tr>';
 
@@ -565,13 +610,12 @@ html, body {
       cards += '<div class="at-card">' +
         '<div class="at-card-top">' +
           '<span class="at-dot ' + dc + '"></span>' +
-          '<span class="at-card-name">' + (icon ? icon + ' ' : '') + name + '</span>' +
-          '<span class="at-card-floor">' + workDir + '</span>' +
+          '<span class="at-card-name">' + (f.icon ? f.icon + ' ' : '') + f.name + '</span>' +
         '</div>' +
         '<div class="at-card-activity">' + label +
-          (s.currentTool ? ' — ' + s.currentTool : '') +
+          (f.currentTool ? ' — ' + f.currentTool : (cmdLabel ? ' — ' + cmdLabel : '')) +
         '</div>' +
-        buildMeterHTML(s.contextPercent) +
+        buildMeterHTML(f.contextPercent) +
         '</div>';
     }
 

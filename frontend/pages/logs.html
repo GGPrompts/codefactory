@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log Viewer</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+  --level-error: #D42C2C;
+  --level-warn:  #FFB800;
+  --level-info:  #2D8B47;
+  --level-debug: #4A5459;
+  --level-log:   #9BA3A9;
+  --source-js:   #4A7FB5;
+  --source-be:   #7A8489;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 3px; }
+
+/* ── Header ── */
+.lv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.lv-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--hazard-yellow);
+  margin-right: 4px;
+}
+
+.lv-filter-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  padding: 3px 8px;
+  width: 140px;
+  outline: none;
+}
+
+.lv-filter-text:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.lv-levels {
+  display: flex;
+  gap: 3px;
+}
+
+.lv-lvl-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 5px;
+  border: 1px solid var(--steel-mid);
+  background: transparent;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.lv-lvl-btn.active { opacity: 1; }
+.lv-lvl-btn:not(.active) { opacity: 0.3; }
+.lv-lvl-btn[data-level="error"] { color: var(--level-error); border-color: var(--level-error); }
+.lv-lvl-btn[data-level="warn"]  { color: var(--level-warn);  border-color: var(--level-warn); }
+.lv-lvl-btn[data-level="info"]  { color: var(--level-info);  border-color: var(--level-info); }
+.lv-lvl-btn[data-level="log"]   { color: var(--level-log);   border-color: var(--level-log); }
+.lv-lvl-btn[data-level="debug"] { color: var(--level-debug); border-color: var(--level-debug); }
+
+.lv-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--steel-mid);
+  background: transparent;
+  color: var(--brushed-steel);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.lv-btn:hover {
+  border-color: var(--hazard-yellow);
+  color: var(--hazard-yellow);
+}
+
+.lv-count {
+  font-size: 11px;
+  color: var(--brushed-steel);
+}
+
+.lv-conn {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--steel-mid);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.lv-conn.on  { background: var(--safety-green); box-shadow: 0 0 4px rgba(45,139,71,0.5); }
+.lv-conn.off { background: var(--caution-red); }
+
+/* ── Log scroll area ── */
+.lv-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Log entry ── */
+.lv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 8px;
+  border-bottom: 1px solid rgba(74,84,89,0.15);
+  cursor: pointer;
+  min-height: 20px;
+}
+
+.lv-row:hover {
+  background: rgba(255,184,0,0.04);
+}
+
+.lv-row.lv-exp {
+  background: rgba(44,48,51,0.5);
+}
+
+.lv-time {
+  color: var(--steel-light);
+  flex-shrink: 0;
+  width: 62px;
+  font-size: 11px;
+}
+
+.lv-pill {
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.lv-pill-error { color: var(--level-error); }
+.lv-pill-warn  { color: var(--level-warn); }
+.lv-pill-info  { color: var(--level-info); }
+.lv-pill-log   { color: var(--level-log); }
+.lv-pill-debug { color: var(--level-debug); }
+
+.lv-src {
+  flex-shrink: 0;
+  font-size: 9px;
+  padding: 0 4px;
+  border: 1px solid;
+  text-transform: uppercase;
+  line-height: 16px;
+}
+
+.lv-src-js { color: var(--source-js); border-color: var(--source-js); }
+.lv-src-be { color: var(--source-be); border-color: var(--source-be); }
+
+.lv-msg {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  overflow: hidden;
+}
+
+.lv-row:not(.lv-exp) .lv-msg {
+  max-height: 34px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.lv-stack {
+  display: none;
+  margin-top: 4px;
+  padding: 6px;
+  background: var(--steel-dark);
+  border-left: 2px solid var(--caution-red);
+  font-size: 10px;
+  color: var(--brushed-steel);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.lv-exp .lv-stack {
+  display: block;
+}
+
+/* ── Resume button ── */
+.lv-resume {
+  display: none;
+  position: fixed;
+  bottom: 14px;
+  right: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 12px;
+  background: var(--steel-dark);
+  border: 1px solid var(--hazard-yellow);
+  color: var(--hazard-yellow);
+  cursor: pointer;
+  z-index: 10;
+}
+
+.lv-resume.vis {
+  display: block;
+}
+</style>
+</head>
+<body style="display:flex;flex-direction:column;height:100%">
+
+<div class="lv-header">
+  <span class="lv-title">Logs</span>
+  <input class="lv-filter-text" id="lv-filter" type="text" placeholder="filter...">
+  <div class="lv-levels" id="lv-levels">
+    <button class="lv-lvl-btn active" data-level="error">ERR</button>
+    <button class="lv-lvl-btn active" data-level="warn">WRN</button>
+    <button class="lv-lvl-btn active" data-level="info">INF</button>
+    <button class="lv-lvl-btn active" data-level="log">LOG</button>
+    <button class="lv-lvl-btn" data-level="debug">DBG</button>
+  </div>
+  <button class="lv-btn" id="lv-clear">[CLEAR]</button>
+  <span class="lv-count" id="lv-count">0</span>
+  <span class="lv-conn off" id="lv-conn" title="WebSocket"></span>
+</div>
+
+<div class="lv-scroll" id="lv-scroll"></div>
+<button class="lv-resume" id="lv-resume">RESUME SCROLL</button>
+
+<script>
+(function() {
+  var WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') +
+               location.host + '/ws/logs';
+  var INIT_URL = '/api/logs?limit=200';
+  var MAX_DOM = 1000;
+
+  var entries = [];
+  var levelOn = { error: true, warn: true, info: true, log: true, debug: false };
+  var textFilter = '';
+  var autoScroll = true;
+  var ws = null;
+  var reconTimer = null;
+
+  var elScroll = document.getElementById('lv-scroll');
+  var elFilter = document.getElementById('lv-filter');
+  var elCount  = document.getElementById('lv-count');
+  var elConn   = document.getElementById('lv-conn');
+  var elResume = document.getElementById('lv-resume');
+  var elClear  = document.getElementById('lv-clear');
+  var elLevels = document.getElementById('lv-levels');
+
+  // ── Helpers ──
+
+  function fmtTime(ts) {
+    if (!ts) return '--:--:--';
+    if (ts.length >= 19) return ts.substring(11, 19);
+    // Unix seconds fallback
+    var d = new Date(parseInt(ts, 10) * 1000);
+    if (isNaN(d.getTime())) return '--:--:--';
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function srcClass(src) {
+    if (!src) return 'lv-src-be';
+    return src.toLowerCase() === 'js' ? 'lv-src-js' : 'lv-src-be';
+  }
+
+  function srcLabel(src) {
+    if (!src) return 'BE';
+    if (src.toLowerCase() === 'js') return 'JS';
+    if (src.indexOf('backend') === 0) return 'BE';
+    return src.substring(0, 3).toUpperCase();
+  }
+
+  function pillClass(lvl) { return 'lv-pill-' + (lvl || 'log'); }
+
+  function matches(e) {
+    var lvl = e.level || 'log';
+    if (!levelOn[lvl]) return false;
+    if (textFilter && (e.message || '').toLowerCase().indexOf(textFilter) === -1) return false;
+    return true;
+  }
+
+  // ── Build entry HTML ──
+
+  function rowHTML(e) {
+    var lvl = e.level || 'log';
+    return '<div class="lv-row">' +
+      '<span class="lv-time">' + fmtTime(e.timestamp) + '</span>' +
+      '<span class="lv-pill ' + pillClass(lvl) + '">' + lvl.toUpperCase().substring(0, 3) + '</span>' +
+      '<span class="lv-src ' + srcClass(e.source) + '">' + esc(srcLabel(e.source)) + '</span>' +
+      '<span class="lv-msg">' + esc(e.message || '') +
+        (e.stack ? '<div class="lv-stack">' + esc(e.stack) + '</div>' : '') +
+      '</span>' +
+      '</div>';
+  }
+
+  // ── Append single entry ──
+
+  function appendOne(e) {
+    if (!matches(e)) return;
+    var div = document.createElement('div');
+    div.innerHTML = rowHTML(e);
+    var row = div.firstChild;
+    row.addEventListener('click', toggleRow);
+    elScroll.appendChild(row);
+
+    while (elScroll.childElementCount > MAX_DOM) {
+      elScroll.removeChild(elScroll.firstChild);
+    }
+    updateCount();
+    if (autoScroll) elScroll.scrollTop = elScroll.scrollHeight;
+  }
+
+  // ── Full re-render ──
+
+  function rerender() {
+    var html = '';
+    for (var i = 0; i < entries.length; i++) {
+      if (matches(entries[i])) html += rowHTML(entries[i]);
+    }
+    elScroll.innerHTML = html;
+    var rows = elScroll.querySelectorAll('.lv-row');
+    for (var j = 0; j < rows.length; j++) {
+      rows[j].addEventListener('click', toggleRow);
+    }
+    updateCount();
+    if (autoScroll) elScroll.scrollTop = elScroll.scrollHeight;
+  }
+
+  function updateCount() {
+    elCount.textContent = elScroll.childElementCount;
+  }
+
+  function toggleRow(e) {
+    var row = e.currentTarget;
+    row.classList.toggle('lv-exp');
+  }
+
+  // ── Scroll tracking ──
+
+  elScroll.addEventListener('scroll', function() {
+    var atBottom = elScroll.scrollTop + elScroll.clientHeight >= elScroll.scrollHeight - 30;
+    if (atBottom) {
+      autoScroll = true;
+      elResume.classList.remove('vis');
+    } else {
+      autoScroll = false;
+      elResume.classList.add('vis');
+    }
+  });
+
+  elResume.addEventListener('click', function() {
+    autoScroll = true;
+    elResume.classList.remove('vis');
+    elScroll.scrollTop = elScroll.scrollHeight;
+  });
+
+  // ── Filter controls ──
+
+  elFilter.addEventListener('input', function() {
+    textFilter = elFilter.value.toLowerCase();
+    rerender();
+  });
+
+  elClear.addEventListener('click', function() {
+    entries = [];
+    elScroll.innerHTML = '';
+    updateCount();
+  });
+
+  elLevels.addEventListener('click', function(e) {
+    var btn = e.target;
+    if (!btn.classList.contains('lv-lvl-btn')) return;
+    var lvl = btn.getAttribute('data-level');
+    levelOn[lvl] = !levelOn[lvl];
+    btn.classList.toggle('active', levelOn[lvl]);
+    rerender();
+  });
+
+  // ── Load history ──
+
+  function loadHistory() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', INIT_URL, true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4 || xhr.status !== 200) return;
+      try {
+        var data = JSON.parse(xhr.responseText);
+        var logs = data.logs || [];
+        for (var i = 0; i < logs.length; i++) {
+          var m = logs[i];
+          if (m.type === 'log-entry') {
+            entries.push({
+              level: m.level,
+              source: m.source,
+              message: m.message,
+              stack: m.stack,
+              timestamp: m.timestamp
+            });
+          }
+        }
+        rerender();
+      } catch(err) { /* ignore */ }
+    };
+    xhr.send();
+  }
+
+  // ── WebSocket ──
+
+  function connect() {
+    if (ws) { try { ws.close(); } catch(e) {} }
+
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = function() {
+      elConn.className = 'lv-conn on';
+      elConn.title = 'Connected';
+      if (reconTimer) { clearTimeout(reconTimer); reconTimer = null; }
+    };
+
+    ws.onclose = function() {
+      elConn.className = 'lv-conn off';
+      elConn.title = 'Disconnected';
+      reconTimer = setTimeout(connect, 3000);
+    };
+
+    ws.onerror = function() {
+      elConn.className = 'lv-conn off';
+    };
+
+    ws.onmessage = function(e) {
+      try {
+        var msg = JSON.parse(e.data);
+        if (msg.type === 'log-entry') {
+          var entry = {
+            level: msg.level,
+            source: msg.source,
+            message: msg.message,
+            stack: msg.stack || null,
+            timestamp: msg.timestamp
+          };
+          entries.push(entry);
+          if (entries.length > MAX_DOM) entries.splice(0, entries.length - MAX_DOM);
+          appendOne(entry);
+        }
+      } catch(err) { /* ignore */ }
+    };
+  }
+
+  // ── Init ──
+  loadHistory();
+  connect();
+})();
+</script>
+</body>
+</html>

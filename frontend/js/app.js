@@ -39,6 +39,7 @@
             initLobbyWorkdir();
             initLobbySettings();
             initLobbyRefresh();
+            initLobbyShutdown();
             reconnectExistingSessions();
             console.log('[CodeFactory] Loaded ' + profiles.length + ' profiles');
         })
@@ -1555,6 +1556,18 @@
         btn.addEventListener('click', function() {
             playClick();
             window.location.reload();
+        });
+    }
+
+    function initLobbyShutdown() {
+        var btn = document.getElementById('lobby-shutdown-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function() {
+            if (!confirm('Shut down CodeFactory backend?')) return;
+            playClick();
+            fetch('/api/shutdown', { method: 'POST' }).catch(function() {});
+            btn.textContent = '[SHUTTING DOWN...]';
+            btn.disabled = true;
         });
     }
 

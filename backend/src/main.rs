@@ -1,4 +1,5 @@
 mod config;
+mod log_layer;
 mod state;
 mod terminal;
 mod ws;
@@ -26,8 +27,22 @@ use ws::ServerMessage;
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Initialize tracing with layered subscriber (fmt + log broadcast)
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    let (log_tx, _) = tokio::sync::broadcast::channel::<ServerMessage>(256);
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| {
+            "codefactory_backend=info,warn".parse().unwrap()
+        });
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer())
+        .with(log_layer::LogBroadcastLayer {
+            log_tx: log_tx.clone(),
+        })
+        .init();
 
     // Load profile config (creates defaults if missing)
     let profile_config = config::load_config().unwrap_or_else(|e| {
@@ -40,8 +55,8 @@ async fn main() {
         "Profile config loaded"
     );
 
-    // Shared application state
-    let app_state = Arc::new(AppState::new(profile_config));
+    // Shared application state (uses pre-created log_tx so tracing layer shares it)
+    let app_state = Arc::new(AppState::new_with_log_tx(profile_config, log_tx));
 
     // CORS layer — allow everything for local dev
     let cors = CorsLayer::new()
@@ -85,6 +100,12 @@ async fn main() {
         .route("/api/termux/brightness", post(termux_brightness))
         .route("/api/termux/torch", post(termux_torch))
         .route("/api/termux/tts", post(termux_tts))
+        // Server control
+        .route("/api/shutdown", post(shutdown_server))
+        // Log system endpoints
+        .route("/api/logs/ingest", post(logs_ingest))
+        .route("/api/logs", get(get_logs))
+        .route("/ws/logs", get(ws_logs_handler))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -307,12 +328,50 @@ async fn get_session_status(
         })
         .collect();
 
+    // List all active codefactory tmux sessions
+    let active_floors: Vec<serde_json::Value> = state
+        .terminal_manager
+        .list_orphaned_sessions()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|floor_id| {
+            // Find matching profile
+            let prof = config.profiles.iter().enumerate().find(|(_, p)| {
+                let slug = p.name.to_lowercase()
+                    .chars()
+                    .map(|c| if c.is_alphanumeric() { c } else { '-' })
+                    .collect::<String>()
+                    .split('-')
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<&str>>()
+                    .join("-");
+                slug == floor_id
+            });
+            let (name, icon, command) = match prof {
+                Some((_, p)) => (
+                    p.name.clone(),
+                    p.icon.clone().unwrap_or_default(),
+                    p.command.clone().unwrap_or_default(),
+                ),
+                None => (floor_id.clone(), String::new(), String::new()),
+            };
+            serde_json::json!({
+                "floorId": floor_id,
+                "name": name,
+                "icon": icon,
+                "command": command,
+                "online": true,
+            })
+        })
+        .collect();
+
     (
         StatusCode::OK,
         Json(serde_json::json!({
             "statuses": statuses,
             "claudeFloors": claude_floors,
             "profiles": profiles,
+            "activeFloors": active_floors,
         })),
     )
 }
@@ -417,6 +476,176 @@ async fn get_page(Path(name): Path<String>) -> impl IntoResponse {
             [("content-type", "text/plain")],
             format!("Page '{}' not found", name),
         ),
+    }
+}
+
+// ── Server Control ───────────────────────────────────────────────────────
+
+/// POST /api/shutdown — gracefully exit the server process.
+async fn shutdown_server() -> impl IntoResponse {
+    info!("Shutdown requested via API");
+    // Spawn a task to exit after a brief delay so the response can be sent
+    tokio::spawn(async {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        std::process::exit(0);
+    });
+    (StatusCode::OK, Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Log System ───────────────────────────────────────────────────────────
+
+/// Append a log entry to the ring buffer, broadcast, and write to log file.
+fn emit_log_entry(state: &AppState, entry: ServerMessage) {
+    // Push to ring buffer (cap at 500)
+    if let Ok(mut logs) = state.logs.write() {
+        if logs.len() >= 500 {
+            logs.pop_front();
+        }
+        logs.push_back(entry.clone());
+    }
+
+    // Broadcast to /ws/logs subscribers
+    let _ = state.log_tx.send(entry.clone());
+
+    // Append to log file for tail -f
+    if let ServerMessage::LogEntry {
+        ref level,
+        ref source,
+        ref message,
+        ref timestamp,
+        ..
+    } = entry
+    {
+        let time = if timestamp.len() >= 19 {
+            &timestamp[11..19]
+        } else {
+            "??:??:??"
+        };
+        let line = format!(
+            "[{}] [{:5}] [{:7}] {}\n",
+            time,
+            level.to_uppercase(),
+            source.to_uppercase(),
+            message
+        );
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("/tmp/codefactory.log")
+        {
+            let _ = f.write_all(line.as_bytes());
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct IngestEntry {
+    level: String,
+    message: String,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    stack: Option<String>,
+    #[serde(default)]
+    timestamp: Option<String>,
+}
+
+/// POST /api/logs/ingest — accept batched log entries from the frontend console forwarder.
+async fn logs_ingest(
+    State(state): State<Arc<AppState>>,
+    Json(entries): Json<Vec<IngestEntry>>,
+) -> impl IntoResponse {
+    for entry in entries {
+        let level = match entry.level.as_str() {
+            "error" | "warn" | "info" | "debug" | "log" => entry.level.clone(),
+            _ => "log".to_string(),
+        };
+        let source = entry.source.unwrap_or_else(|| "js".to_string());
+        let timestamp = entry.timestamp.unwrap_or_else(|| {
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            format!("{}Z", secs)
+        });
+
+        let msg = ServerMessage::LogEntry {
+            level,
+            source,
+            message: entry.message,
+            stack: entry.stack,
+            timestamp,
+        };
+        emit_log_entry(&state, msg);
+    }
+
+    (StatusCode::OK, Json(serde_json::json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+struct LogsParams {
+    limit: Option<usize>,
+}
+
+/// GET /api/logs?limit=N — return last N log entries from the ring buffer.
+async fn get_logs(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<LogsParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(200).min(500);
+    let logs = state.logs.read().unwrap();
+    let start = if logs.len() > limit { logs.len() - limit } else { 0 };
+    let entries: Vec<&ServerMessage> = logs.iter().skip(start).collect();
+    (StatusCode::OK, Json(serde_json::json!({ "logs": entries })))
+}
+
+/// WebSocket handler for the live log stream.
+async fn ws_logs_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_logs_socket(socket, state))
+}
+
+async fn handle_logs_socket(
+    socket: axum::extract::ws::WebSocket,
+    state: Arc<AppState>,
+) {
+    use axum::extract::ws::Message;
+    use futures::{SinkExt, StreamExt};
+
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let mut log_rx = state.log_tx.subscribe();
+
+    // Send connection confirmation
+    let connected = serde_json::to_string(&ServerMessage::Connected).unwrap_or_default();
+    let _ = ws_sender.send(Message::Text(connected.into())).await;
+
+    loop {
+        tokio::select! {
+            result = log_rx.recv() => {
+                match result {
+                    Ok(msg) => {
+                        if let Ok(json) = serde_json::to_string(&msg) {
+                            if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!("ws/logs client lagged by {} messages", n);
+                    }
+                    Err(_) => break,
+                }
+            }
+            msg = ws_receiver.next() => {
+                match msg {
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {}
+                }
+            }
+        }
     }
 }
 
