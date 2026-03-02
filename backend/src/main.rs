@@ -238,6 +238,8 @@ async fn get_sessions(
 }
 
 /// Return current Claude session status for all floors (polled from state files).
+/// Scans all .json files in the state directory (not just floor-matched ones)
+/// so the terminals dashboard can show every active Claude session.
 async fn get_session_status(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
@@ -245,25 +247,72 @@ async fn get_session_status(
     let state_dir = std::path::Path::new("/tmp/claude-code-state");
     let mut statuses = Vec::new();
 
-    for floor_id in &claude_floors {
-        let file_path = state_dir.join(format!("{}.json", floor_id));
-        if let Ok(content) = std::fs::read_to_string(&file_path) {
-            if let Ok(sf) = serde_json::from_str::<ClaudeStateFile>(&content) {
-                statuses.push(serde_json::json!({
-                    "floorId": floor_id,
-                    "status": sf.status,
-                    "currentTool": sf.current_tool.unwrap_or_default(),
-                    "subagentCount": sf.subagent_count.unwrap_or(0),
-                }));
+    // Scan all state files — they may be named by session hash, not floor ID.
+    // Skip files older than 5 minutes to filter out stale sessions.
+    let stale_threshold = std::time::Duration::from_secs(300);
+    if let Ok(entries) = std::fs::read_dir(state_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+            // Skip non-json, context files, and directories
+            if !name.ends_with(".json") || name.contains("-context") {
+                continue;
+            }
+            // Skip stale files
+            if let Ok(meta) = path.metadata() {
+                if let Ok(modified) = meta.modified() {
+                    if modified.elapsed().unwrap_or_default() > stale_threshold {
+                        continue;
+                    }
+                }
+            }
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(sf) = serde_json::from_str::<ClaudeStateFile>(&content) {
+                    let session_key = name.trim_end_matches(".json").to_string();
+                    statuses.push(serde_json::json!({
+                        "floorId": session_key,
+                        "sessionId": sf.session_id,
+                        "status": sf.status,
+                        "currentTool": sf.current_tool.unwrap_or_default(),
+                        "subagentCount": sf.subagent_count.unwrap_or(0),
+                        "contextPercent": sf.context_percent,
+                        "contextWindow": sf.context_window,
+                        "workingDir": sf.working_dir,
+                        "details": sf.details,
+                        "lastUpdated": sf.last_updated,
+                    }));
+                }
             }
         }
     }
+
+    // Include profile info so dashboard pages can get everything in one call
+    let config = state.profile_config.read().unwrap();
+    let profiles: Vec<serde_json::Value> = config
+        .profiles
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            serde_json::json!({
+                "floorIndex": i + 1,
+                "name": p.name,
+                "icon": p.icon,
+                "command": p.command,
+                "enabled": p.enabled,
+                "isPage": p.page.is_some(),
+            })
+        })
+        .collect();
 
     (
         StatusCode::OK,
         Json(serde_json::json!({
             "statuses": statuses,
             "claudeFloors": claude_floors,
+            "profiles": profiles,
         })),
     )
 }
@@ -383,6 +432,10 @@ struct ClaudeStateFile {
     current_tool: Option<String>,
     subagent_count: Option<u32>,
     last_updated: Option<String>,
+    context_percent: Option<u32>,
+    context_window: Option<serde_json::Value>,
+    working_dir: Option<String>,
+    details: Option<serde_json::Value>,
 }
 
 /// Determine which floor IDs have Claude-type profiles (command contains "claude").

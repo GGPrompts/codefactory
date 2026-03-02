@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Active Terminals</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Header ── */
+.at-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+}
+
+.at-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--hazard-yellow);
+}
+
+.at-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.at-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--safety-green);
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+.at-pulse.at-flash {
+  opacity: 1;
+}
+
+.at-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--brushed-steel);
+}
+
+/* ── Data Table ── */
+.at-wrap {
+  overflow-y: auto;
+  max-height: calc(100vh - 46px);
+  padding: 10px;
+}
+
+.at-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.at-table th,
+.at-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--steel-dark);
+}
+
+.at-table th {
+  background: linear-gradient(180deg, var(--steel-mid) 0%, var(--steel-dark) 100%);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-bottom: 3px solid var(--hazard-orange);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.at-table tr:nth-child(even) {
+  background: rgba(255,255,255,0.02);
+}
+
+.at-table tr:hover td {
+  background: rgba(255,184,0,0.08);
+}
+
+/* ── Status Dot ── */
+.at-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.at-dot-green {
+  background: var(--safety-green);
+  box-shadow: 0 0 6px rgba(45,139,71,0.5);
+}
+
+.at-dot-orange {
+  background: var(--hazard-orange);
+  box-shadow: 0 0 6px rgba(255,107,0,0.5);
+}
+
+.at-dot-gray {
+  background: var(--steel-mid);
+}
+
+/* ── Context Meter ── */
+.at-meter {
+  height: 18px;
+  background: var(--iron-black);
+  border: 2px solid var(--steel-mid);
+  overflow: hidden;
+  position: relative;
+  min-width: 80px;
+}
+
+.at-meter-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.3);
+}
+
+.at-meter-fill.at-meter-green {
+  background: repeating-linear-gradient(90deg, var(--safety-green), var(--safety-green) 8px, #236B38 8px, #236B38 10px);
+}
+
+.at-meter-fill.at-meter-yellow {
+  background: repeating-linear-gradient(90deg, var(--hazard-yellow), var(--hazard-yellow) 8px, #CC9300 8px, #CC9300 10px);
+}
+
+.at-meter-fill.at-meter-red {
+  background: repeating-linear-gradient(90deg, var(--caution-red), var(--caution-red) 8px, #8B1E1E 8px, #8B1E1E 10px);
+}
+
+.at-meter-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dirty-white);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+
+.at-meter-na {
+  background: var(--iron-black);
+  border: 2px solid var(--steel-mid);
+  height: 18px;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--steel-light);
+}
+
+/* ── Activity cell ── */
+.at-activity-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.at-activity-detail {
+  font-size: 11px;
+  color: var(--brushed-steel);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.at-floor-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--hazard-yellow);
+  text-align: center;
+}
+
+/* ── Tooltip ── */
+.at-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 100;
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-top: 3px solid var(--hazard-yellow);
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  max-width: 320px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+
+.at-tooltip.at-show {
+  display: block;
+}
+
+.at-tooltip-title {
+  color: var(--hazard-yellow);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.at-tooltip-entry {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(74,84,89,0.3);
+}
+
+.at-tooltip-entry:last-child {
+  border-bottom: none;
+}
+
+.at-tooltip-time {
+  color: var(--steel-light);
+  flex-shrink: 0;
+}
+
+.at-tooltip-status {
+  color: var(--dirty-white);
+}
+
+/* ── Empty State ── */
+.at-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--steel-light);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.at-empty-sub {
+  font-size: 12px;
+  color: var(--steel-mid);
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── Mobile Cards ── */
+.at-cards {
+  display: none;
+  padding: 10px;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: calc(100vh - 46px);
+}
+
+.at-card {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.at-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.at-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bright-steel);
+  flex: 1;
+}
+
+.at-card-floor {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--hazard-yellow);
+}
+
+.at-card-activity {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--brushed-steel);
+  margin-bottom: 8px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .at-wrap { display: none; }
+  .at-cards { display: flex; flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<div class="at-header">
+  <h1>Active Terminals</h1>
+  <div class="at-header-right">
+    <span class="at-count" id="at-count">0 floors</span>
+    <span class="at-pulse" id="at-pulse"></span>
+  </div>
+</div>
+
+<div class="at-wrap" id="at-table-wrap">
+  <div class="at-empty" id="at-empty">
+    No Active Terminals
+    <div class="at-empty-sub">Waiting for session data...</div>
+  </div>
+  <table class="at-table" id="at-table" style="display:none">
+    <thead>
+      <tr>
+        <th style="width:36px"></th>
+        <th>Name</th>
+        <th>Activity</th>
+        <th style="width:140px">Context</th>
+        <th>Directory</th>
+      </tr>
+    </thead>
+    <tbody id="at-tbody"></tbody>
+  </table>
+</div>
+
+<div class="at-cards" id="at-cards"></div>
+
+<div class="at-tooltip" id="at-tooltip">
+  <div class="at-tooltip-title">Status History</div>
+  <div id="at-tooltip-body"></div>
+</div>
+
+<script>
+(function() {
+  var POLL_MS = 2500;
+  var MAX_HISTORY = 15;
+
+  // State
+  var history = {};       // floorId -> [{status, tool, detail, time}]
+  var lastData = null;
+  var hoveredFloor = null;
+
+  // DOM refs
+  var elTable = document.getElementById('at-table');
+  var elTbody = document.getElementById('at-tbody');
+  var elEmpty = document.getElementById('at-empty');
+  var elCards = document.getElementById('at-cards');
+  var elCount = document.getElementById('at-count');
+  var elPulse = document.getElementById('at-pulse');
+  var elTooltip = document.getElementById('at-tooltip');
+  var elTooltipBody = document.getElementById('at-tooltip-body');
+
+  // ── Helpers ──
+
+  function truncatePath(p) {
+    if (!p) return '';
+    var parts = p.replace(/\\/g, '/').split('/');
+    if (parts.length <= 2) return p;
+    return '.../' + parts.slice(-2).join('/');
+  }
+
+  function timeStr(iso) {
+    if (!iso) return '--:--:--';
+    var d = new Date(iso);
+    var h = ('0' + d.getHours()).slice(-2);
+    var m = ('0' + d.getMinutes()).slice(-2);
+    var s = ('0' + d.getSeconds()).slice(-2);
+    return h + ':' + m + ':' + s;
+  }
+
+  function dotClass(status) {
+    if (status === 'awaiting_input') return 'at-dot-green';
+    if (status === 'tool_use' || status === 'processing') return 'at-dot-orange';
+    return 'at-dot-gray';
+  }
+
+  function statusLabel(status) {
+    if (status === 'awaiting_input') return 'Ready';
+    if (status === 'tool_use') return 'Tool';
+    if (status === 'processing') return 'Thinking';
+    if (status === 'idle') return 'Idle';
+    return status || 'Offline';
+  }
+
+  function meterColorClass(pct) {
+    if (pct < 50) return 'at-meter-green';
+    if (pct < 75) return 'at-meter-yellow';
+    return 'at-meter-red';
+  }
+
+  function buildMeterHTML(pct) {
+    if (pct == null) {
+      return '<div class="at-meter-na">N/A</div>';
+    }
+    var cls = meterColorClass(pct);
+    return '<div class="at-meter">' +
+      '<div class="at-meter-fill ' + cls + '" style="width:' + pct + '%"></div>' +
+      '<div class="at-meter-label">' + pct + '%</div>' +
+      '</div>';
+  }
+
+  function activityDetail(s) {
+    var tool = s.currentTool;
+    var det = s.details;
+    if (!tool) return '';
+    var parts = [tool.toUpperCase()];
+    if (det) {
+      if (det.tool_input && det.tool_input.file_path) {
+        parts.push(truncatePath(det.tool_input.file_path));
+      } else if (det.tool_input && det.tool_input.command) {
+        var cmd = det.tool_input.command;
+        if (cmd.length > 40) cmd = cmd.substring(0, 40) + '...';
+        parts.push(cmd);
+      } else if (det.tool_input && det.tool_input.pattern) {
+        parts.push(det.tool_input.pattern);
+      }
+    }
+    return parts.join(' — ');
+  }
+
+  function findProfile(profiles, floorId) {
+    if (!profiles) return null;
+    var idx = parseInt(floorId, 10);
+    if (!isNaN(idx)) {
+      for (var i = 0; i < profiles.length; i++) {
+        if (profiles[i].floorIndex === idx) return profiles[i];
+      }
+    }
+    return null;
+  }
+
+  function sessionName(s) {
+    // Try to derive a display name from session data
+    if (s.workingDir) {
+      var parts = s.workingDir.replace(/\\/g, '/').split('/');
+      return parts[parts.length - 1] || s.sessionId || s.floorId;
+    }
+    return s.sessionId || s.floorId;
+  }
+
+  // ── History tracking ──
+
+  function pushHistory(floorId, status, tool, detail, lastUpdated) {
+    if (!history[floorId]) history[floorId] = [];
+    var arr = history[floorId];
+    var last = arr.length > 0 ? arr[arr.length - 1] : null;
+
+    // Only push when something changes
+    var key = status + '|' + (tool || '') + '|' + (detail || '');
+    if (last && last._key === key) return;
+
+    arr.push({
+      status: statusLabel(status),
+      tool: tool || '',
+      detail: detail || '',
+      time: timeStr(lastUpdated),
+      _key: key
+    });
+
+    if (arr.length > MAX_HISTORY) arr.shift();
+  }
+
+  // ── Render Table ──
+
+  function renderTable(data) {
+    var statuses = data.statuses || [];
+    var profiles = data.profiles || [];
+
+    if (statuses.length === 0) {
+      elTable.style.display = 'none';
+      elEmpty.style.display = '';
+      elCards.innerHTML = '';
+      elCount.textContent = '0 floors';
+      return;
+    }
+
+    elTable.style.display = '';
+    elEmpty.style.display = 'none';
+    elCount.textContent = statuses.length + ' floor' + (statuses.length !== 1 ? 's' : '');
+
+    var rows = '';
+    var cards = '';
+
+    for (var i = 0; i < statuses.length; i++) {
+      var s = statuses[i];
+      var prof = findProfile(profiles, s.floorId);
+      var name = prof ? prof.name : sessionName(s);
+      var icon = (prof && prof.icon) ? prof.icon : '';
+      var dc = dotClass(s.status);
+      var label = statusLabel(s.status);
+      var detail = activityDetail(s);
+      var floorNum = prof ? s.floorId : '';
+      var workDir = s.workingDir ? truncatePath(s.workingDir) : '';
+
+      pushHistory(s.floorId, s.status, s.currentTool, detail, s.lastUpdated);
+
+      // Table row
+      rows += '<tr data-floor="' + s.floorId + '">' +
+        '<td><span class="at-dot ' + dc + '"></span></td>' +
+        '<td>' + (icon ? icon + ' ' : '') + name + '</td>' +
+        '<td>' +
+          '<div class="at-activity-label">' + label +
+            (s.currentTool ? ' — ' + s.currentTool : '') +
+          '</div>' +
+          (detail ? '<div class="at-activity-detail">' + detail + '</div>' : '') +
+        '</td>' +
+        '<td>' + buildMeterHTML(s.contextPercent) + '</td>' +
+        '<td style="font-size:11px;color:var(--brushed-steel)">' + workDir + '</td>' +
+        '</tr>';
+
+      // Mobile card
+      cards += '<div class="at-card">' +
+        '<div class="at-card-top">' +
+          '<span class="at-dot ' + dc + '"></span>' +
+          '<span class="at-card-name">' + (icon ? icon + ' ' : '') + name + '</span>' +
+          '<span class="at-card-floor">' + workDir + '</span>' +
+        '</div>' +
+        '<div class="at-card-activity">' + label +
+          (s.currentTool ? ' — ' + s.currentTool : '') +
+        '</div>' +
+        buildMeterHTML(s.contextPercent) +
+        '</div>';
+    }
+
+    elTbody.innerHTML = rows;
+    elCards.innerHTML = cards;
+
+    // Re-bind hover events
+    var trs = elTbody.querySelectorAll('tr');
+    for (var j = 0; j < trs.length; j++) {
+      trs[j].addEventListener('mouseenter', onRowEnter);
+      trs[j].addEventListener('mousemove', onRowMove);
+      trs[j].addEventListener('mouseleave', onRowLeave);
+    }
+  }
+
+  // ── Tooltip ──
+
+  function onRowEnter(e) {
+    var tr = e.currentTarget;
+    var floorId = tr.getAttribute('data-floor');
+    hoveredFloor = floorId;
+    showTooltip(floorId, e);
+  }
+
+  function onRowMove(e) {
+    if (!hoveredFloor) return;
+    elTooltip.style.top = (e.clientY + 14) + 'px';
+    elTooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - 330) + 'px';
+  }
+
+  function onRowLeave() {
+    hoveredFloor = null;
+    elTooltip.className = 'at-tooltip';
+  }
+
+  function showTooltip(floorId, e) {
+    var arr = history[floorId] || [];
+    if (arr.length === 0) {
+      elTooltipBody.innerHTML = '<div style="color:var(--steel-light)">No history yet</div>';
+    } else {
+      var html = '';
+      // Show most recent first
+      for (var i = arr.length - 1; i >= 0; i--) {
+        var h = arr[i];
+        html += '<div class="at-tooltip-entry">' +
+          '<span class="at-tooltip-time">' + h.time + '</span>' +
+          '<span class="at-tooltip-status">' + h.status +
+            (h.tool ? ' — ' + h.tool : '') +
+          '</span>' +
+          '</div>';
+      }
+      elTooltipBody.innerHTML = html;
+    }
+    elTooltip.style.top = (e.clientY + 14) + 'px';
+    elTooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - 330) + 'px';
+    elTooltip.className = 'at-tooltip at-show';
+  }
+
+  // ── Polling ──
+
+  function poll() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/session-status', true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          lastData = data;
+          renderTable(data);
+        } catch (e) { /* ignore parse errors */ }
+      }
+      flash();
+    };
+    xhr.send();
+  }
+
+  function flash() {
+    elPulse.className = 'at-pulse at-flash';
+    setTimeout(function() {
+      elPulse.className = 'at-pulse';
+    }, 300);
+  }
+
+  // ── Init ──
+  poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>
