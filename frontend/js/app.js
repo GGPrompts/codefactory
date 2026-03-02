@@ -34,6 +34,7 @@
             defaultCwd = (data && data.default_cwd) || '';
             renderFloors(profiles);
             initElevatorMechanics();
+            setupMobileElevator();
             initLobbyWorkdir();
             reconnectExistingSessions();
             console.log('[CodeFactory] Loaded ' + profiles.length + ' profiles');
@@ -1020,6 +1021,116 @@
     document.addEventListener('keydown', unlockAudio, { once: false });
 
     // ==============================================================
+    // MOBILE ELEVATOR SWIPE PANEL
+    // ==============================================================
+    var mobileElevatorRegistered = false;
+    var mobileMediaQuery = window.matchMedia('(max-width: 768px)');
+
+    /**
+     * Build a compact elevator panel for the right-edge swipe panel on mobile.
+     * Mirrors the desktop elevator buttons with just emoji/number icons.
+     */
+    function setupMobileElevator() {
+        var isMobile = mobileMediaQuery.matches;
+
+        if (isMobile && !mobileElevatorRegistered && floorCount > 0) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'mobile-elevator';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'mobile-elevator-header';
+            header.textContent = 'FLOORS';
+            wrapper.appendChild(header);
+
+            // Indicator showing current floor
+            var ind = document.createElement('div');
+            ind.className = 'mobile-elevator-indicator';
+            ind.id = 'mobileElevatorIndicator';
+            ind.textContent = floorLabels[currentFloor] || 'L';
+            wrapper.appendChild(ind);
+
+            // Floor buttons (highest first, matching desktop order)
+            var btnContainer = document.createElement('div');
+            btnContainer.className = 'mobile-elevator-buttons';
+
+            // Query the desktop buttons to mirror them
+            var desktopBtns = elevatorButtons.querySelectorAll('.floor-btn');
+            for (var i = 0; i < desktopBtns.length; i++) {
+                var srcBtn = desktopBtns[i];
+                var btn = document.createElement('button');
+                btn.className = 'mobile-floor-btn' + (srcBtn.classList.contains('has-icon') ? ' has-icon' : '');
+                btn.setAttribute('data-target', srcBtn.dataset.target);
+                btn.setAttribute('data-label', srcBtn.dataset.label);
+                btn.innerHTML = srcBtn.innerHTML;
+                if (srcBtn.dataset.target === currentFloor) {
+                    btn.classList.add('active');
+                }
+                btnContainer.appendChild(btn);
+            }
+
+            // Lobby button
+            var lobbyBtn = document.createElement('button');
+            lobbyBtn.className = 'mobile-floor-btn';
+            lobbyBtn.setAttribute('data-target', 'lobby');
+            lobbyBtn.setAttribute('data-label', 'Lobby');
+            lobbyBtn.textContent = 'L';
+            if (currentFloor === 'lobby') {
+                lobbyBtn.classList.add('active');
+            }
+            btnContainer.appendChild(lobbyBtn);
+
+            wrapper.appendChild(btnContainer);
+
+            // Attach click handlers to all mobile buttons
+            var mobileBtns = btnContainer.querySelectorAll('.mobile-floor-btn');
+            for (var j = 0; j < mobileBtns.length; j++) {
+                mobileBtns[j].addEventListener('click', (function(mbtn) {
+                    return function() {
+                        playClick();
+                        var targetId = mbtn.dataset.target;
+                        var target = document.getElementById(targetId);
+                        if (target) {
+                            jumpTarget = targetId;
+                            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        // Auto-close swipe panel after selection
+                        SwipePanels.hidePanel('right');
+                    };
+                })(mobileBtns[j]));
+            }
+
+            SwipePanels.registerPanel('right', wrapper);
+            mobileElevatorRegistered = true;
+        } else if (!isMobile && mobileElevatorRegistered) {
+            SwipePanels.unregisterPanel('right');
+            mobileElevatorRegistered = false;
+        }
+    }
+
+    /**
+     * Sync the mobile elevator buttons' active state with the current floor.
+     */
+    function syncMobileElevator() {
+        if (!mobileElevatorRegistered) return;
+        var panel = SwipePanels.getPanelElement('right');
+        if (!panel) return;
+        var mobileBtns = panel.querySelectorAll('.mobile-floor-btn');
+        for (var i = 0; i < mobileBtns.length; i++) {
+            mobileBtns[i].classList.toggle('active', mobileBtns[i].dataset.target === currentFloor);
+        }
+        var mInd = document.getElementById('mobileElevatorIndicator');
+        if (mInd) {
+            mInd.textContent = floorLabels[currentFloor] || '?';
+        }
+    }
+
+    // Listen for viewport changes to register/unregister
+    mobileMediaQuery.addEventListener('change', function() {
+        setupMobileElevator();
+    });
+
+    // ==============================================================
     // ELEVATOR MECHANICS (initialized after floors render)
     // ==============================================================
     function initElevatorMechanics() {
@@ -1118,6 +1229,9 @@
                 buttons.forEach(function (btn) {
                     btn.classList.toggle('active', btn.dataset.target === bestFloor);
                 });
+
+                // Sync mobile elevator panel if active
+                syncMobileElevator();
             }
         }
 
