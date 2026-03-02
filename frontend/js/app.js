@@ -1165,20 +1165,38 @@
             }
         });
 
+        // Refit all powered-on terminals
+        function refitAllTerminals() {
+            if (typeof CodeFactoryTerminals === 'undefined') return;
+            for (var i = 1; i <= floorCount; i++) {
+                var entry = CodeFactoryTerminals.getTerminal(String(i));
+                if (entry && entry.fitAddon && entry.powered) {
+                    entry.fitAddon.fit();
+                }
+            }
+        }
+
         // Window resize: refit all powered-on terminals
         var resizeTick = null;
         window.addEventListener('resize', function () {
             clearTimeout(resizeTick);
-            resizeTick = setTimeout(function () {
-                if (typeof CodeFactoryTerminals === 'undefined') return;
-                for (var i = 1; i <= floorCount; i++) {
-                    var entry = CodeFactoryTerminals.getTerminal(String(i));
-                    if (entry && entry.fitAddon && entry.powered) {
-                        entry.fitAddon.fit();
-                    }
-                }
-            }, 200);
+            resizeTick = setTimeout(refitAllTerminals, 200);
         });
+
+        // visualViewport API: track soft keyboard on mobile.
+        // Updates --vvh CSS custom property so terminal containers resize.
+        if (window.visualViewport) {
+            var vvTick = null;
+            function updateVisualViewport() {
+                var vh = window.visualViewport.height;
+                document.documentElement.style.setProperty('--vvh', vh + 'px');
+                clearTimeout(vvTick);
+                vvTick = setTimeout(refitAllTerminals, 150);
+            }
+            window.visualViewport.addEventListener('resize', updateVisualViewport);
+            // Set initial value
+            updateVisualViewport();
+        }
 
         // Initial state
         updateActiveFloor();

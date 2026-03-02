@@ -1387,120 +1387,144 @@ section.floor.powered-on .profile-edit-form {
 /* ══════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════ */
+
+/* CSS custom property for viewport height — updated by visualViewport API in JS.
+   Falls back to 100vh when JS hasn't set --vvh yet. */
+:root {
+    --vvh: 100vh;
+}
+
 @media (max-width: 768px) {
+    /* ── Hide all desktop chrome ── */
     nav.elevator-panel {
-        /* Move to bottom of screen as horizontal bar */
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        top: auto;
-        width: auto;
-        transform: none;
-        z-index: 100;
+        display: none !important;
     }
-    .panel-frame {
-        flex-direction: row-reverse;
-        justify-content: center;
-        gap: 8px;
-        padding: 8px 16px;
-        border-radius: 4px 4px 0 0;
+    .elevator-doors {
+        display: none !important;
     }
-    .panel-indicator {
-        width: 34px;
-        height: 34px;
-        font-size: 1.2rem;
-        margin-bottom: 0;
-        margin-left: 4px;
+    .shaft-wall {
+        display: none !important;
     }
-    .panel-arrow {
-        margin-bottom: 0;
-        margin-left: 4px;
+    .caution-stripe {
+        display: none !important;
     }
-    .floor-btn {
-        width: 34px;
-        height: 34px;
-        font-size: 0.8rem;
-    }
-    .floor-btn.has-icon {
-        font-size: 1.1rem;
-    }
-    .floor-btn::after {
-        right: auto;
-        bottom: calc(100% + 10px);
-        top: auto;
-        left: 50%;
-        transform: translateX(-50%) translateY(6px);
-    }
-    .floor-btn:hover::after {
-        transform: translateX(-50%) translateY(0);
-    }
-    .floor-frame {
-        max-width: 100%;
-    }
-    .floor-content-row {
-        width: calc(100vw - 24px);
-        height: calc(100vh - 160px);
-    }
-    /* Hide side panels on mobile */
+
+    /* ── Hide side panels & toggle ── */
     .floor-side-panel {
         display: none !important;
     }
     .panel-toggle-btn {
         display: none !important;
     }
-    .lobby-title {
-        font-size: 2.5rem;
-    }
-    .lobby-subtitle {
-        font-size: 0.9rem;
-        letter-spacing: 0.2em;
-    }
-    .shaft {
-        padding-bottom: 60px; /* room for bottom panel */
-    }
+
+    /* ── Shaft: no padding needed without elevator panel ── */
     main.shaft {
-        padding-bottom: 70px;
+        padding-bottom: 0;
     }
-    .shaft-wall { height: 140px; }
-    .shaft-wall-number { font-size: 3.5rem; }
+
+    /* ── Floors: full-bleed, fill viewport ── */
+    section.floor {
+        min-height: var(--vvh);
+        padding: 0;
+        background: var(--iron-black); /* drop the grid pattern on mobile */
+    }
+
+    .floor-frame {
+        max-width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+        gap: 0;
+    }
+
+    /* ── Floor header: compact, full-width ── */
+    .floor-header {
+        padding: 6px 12px;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        border-radius: 0;
+    }
+
+    /* Hide decorative rivets on mobile */
+    .floor-header::before,
+    .floor-header::after {
+        display: none;
+    }
+
+    .floor-label { font-size: 0.65rem; }
+    .floor-title { font-size: 0.85rem; }
+    .floor-status { font-size: 0.65rem; padding: 1px 6px; }
+
+    /* ── Terminal & page containers: full-bleed ── */
+    .floor-content-row {
+        width: 100vw;
+        /* Use visualViewport height minus compact header */
+        height: calc(var(--vvh) - 40px);
+    }
+
+    .terminal-container {
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .page-container {
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    /* ── Profile card (offline state): full-width ── */
     .profile-card {
-        width: calc(100vw - 24px);
+        width: 100vw;
         padding: 32px 16px;
         min-height: 200px;
+        border-left: none;
+        border-right: none;
     }
-    .profile-edit-form {
-        width: calc(100vw - 24px);
-        padding: 20px 16px;
-    }
-    .power-off-bar {
-        width: calc(100vw - 24px);
-    }
+
     .profile-icon {
         width: 60px;
         height: 60px;
         font-size: 2rem;
     }
     .profile-name { font-size: 1.2rem; }
-    #elevator-buttons {
-        flex-direction: row-reverse;
-        gap: 8px;
+
+    .profile-edit-form {
+        width: 100vw;
+        padding: 20px 16px;
+        border-left: none;
+        border-right: none;
+    }
+
+    .power-off-bar {
+        width: 100vw;
+        padding: 6px 12px;
+    }
+
+    /* ── Lobby adjustments ── */
+    .lobby-title { font-size: 2.5rem; }
+    .lobby-subtitle {
+        font-size: 0.9rem;
+        letter-spacing: 0.2em;
+    }
+    .lobby-content {
+        padding: 30px 16px;
     }
 }
 
 @media (max-width: 480px) {
-    .floor-btn { width: 28px; height: 28px; font-size: 0.75rem; }
-    .floor-btn.has-icon { font-size: 0.95rem; }
-    .panel-indicator { width: 28px; height: 28px; font-size: 1rem; }
     .lobby-title { font-size: 2rem; }
-    .floor-title { font-size: 0.9rem; }
-    section.floor { padding: 10px; }
+    .floor-title { font-size: 0.8rem; }
+    .floor-header { padding: 4px 8px; }
     .floor-content-row {
-        width: calc(100vw - 24px);
-        height: calc(100vh - 140px);
+        height: calc(var(--vvh) - 34px);
     }
-    .shaft-wall { height: 100px; }
-    .shaft-wall-number { font-size: 2.5rem; }
     .profile-info { flex-direction: column; text-align: center; }
     .profile-actions { flex-direction: column; gap: 8px; }
+    .profile-card { padding: 20px 12px; }
 }
