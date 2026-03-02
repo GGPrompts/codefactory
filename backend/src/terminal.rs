@@ -180,6 +180,15 @@ impl TerminalManager {
                 .args(["detach-client", "-s", &tmux_session_name])
                 .output();
             std::thread::sleep(std::time::Duration::from_millis(50));
+
+            // Enter copy-mode on the pane BEFORE attaching.  During
+            // `tmux attach-session`, tmux injects phantom bytes (0x0A,
+            // 0x04, etc.) into the pane's stdin.  In copy-mode these are
+            // harmlessly interpreted as scroll commands instead of reaching
+            // the running application (claude, codex, shell, TUI).
+            let _ = Command::new("tmux")
+                .args(["copy-mode", "-t", &tmux_session_name])
+                .output();
         }
 
         // Open a PTY and attach to the tmux session.
@@ -287,6 +296,15 @@ impl TerminalManager {
         };
 
         sessions.insert(floor_id.to_string(), session);
+
+        // Exit copy-mode now that the attach has settled and phantom bytes
+        // have been harmlessly absorbed by copy-mode's key handler.
+        if tmux_exists {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = Command::new("tmux")
+                .args(["send-keys", "-t", &tmux_session_name, "-X", "cancel"])
+                .output();
+        }
 
         info!(
             floor_id = %floor_id,
