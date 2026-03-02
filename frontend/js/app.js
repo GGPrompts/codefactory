@@ -2238,7 +2238,7 @@
             }
         });
 
-        // Keyboard navigation (1-9 adapts to floor count, L for lobby)
+        // Keyboard navigation (Alt+1-9 jump to floors, Escape exits edit)
         document.addEventListener('keydown', function (e) {
             // Ignore if user is typing in an input/textarea
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -2249,22 +2249,28 @@
                 return;
             }
 
-            var targetId = null;
-            if (e.key === 'l' || e.key === 'L') {
-                targetId = 'lobby';
-            } else {
-                var num = parseInt(e.key, 10);
-                if (num >= 1 && num <= floorCount && num <= 9) {
-                    targetId = 'floor-' + num;
+            // Alt+number: jump to floor N
+            if (e.altKey && !e.ctrlKey && !e.metaKey) {
+                var targetId = null;
+                if (e.key === 'l' || e.key === 'L' || e.key === '0') {
+                    targetId = 'lobby';
+                } else {
+                    var num = parseInt(e.key, 10);
+                    if (num >= 1 && num <= 9 && num <= floors.length) {
+                        // floors array is ordered by DOM position; map Nth floor
+                        var floorEl = floors[num - 1];
+                        if (floorEl) targetId = floorEl.id;
+                    }
                 }
-            }
 
-            if (targetId) {
-                playClick();
-                var target = document.getElementById(targetId);
-                if (target) {
-                    jumpTarget = targetId;
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (targetId) {
+                    e.preventDefault();
+                    playClick();
+                    var target = document.getElementById(targetId);
+                    if (target) {
+                        jumpTarget = targetId;
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 }
             }
         });
