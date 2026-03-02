@@ -35,7 +35,7 @@
             defaultCwd = (data && data.default_cwd) || '';
             renderFloors(profiles);
             initElevatorMechanics();
-            setupMobileElevator();
+            setupMobileBar();
             initLobbyWorkdir();
             initLobbySettings();
             reconnectExistingSessions();
@@ -102,16 +102,13 @@
         attachFloorListeners(enabledProfiles);
 
         // Rebuild mobile bottom bar to reflect new floors
-        if (mobileBottomBar) {
-            mobileBottomBar.remove();
-            mobileBottomBar = null;
+        if (mobileBar) {
+            mobileBar.remove();
+            mobileBar = null;
+            mobileBarTrack = null;
+            mobileBarDots = null;
         }
-        setupMobileElevator();
-
-        // Sync extra keys visibility after re-render
-        if (typeof ExtraKeys !== 'undefined') {
-            ExtraKeys.syncVisibility(currentFloor, mobileMediaQuery.matches);
-        }
+        setupMobileBar();
 
         // Auto-load page floors
         autoLoadPageFloors(enabledProfiles);
@@ -374,10 +371,7 @@
                         // Focus terminal after it connects
                         setTimeout(function() {
                             CodeFactoryTerminals.focus(floorId);
-                            // Show extra keys bar now that terminal is powered on
-                            if (typeof ExtraKeys !== 'undefined') {
-                                ExtraKeys.syncVisibility('floor-' + floorId, mobileMediaQuery.matches);
-                            }
+                            syncMobileBar();
                         }, 200);
                         // If panel is configured and was open, load its content
                         if (profile.panel && getPanelState(floorId)) {
@@ -397,9 +391,7 @@
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
                 CodeFactoryTerminals.detach(floorId);
-                if (typeof ExtraKeys !== 'undefined') {
-                    ExtraKeys.syncVisibility('floor-' + floorId, mobileMediaQuery.matches);
-                }
+                syncMobileBar();
             });
         });
 
@@ -414,9 +406,7 @@
                 } else {
                     CodeFactoryTerminals.kill(floorId);
                 }
-                if (typeof ExtraKeys !== 'undefined') {
-                    ExtraKeys.syncVisibility('floor-' + floorId, mobileMediaQuery.matches);
-                }
+                syncMobileBar();
             });
         });
 
@@ -1418,36 +1408,53 @@
     document.addEventListener('keydown', unlockAudio, { once: false });
 
     // ==============================================================
-    // MOBILE BOTTOM BAR
+    // UNIFIED MOBILE BAR (swipeable keys + nav)
     // ==============================================================
-    var mobileBottomBar = null;
+    var mobileBar = null;
+    var mobileBarTrack = null;
+    var mobileBarDots = null;
+    var mobileBarPanel = 0;          // 0 = keys, 1 = nav
+    var mobileBarUserOverride = false; // user swiped manually
     var mobileMediaQuery = window.matchMedia('(max-width: 768px)');
 
-    /**
-     * Build a fixed bottom bar with floor buttons for mobile navigation.
-     */
-    function setupMobileElevator() {
+    function setupMobileBar() {
         var isMobile = mobileMediaQuery.matches;
 
-        if (isMobile && !mobileBottomBar && floorCount > 0) {
-            mobileBottomBar = document.createElement('nav');
-            mobileBottomBar.className = 'mobile-bottom-bar';
+        if (isMobile && !mobileBar && floorCount > 0) {
+            mobileBar = document.createElement('nav');
+            mobileBar.className = 'mobile-bar';
 
-            var inner = document.createElement('div');
-            inner.className = 'mobile-bottom-bar-inner';
+            // Track container (slides left/right)
+            mobileBarTrack = document.createElement('div');
+            mobileBarTrack.className = 'mobile-bar-track';
 
-            // Lobby button first (far left)
+            // Panel 0: Extra keys
+            var keysPanel;
+            if (typeof ExtraKeys !== 'undefined') {
+                keysPanel = ExtraKeys.createKeysPanel();
+            } else {
+                keysPanel = document.createElement('div');
+                keysPanel.className = 'mobile-bar-panel mobile-bar-keys';
+            }
+            mobileBarTrack.appendChild(keysPanel);
+
+            // Panel 1: Elevator nav
+            var navPanel = document.createElement('div');
+            navPanel.className = 'mobile-bar-panel mobile-bar-nav';
+
+            var navInner = document.createElement('div');
+            navInner.className = 'mobile-bar-nav-inner';
+
+            // Lobby button
             var lobbyBtn = document.createElement('button');
             lobbyBtn.className = 'mobile-bar-btn';
             lobbyBtn.setAttribute('data-target', 'lobby');
             lobbyBtn.setAttribute('data-label', 'Lobby');
             lobbyBtn.textContent = 'L';
-            if (currentFloor === 'lobby') {
-                lobbyBtn.classList.add('active');
-            }
-            inner.appendChild(lobbyBtn);
+            if (currentFloor === 'lobby') lobbyBtn.classList.add('active');
+            navInner.appendChild(lobbyBtn);
 
-            // Floor buttons (lowest floor first, left to right)
+            // Floor buttons (lowest first)
             var desktopBtns = elevatorButtons.querySelectorAll('.floor-btn');
             for (var i = desktopBtns.length - 1; i >= 0; i--) {
                 var srcBtn = desktopBtns[i];
@@ -1456,16 +1463,15 @@
                 btn.setAttribute('data-target', srcBtn.dataset.target);
                 btn.setAttribute('data-label', srcBtn.dataset.label);
                 btn.innerHTML = srcBtn.innerHTML;
-                if (srcBtn.dataset.target === currentFloor) {
-                    btn.classList.add('active');
-                }
-                inner.appendChild(btn);
+                if (srcBtn.dataset.target === currentFloor) btn.classList.add('active');
+                navInner.appendChild(btn);
             }
 
-            mobileBottomBar.appendChild(inner);
+            navPanel.appendChild(navInner);
+            mobileBarTrack.appendChild(navPanel);
 
-            // Attach click handlers
-            var barBtns = inner.querySelectorAll('.mobile-bar-btn');
+            // Nav button click handlers
+            var barBtns = navInner.querySelectorAll('.mobile-bar-btn');
             for (var j = 0; j < barBtns.length; j++) {
                 barBtns[j].addEventListener('click', (function(mbtn) {
                     return function() {
@@ -1473,18 +1479,11 @@
                         var targetId = mbtn.dataset.target;
                         var target = document.getElementById(targetId);
                         if (target) {
-                            // Instant scroll on mobile to avoid bounce-back
                             jumpTarget = targetId;
                             target.scrollIntoView({ behavior: 'instant', block: 'start' });
-                            // Immediately update current floor + clear jump
                             currentFloor = targetId;
                             jumpTarget = null;
-                            syncMobileElevator();
-                            if (typeof ExtraKeys !== 'undefined') {
-                                ExtraKeys.setFloor(targetId);
-                                ExtraKeys.syncVisibility(targetId, true);
-                            }
-                            // Focus terminal if applicable
+                            syncMobileBar();
                             var floorNum = targetId.replace('floor-', '');
                             if (floorNum !== 'lobby') {
                                 CodeFactoryTerminals.focus(floorNum);
@@ -1494,38 +1493,155 @@
                 })(barBtns[j]));
             }
 
-            document.body.appendChild(mobileBottomBar);
+            mobileBar.appendChild(mobileBarTrack);
 
-            // Initialize extra keys bar for mobile terminals
+            // Dot indicators
+            mobileBarDots = document.createElement('div');
+            mobileBarDots.className = 'mobile-bar-dots';
+            mobileBarDots.innerHTML = '<span class="mobile-bar-dot"></span><span class="mobile-bar-dot"></span>';
+            mobileBar.appendChild(mobileBarDots);
+
+            // Swipe gesture
+            initBarSwipe();
+
+            document.body.appendChild(mobileBar);
+
+            // Set initial panel based on context
+            mobileBarUserOverride = false;
+            autoSelectPanel();
+
+            // Set floor for extra keys
             if (typeof ExtraKeys !== 'undefined') {
-                ExtraKeys.init();
-                ExtraKeys.syncVisibility(currentFloor, isMobile);
+                ExtraKeys.setFloor(currentFloor);
             }
-        } else if (!isMobile && mobileBottomBar) {
-            mobileBottomBar.remove();
-            mobileBottomBar = null;
+
+        } else if (!isMobile && mobileBar) {
+            mobileBar.remove();
+            mobileBar = null;
+            mobileBarTrack = null;
+            mobileBarDots = null;
         }
     }
 
-    /**
-     * Sync the mobile bottom bar buttons' active state with the current floor.
-     */
-    function syncMobileElevator() {
-        if (!mobileBottomBar) return;
-        var barBtns = mobileBottomBar.querySelectorAll('.mobile-bar-btn');
+    function setBarPanel(index) {
+        mobileBarPanel = index;
+        if (mobileBarTrack) {
+            mobileBarTrack.style.transform = index === 0 ? 'translateX(0)' : 'translateX(-50%)';
+        }
+        if (mobileBarDots) {
+            var dots = mobileBarDots.querySelectorAll('.mobile-bar-dot');
+            for (var i = 0; i < dots.length; i++) {
+                dots[i].classList.toggle('active', i === index);
+            }
+        }
+    }
+
+    function autoSelectPanel() {
+        if (typeof ExtraKeys !== 'undefined' && ExtraKeys.isTerminalFloor(currentFloor)) {
+            setBarPanel(0);
+        } else {
+            setBarPanel(1);
+        }
+    }
+
+    function initBarSwipe() {
+        var startX = 0;
+        var startY = 0;
+        var tracking = false;
+        var barWidth = 0;
+
+        mobileBar.addEventListener('touchstart', function(e) {
+            // Don't intercept key button taps (they stopPropagation)
+            if (e.target.classList.contains('extra-key-btn')) return;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            tracking = false;
+            barWidth = mobileBar.offsetWidth;
+        }, { passive: true });
+
+        mobileBar.addEventListener('touchmove', function(e) {
+            if (e.target.classList.contains('extra-key-btn')) return;
+            var dx = e.touches[0].clientX - startX;
+            var dy = e.touches[0].clientY - startY;
+
+            // Determine direction on first significant move
+            if (!tracking) {
+                if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+                    tracking = true;
+                    mobileBarTrack.classList.add('dragging');
+                } else if (Math.abs(dy) > 8) {
+                    return; // vertical scroll, ignore
+                } else {
+                    return; // not enough movement yet
+                }
+            }
+
+            if (tracking) {
+                e.preventDefault();
+                // Translate track following finger
+                var baseOffset = mobileBarPanel === 0 ? 0 : -barWidth;
+                var offset = baseOffset + dx;
+                // Clamp: don't scroll past edges
+                offset = Math.max(-barWidth, Math.min(0, offset));
+                mobileBarTrack.style.transform = 'translateX(' + offset + 'px)';
+            }
+        }, { passive: false });
+
+        mobileBar.addEventListener('touchend', function(e) {
+            if (!tracking) return;
+            tracking = false;
+            mobileBarTrack.classList.remove('dragging');
+
+            var dx = e.changedTouches[0].clientX - startX;
+            var threshold = barWidth * 0.25;
+
+            if (mobileBarPanel === 0 && dx < -threshold) {
+                // Swipe left: show nav
+                mobileBarUserOverride = true;
+                setBarPanel(1);
+            } else if (mobileBarPanel === 1 && dx > threshold) {
+                // Swipe right: show keys
+                mobileBarUserOverride = true;
+                setBarPanel(0);
+            } else {
+                // Snap back
+                setBarPanel(mobileBarPanel);
+            }
+        }, { passive: true });
+    }
+
+    function syncMobileBar() {
+        if (!mobileBar) return;
+
+        // Update nav button active states
+        var barBtns = mobileBar.querySelectorAll('.mobile-bar-btn');
         for (var i = 0; i < barBtns.length; i++) {
             barBtns[i].classList.toggle('active', barBtns[i].dataset.target === currentFloor);
         }
-        // Scroll active button into view within the bar
-        var activeBtn = mobileBottomBar.querySelector('.mobile-bar-btn.active');
+
+        // Scroll active nav button into view
+        var activeBtn = mobileBar.querySelector('.mobile-bar-btn.active');
         if (activeBtn) {
             activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
+
+        // Update extra keys floor
+        if (typeof ExtraKeys !== 'undefined') {
+            ExtraKeys.setFloor(currentFloor);
+        }
+
+        // Auto-switch panel unless user manually swiped
+        if (!mobileBarUserOverride) {
+            autoSelectPanel();
+        }
+
+        // Reset override on floor change so next navigation auto-selects
+        mobileBarUserOverride = false;
     }
 
-    // Listen for viewport changes to register/unregister
+    // Listen for viewport changes
     mobileMediaQuery.addEventListener('change', function() {
-        setupMobileElevator();
+        setupMobileBar();
     });
 
     // ==============================================================
@@ -1641,14 +1757,8 @@
                     btn.classList.toggle('active', btn.dataset.target === bestFloor);
                 });
 
-                // Sync mobile bottom bar
-                syncMobileElevator();
-
-                // Sync extra keys bar
-                if (typeof ExtraKeys !== 'undefined') {
-                    ExtraKeys.setFloor(bestFloor);
-                    ExtraKeys.syncVisibility(bestFloor, mobileMediaQuery.matches);
-                }
+                // Sync mobile bar
+                syncMobileBar();
             }
         }
 

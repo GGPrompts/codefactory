@@ -1,11 +1,11 @@
 /* ==============================================================
-   ExtraKeys — Mobile extra keys bar (Termux-style)
+   ExtraKeys — Mobile extra keys (Termux-style)
+   Provides key panel DOM + input handling. Bar management is in app.js.
    ============================================================== */
 var ExtraKeys = (function () {
     'use strict';
 
     // -- Key definitions --
-    // Row 1: modifiers + common symbols + arrows
     var ROW1 = [
         { label: 'ESC',  type: 'sequence', value: '\x1b' },
         { label: 'TAB',  type: 'text',     value: '\t' },
@@ -19,7 +19,6 @@ var ExtraKeys = (function () {
         { label: '\u2192', type: 'sequence', value: '\x1b[C' },
     ];
 
-    // Row 2: function keys + navigation
     var ROW2 = [
         { label: 'F1',   type: 'sequence', value: '\x1bOP' },
         { label: 'F2',   type: 'sequence', value: '\x1bOQ' },
@@ -42,21 +41,21 @@ var ExtraKeys = (function () {
     var DOUBLE_TAP_MS = 400;
 
     // -- State --
-    var bar = null;
+    var panelEl = null;       // the keys panel DOM element
     var currentFloorId = null;
-    var initialized = false;
 
     // ==============================================================
     // DOM CREATION
     // ==============================================================
-    function createBar() {
-        var el = document.createElement('div');
-        el.className = 'extra-keys-bar';
+    function createKeysPanel() {
+        var panel = document.createElement('div');
+        panel.className = 'mobile-bar-panel mobile-bar-keys';
 
-        el.appendChild(createRow(ROW1));
-        el.appendChild(createRow(ROW2));
+        panel.appendChild(createRow(ROW1));
+        panel.appendChild(createRow(ROW2));
 
-        return el;
+        panelEl = panel;
+        return panel;
     }
 
     function createRow(keys) {
@@ -81,13 +80,12 @@ var ExtraKeys = (function () {
     }
 
     function attachKeyListeners(btn, keyDef) {
-        // touchstart with preventDefault to avoid VK popup/dismiss
         btn.addEventListener('touchstart', function (e) {
             e.preventDefault();
+            e.stopPropagation();  // prevent swipe gesture on bar
             handleKeyTap(keyDef);
         }, { passive: false });
 
-        // click for desktop testing (won't fire on mobile due to preventDefault)
         btn.addEventListener('click', function (e) {
             e.preventDefault();
             handleKeyTap(keyDef);
@@ -126,16 +124,13 @@ var ExtraKeys = (function () {
     function applyCtrl(text) {
         if (text.length === 1) {
             var code = text.charCodeAt(0);
-            // Letters a-z / A-Z -> \x01-\x1a
             if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
                 return String.fromCharCode(code & 0x1f);
             }
-            // Common ctrl combos: [ -> ESC, \ -> FS, ] -> GS
             if (code === 91) return '\x1b';
             if (code === 92) return '\x1c';
             if (code === 93) return '\x1d';
         }
-        // Ctrl+arrow sequences
         if (text === '\x1b[A') return '\x1b[1;5A';
         if (text === '\x1b[B') return '\x1b[1;5B';
         if (text === '\x1b[C') return '\x1b[1;5C';
@@ -186,8 +181,8 @@ var ExtraKeys = (function () {
     }
 
     function updateModifierUI() {
-        if (!bar) return;
-        var btns = bar.querySelectorAll('[data-mod]');
+        if (!panelEl) return;
+        var btns = panelEl.querySelectorAll('[data-mod]');
         for (var i = 0; i < btns.length; i++) {
             var name = btns[i].getAttribute('data-mod');
             var state = modState[name] || 'inactive';
@@ -209,70 +204,25 @@ var ExtraKeys = (function () {
         var encoded = btoa(unescape(encodeURIComponent(value)));
         entry.ws.send(JSON.stringify({ type: 'terminal-input', data: encoded }));
 
-        // Keep terminal focused
         CodeFactoryTerminals.focus(currentFloorId);
     }
 
     // ==============================================================
-    // VISIBILITY
+    // HELPERS
     // ==============================================================
-    function show() {
-        if (!bar) return;
-        bar.style.display = '';
-        document.body.classList.add('extra-keys-visible');
-    }
-
-    function hide() {
-        if (!bar) return;
-        bar.style.display = 'none';
-        document.body.classList.remove('extra-keys-visible');
-    }
-
-    function syncVisibility(currentFloor, isMobile) {
-        if (!bar) return;
-        if (!isMobile) {
-            hide();
-            return;
-        }
-
-        // Extract floor ID (strip 'floor-' prefix)
+    function isTerminalFloor(currentFloor) {
         var floorId = currentFloor ? currentFloor.replace('floor-', '') : '';
+        if (!floorId || floorId === 'lobby') return false;
 
-        // Hide for lobby
-        if (!floorId || floorId === 'lobby') {
-            hide();
-            return;
-        }
-
-        // Hide for page floors
         var section = document.getElementById('floor-' + floorId);
-        if (section && section.hasAttribute('data-page')) {
-            hide();
-            return;
-        }
+        if (section && section.hasAttribute('data-page')) return false;
 
-        // Hide if not powered on
         if (typeof CodeFactoryTerminals !== 'undefined') {
             var entry = CodeFactoryTerminals.getTerminal(floorId);
-            if (!entry || !entry.powered) {
-                hide();
-                return;
-            }
+            if (!entry || !entry.powered) return false;
         }
 
-        show();
-    }
-
-    // ==============================================================
-    // PUBLIC API
-    // ==============================================================
-    function init() {
-        if (initialized) return;
-        initialized = true;
-
-        bar = createBar();
-        bar.style.display = 'none';
-        document.body.appendChild(bar);
+        return true;
     }
 
     function setFloor(floorId) {
@@ -280,11 +230,12 @@ var ExtraKeys = (function () {
         resetActiveModifiers();
     }
 
+    // ==============================================================
+    // PUBLIC API
+    // ==============================================================
     return {
-        init: init,
+        createKeysPanel: createKeysPanel,
         setFloor: setFloor,
-        syncVisibility: syncVisibility,
-        show: show,
-        hide: hide,
+        isTerminalFloor: isTerminalFloor,
     };
 })();
