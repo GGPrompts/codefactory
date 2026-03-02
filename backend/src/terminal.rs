@@ -341,6 +341,16 @@ impl TerminalManager {
             .get_mut(floor_id)
             .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
 
+        // Diagnostic: log all input to trace phantom keystrokes.
+        // If a newline (0x0a/0x0d) appears here on refresh, the frontend
+        // is sending it.  If not, tmux is injecting it into the pane directly.
+        warn!(
+            floor_id = %floor_id,
+            len = data.len(),
+            hex = %data.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" "),
+            "PTY write_input"
+        );
+
         session
             .pty_writer
             .write_all(data)
