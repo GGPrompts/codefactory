@@ -152,9 +152,9 @@
 
       var html = "";
       streams.forEach(function (s) {
-        var name = s.name || "unknown";
-        var val = s.value != null ? s.value : 0;
-        var max = s.max_value != null ? s.max_value : 15;
+        var name = s.stream || s.name || "unknown";
+        var val = s.volume != null ? s.volume : (s.value != null ? s.value : 0);
+        var max = s.max_volume != null ? s.max_volume : (s.max_value != null ? s.max_value : 15);
         var pct = max > 0 ? Math.round((val / max) * 100) : 0;
 
         html += '<div class="tx-volume-stream">';
