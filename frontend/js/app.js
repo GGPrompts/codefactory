@@ -338,7 +338,7 @@
 
         for (var i = 0; i < profileList.length; i++) {
             var floorId = profileList[i].id || String(i + 1);
-            floorLabels['floor-' + floorId] = floorId;
+            floorLabels['floor-' + floorId] = String(i + 1);
             floorRank['floor-' + floorId] = i + 1;
         }
     }
