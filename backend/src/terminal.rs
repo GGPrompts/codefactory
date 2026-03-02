@@ -331,17 +331,17 @@ impl TerminalManager {
         // Replace any previous subscriber.
         *session.output_sink.lock().map_err(|e| anyhow!("Sink lock poisoned: {e}"))? = Some(tx);
 
-        // Force tmux to redraw by doing a tiny resize bump.  The new
-        // subscriber has a fresh xterm.js instance with an empty screen,
-        // but since the PTY client never disconnected, tmux doesn't know
-        // it needs to redraw.  Shrink by 1 col then restore to trigger
-        // a full repaint via SIGWINCH.
+        // Force tmux to redraw by doing a tiny resize bump on rows.
+        // The new subscriber has a fresh xterm.js instance with an empty
+        // screen, but the PTY client never disconnected so tmux doesn't
+        // know it needs to redraw.  Use rows (not cols) because column
+        // changes can cause line-wrapping corruption if content reflows.
         let cols = session.cols;
         let rows = session.rows;
-        if cols > 1 {
+        if rows > 1 {
             let _ = session.pty_master.resize(PtySize {
-                rows,
-                cols: cols - 1,
+                rows: rows - 1,
+                cols,
                 pixel_width: 0,
                 pixel_height: 0,
             });
