@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use tower_http::{
@@ -68,6 +68,13 @@ async fn main() {
         .route("/api/git/commit/{hash}", get(git_commit_details))
         .route("/api/git/diff", get(git_diff))
         .route("/api/beads/issues", get(beads_issues))
+        // Termux API endpoints
+        .route("/api/termux/battery", get(termux_battery))
+        .route("/api/termux/wifi", get(termux_wifi))
+        .route("/api/termux/volume", get(termux_volume))
+        .route("/api/termux/brightness", post(termux_brightness))
+        .route("/api/termux/torch", post(termux_torch))
+        .route("/api/termux/tts", post(termux_tts))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -921,6 +928,198 @@ async fn beads_issues(Query(params): Query<BeadsIssuesParams>) -> impl IntoRespo
         StatusCode::OK,
         Json(serde_json::json!({ "issues": issues })),
     )
+}
+
+// ── Termux API Endpoints ───────────────────────────────────────────────────
+
+/// Helper: run a termux-api command and return its stdout as a JSON value.
+/// Returns a graceful error if the command is not found (non-Termux system).
+async fn run_termux_command(cmd: &str, args: &[&str]) -> Result<serde_json::Value, (StatusCode, Json<serde_json::Value>)> {
+    let output = tokio::process::Command::new(cmd)
+        .args(args)
+        .output()
+        .await;
+
+    match output {
+        Ok(o) if o.status.success() => {
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+            match serde_json::from_str::<serde_json::Value>(&stdout) {
+                Ok(v) => Ok(v),
+                Err(_) => Ok(serde_json::json!({ "raw": stdout.trim() })),
+            }
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("{} failed: {}", cmd, stderr) })),
+            ))
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "error": format!("{} not found — not running on Termux?", cmd),
+                        "available": false
+                    })),
+                ))
+            } else {
+                Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("failed to run {}: {}", cmd, e) })),
+                ))
+            }
+        }
+    }
+}
+
+/// Helper: run a termux-api command that produces no JSON output (fire-and-forget).
+async fn run_termux_action(cmd: &str, args: &[&str]) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    let output = tokio::process::Command::new(cmd)
+        .args(args)
+        .output()
+        .await;
+
+    match output {
+        Ok(o) if o.status.success() => Ok(()),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("{} failed: {}", cmd, stderr) })),
+            ))
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "error": format!("{} not found — not running on Termux?", cmd),
+                        "available": false
+                    })),
+                ))
+            } else {
+                Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("failed to run {}: {}", cmd, e) })),
+                ))
+            }
+        }
+    }
+}
+
+/// GET /api/termux/battery — returns battery status JSON.
+async fn termux_battery() -> impl IntoResponse {
+    match run_termux_command("termux-battery-status", &[]).await {
+        Ok(v) => (StatusCode::OK, Json(v)),
+        Err(e) => e,
+    }
+}
+
+/// GET /api/termux/wifi — returns WiFi connection info JSON.
+async fn termux_wifi() -> impl IntoResponse {
+    match run_termux_command("termux-wifi-connectioninfo", &[]).await {
+        Ok(v) => (StatusCode::OK, Json(v)),
+        Err(e) => e,
+    }
+}
+
+/// GET /api/termux/volume — returns volume info JSON (array of streams).
+async fn termux_volume() -> impl IntoResponse {
+    match run_termux_command("termux-volume", &[]).await {
+        Ok(v) => (StatusCode::OK, Json(v)),
+        Err(e) => e,
+    }
+}
+
+#[derive(Deserialize)]
+struct BrightnessBody {
+    value: u16,
+}
+
+/// POST /api/termux/brightness — set brightness (0-255).
+async fn termux_brightness(Json(body): Json<BrightnessBody>) -> impl IntoResponse {
+    let value = body.value.min(255);
+    let value_str = value.to_string();
+    match run_termux_action("termux-brightness", &[&value_str]).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "ok", "brightness": value })),
+        ),
+        Err(e) => e,
+    }
+}
+
+#[derive(Deserialize)]
+struct TorchBody {
+    enabled: bool,
+}
+
+/// POST /api/termux/torch — toggle torch on/off.
+async fn termux_torch(Json(body): Json<TorchBody>) -> impl IntoResponse {
+    let state = if body.enabled { "on" } else { "off" };
+    match run_termux_action("termux-torch", &[state]).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "ok", "torch": state })),
+        ),
+        Err(e) => e,
+    }
+}
+
+#[derive(Deserialize)]
+struct TtsBody {
+    text: String,
+}
+
+/// POST /api/termux/tts — speak text via TTS.
+async fn termux_tts(Json(body): Json<TtsBody>) -> impl IntoResponse {
+    if body.text.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "text is required" })),
+        );
+    }
+
+    // termux-tts-speak reads from stdin
+    let child = tokio::process::Command::new("termux-tts-speak")
+        .stdin(std::process::Stdio::piped())
+        .spawn();
+
+    match child {
+        Ok(mut c) => {
+            if let Some(ref mut stdin) = c.stdin {
+                use tokio::io::AsyncWriteExt;
+                let _ = stdin.write_all(body.text.as_bytes()).await;
+                let _ = stdin.shutdown().await;
+            }
+            // Don't wait for TTS to finish — it can take a while
+            tokio::spawn(async move {
+                let _ = c.wait().await;
+            });
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "status": "ok", "speaking": true })),
+            )
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "error": "termux-tts-speak not found — not running on Termux?",
+                        "available": false
+                    })),
+                )
+            } else {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": format!("failed to run termux-tts-speak: {}", e) })),
+                )
+            }
+        }
+    }
 }
 
 /// Wait for Ctrl+C to trigger graceful shutdown.

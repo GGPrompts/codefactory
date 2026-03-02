@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Termux Dashboard</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Header ── */
+.tx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+}
+
+.tx-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--hazard-yellow);
+}
+
+.tx-header button {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tx-header button:hover {
+  background: var(--steel-light);
+  color: var(--iron-black);
+}
+
+/* ── Widget Grid ── */
+.tx-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+  max-height: calc(100vh - 50px);
+}
+
+/* ── Widget Card ── */
+.tx-card {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tx-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--bright-steel);
+}
+
+.tx-card-header .tx-icon {
+  font-size: 16px;
+}
+
+.tx-card-body {
+  padding: 10px;
+}
+
+/* ── Stat Rows ── */
+.tx-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(74,84,89,0.4);
+}
+
+.tx-stat-row:last-child {
+  border-bottom: none;
+}
+
+.tx-label {
+  font-size: 11px;
+  color: var(--brushed-steel);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tx-value {
+  font-size: 13px;
+  color: var(--dirty-white);
+  font-weight: 600;
+}
+
+.tx-mono {
+  font-family: var(--font-mono);
+}
+
+/* ── Battery Gauge ── */
+.tx-gauge {
+  height: 18px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  border-radius: 3px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.tx-gauge-fill {
+  height: 100%;
+  background: var(--hazard-yellow);
+  transition: width 0.5s ease;
+}
+
+.tx-gauge-fill.tx-gauge-low {
+  background: var(--caution-red);
+}
+
+.tx-gauge-fill.tx-gauge-high {
+  background: var(--safety-green);
+}
+
+/* ── WiFi Signal Bars ── */
+.tx-signal-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin-bottom: 8px;
+  height: 24px;
+}
+
+.tx-bar {
+  display: inline-block;
+  width: 8px;
+  background: var(--steel-mid);
+  border-radius: 1px;
+}
+
+.tx-bar:nth-child(1) { height: 6px; }
+.tx-bar:nth-child(2) { height: 12px; }
+.tx-bar:nth-child(3) { height: 18px; }
+.tx-bar:nth-child(4) { height: 24px; }
+
+.tx-bar.tx-bar-active {
+  background: var(--safety-green);
+}
+
+/* ── Volume Streams ── */
+.tx-volume-stream {
+  margin-bottom: 8px;
+}
+
+.tx-volume-stream:last-child {
+  margin-bottom: 0;
+}
+
+.tx-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.tx-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  border-radius: 3px;
+  outline: none;
+}
+
+.tx-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--hazard-yellow);
+  cursor: pointer;
+  border: 1px solid var(--steel-mid);
+}
+
+.tx-slider:disabled {
+  opacity: 0.6;
+}
+
+.tx-slider:disabled::-webkit-slider-thumb {
+  cursor: default;
+}
+
+/* ── Brightness ── */
+.tx-brightness-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tx-brightness-row .tx-slider {
+  flex: 1;
+}
+
+.tx-brightness-display {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--hazard-yellow);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Torch Button ── */
+.tx-torch-btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  border: 2px solid var(--steel-mid);
+  border-radius: 4px;
+  background: var(--iron-black);
+  color: var(--steel-light);
+  transition: all 0.2s ease;
+}
+
+.tx-torch-btn:hover {
+  border-color: var(--hazard-yellow);
+  color: var(--hazard-yellow);
+}
+
+.tx-torch-btn.tx-torch-on {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+  box-shadow: 0 0 20px rgba(255, 184, 0, 0.4);
+}
+
+/* ── TTS ── */
+.tx-tts-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tx-tts-input {
+  flex: 1;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.tx-tts-input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.tx-tts-btn {
+  background: var(--safety-green);
+  border: 1px solid var(--safety-green);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 3px;
+}
+
+.tx-tts-btn:hover {
+  background: #36a556;
+}
+
+.tx-tts-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Status Messages ── */
+.tx-loading {
+  color: var(--brushed-steel);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.tx-error {
+  color: var(--caution-red);
+  font-size: 12px;
+}
+
+.tx-ok {
+  color: var(--safety-green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tx-muted {
+  color: var(--steel-light);
+  font-size: 12px;
+}
+
+.tx-status-line {
+  min-height: 16px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .tx-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .tx-header h1 {
+    font-size: 14px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="tx-header">
+  <h1>Termux Dashboard</h1>
+  <button id="tx-refresh-all">Refresh All</button>
+</div>
+
+<div class="tx-grid">
+
+  <!-- Battery Widget -->
+  <div class="tx-card">
+    <div class="tx-card-header">
+      <span class="tx-icon">&#x1F50B;</span> Battery
+    </div>
+    <div class="tx-card-body" id="battery-body">
+      <span class="tx-loading">polling...</span>
+    </div>
+  </div>
+
+  <!-- WiFi Widget -->
+  <div class="tx-card">
+    <div class="tx-card-header">
+      <span class="tx-icon">&#x1F4F6;</span> WiFi
+    </div>
+    <div class="tx-card-body" id="wifi-body">
+      <span class="tx-loading">polling...</span>
+    </div>
+  </div>
+
+  <!-- Volume Widget -->
+  <div class="tx-card">
+    <div class="tx-card-header">
+      <span class="tx-icon">&#x1F50A;</span> Volume
+    </div>
+    <div class="tx-card-body" id="volume-body">
+      <span class="tx-loading">polling...</span>
+    </div>
+  </div>
+
+  <!-- Brightness Widget -->
+  <div class="tx-card">
+    <div class="tx-card-header">
+      <span class="tx-icon">&#x2600;</span> Brightness
+    </div>
+    <div class="tx-card-body">
+      <div class="tx-brightness-row">
+        <input type="range" id="brightness-slider" class="tx-slider" min="0" max="255" value="128">
+        <span class="tx-brightness-display" id="brightness-value">128</span>
+      </div>
+      <div class="tx-status-line" id="brightness-status"></div>
+    </div>
+  </div>
+
+  <!-- Torch Widget -->
+  <div class="tx-card">
+    <div class="tx-card-header">
+      <span class="tx-icon">&#x1F526;</span> Torch
+    </div>
+    <div class="tx-card-body">
+      <button id="torch-toggle" class="tx-torch-btn">TORCH: OFF</button>
+      <div class="tx-status-line" id="torch-status"></div>
+    </div>
+  </div>
+
+  <!-- TTS Widget -->
+  <div class="tx-card">
+    <div class="tx-card-header">
+      <span class="tx-icon">&#x1F5E3;</span> Text to Speech
+    </div>
+    <div class="tx-card-body">
+      <div class="tx-tts-row">
+        <input type="text" id="tts-input" class="tx-tts-input" placeholder="Enter text to speak...">
+        <button id="tts-speak" class="tx-tts-btn">Speak</button>
+      </div>
+      <div class="tx-status-line" id="tts-status"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/js/termux-dashboard.js"></script>
+</body>
+</html>
