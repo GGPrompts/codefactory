@@ -134,6 +134,23 @@ var CodeFactoryTerminals = (function() {
 
         xterm.open(container);
 
+        // Prevent mobile Chrome from scrolling the page when xterm's
+        // hidden textarea receives focus.  The browser tries to scroll
+        // the focused element into the visible viewport, but xterm
+        // positions its textarea offscreen, causing the whole page to
+        // jump.  We pin the textarea so focus doesn't trigger a scroll.
+        var textarea = container.querySelector('.xterm-helper-textarea');
+        if (textarea) {
+            textarea.addEventListener('focus', function() {
+                var floorSection = document.getElementById('floor-' + floorId);
+                if (floorSection) {
+                    requestAnimationFrame(function() {
+                        floorSection.scrollIntoView({ behavior: 'instant', block: 'start' });
+                    });
+                }
+            });
+        }
+
         // Activate Unicode 11 width tables after open() so DOM measurements are ready
         if (unicode11Addon) {
             xterm.unicode.activeVersion = '11';
@@ -143,6 +160,42 @@ var CodeFactoryTerminals = (function() {
         container.addEventListener('contextmenu', function(e) {
             e.preventDefault();
         });
+
+        // Mobile: convert vertical touch-swipes into mouse wheel events so
+        // tmux scrollback works, and prevent the page from scrolling instead.
+        (function() {
+            var touchStartY = 0;
+            var touchTracking = false;
+            var SCROLL_THRESHOLD = 15; // px per "wheel tick"
+
+            container.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1) {
+                    touchStartY = e.touches[0].clientY;
+                    touchTracking = true;
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', function(e) {
+                if (!touchTracking || e.touches.length !== 1) return;
+                e.preventDefault(); // stop page scroll
+                var dy = touchStartY - e.touches[0].clientY;
+                if (Math.abs(dy) >= SCROLL_THRESHOLD) {
+                    // Synthesize wheel event for xterm.js → tmux
+                    var wheelEvt = new WheelEvent('wheel', {
+                        deltaY: dy > 0 ? 1 : -1,
+                        deltaMode: 0,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    container.dispatchEvent(wheelEvt);
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchend', function() {
+                touchTracking = false;
+            }, { passive: true });
+        })();
 
         // Block mouse events at the DOM level during the guard period.
         // xterm.js converts browser mouse events into SGR escape sequences

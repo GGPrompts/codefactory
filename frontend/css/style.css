@@ -443,10 +443,12 @@ section.floor.powered-off .floor-side-panel {
 /* xterm.js integration */
 .terminal-container .xterm {
     height: 100%;
+    overscroll-behavior: contain;
 }
 
 .terminal-container .xterm-viewport {
     overflow-y: hidden !important;
+    overscroll-behavior: none;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1871,8 +1873,10 @@ section.floor.powered-on .profile-edit-form {
 
 .mobile-bar-panel {
     width: 50%;
+    min-width: 0;
     height: 100%;
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 /* Keys panel */
@@ -2023,16 +2027,6 @@ section.floor.powered-on .profile-edit-form {
 
     main.shaft {
         padding-bottom: 48px !important;
-    }
-
-    .floor-content-row {
-        height: calc(var(--vvh) - 40px - 48px) !important;
-    }
-}
-
-@media (max-width: 480px) {
-    .floor-content-row {
-        height: calc(var(--vvh) - 34px - 48px) !important;
     }
 }
 
@@ -2216,8 +2210,8 @@ section.floor.powered-on .profile-edit-form {
     /* ── Terminal & page containers: full-bleed ── */
     .floor-content-row {
         width: 100vw;
-        /* Use visualViewport height minus compact header */
-        height: calc(var(--vvh) - 40px);
+        /* Use visualViewport height minus compact header and mobile bar */
+        height: calc(var(--vvh) - 40px - 48px);
     }
 
     .terminal-container {
@@ -2285,7 +2279,7 @@ section.floor.powered-on .profile-edit-form {
     .floor-title { font-size: 0.8rem; }
     .floor-header { padding: 4px 8px; }
     .floor-content-row {
-        height: calc(var(--vvh) - 34px);
+        height: calc(var(--vvh) - 34px - 48px);
     }
     .profile-info { flex-direction: column; text-align: center; }
     .profile-actions { flex-direction: column; gap: 8px; }

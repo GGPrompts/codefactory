@@ -148,23 +148,27 @@ impl TerminalManager {
                 return Err(anyhow!("tmux new-session failed: {stderr}"));
             }
 
-            // Source the codefactory tmux config.
-            debug!(floor_id = %floor_id, "Sourcing .tmux-codefactory.conf");
+            // Disable tmux status bar — xterm.js provides its own chrome,
+            // and the status bar consumes a row that throws off sizing.
+            let _ = Command::new("tmux")
+                .args(["set-option", "-t", &tmux_session_name, "status", "off"])
+                .output();
+
+            // Source optional user overrides from ~/.tmux-codefactory.conf.
+            let conf_path = crate::config::expand_tilde("~/.tmux-codefactory.conf");
             let source_output = Command::new("tmux")
-                .args(["source-file", ".tmux-codefactory.conf"])
+                .args(["source-file", &conf_path])
                 .output();
 
             match source_output {
                 Ok(o) if !o.status.success() => {
-                    let stderr = String::from_utf8_lossy(&o.stderr);
-                    warn!(
+                    debug!(
                         floor_id = %floor_id,
-                        stderr = %stderr,
-                        "tmux source-file warning (non-fatal)"
+                        "~/.tmux-codefactory.conf not found (non-fatal)"
                     );
                 }
                 Err(e) => {
-                    warn!(
+                    debug!(
                         floor_id = %floor_id,
                         error = %e,
                         "Failed to run tmux source-file (non-fatal)"

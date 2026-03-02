@@ -1619,10 +1619,18 @@
             barBtns[i].classList.toggle('active', barBtns[i].dataset.target === currentFloor);
         }
 
-        // Scroll active nav button into view
+        // Scroll active nav button into view within the nav container
         var activeBtn = mobileBar.querySelector('.mobile-bar-btn.active');
         if (activeBtn) {
-            activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            var navInner = activeBtn.parentElement;
+            if (navInner && navInner.classList.contains('mobile-bar-nav-inner')) {
+                var btnLeft = activeBtn.offsetLeft;
+                var btnWidth = activeBtn.offsetWidth;
+                var scrollLeft = navInner.scrollLeft;
+                var containerWidth = navInner.clientWidth;
+                // Center the button in the scrollable container
+                navInner.scrollLeft = btnLeft - (containerWidth - btnWidth) / 2;
+            }
         }
 
         // Update extra keys floor
