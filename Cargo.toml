@@ -2,3 +2,6 @@
 members = ["backend", "codefactory-tui"]
 resolver = "2"
 default-members = ["backend"]
+
+[patch.crates-io]
+termios = { path = "termios-patch" }
