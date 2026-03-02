@@ -604,17 +604,26 @@
         var panel = document.getElementById('side-panel-' + floorId);
         if (!panel) return;
 
-        var profile = findProfile(floorId);
-        var hasRefPanel = !!(profile && profile.panel);
+        var isCollapsed = panel.classList.contains('collapsed');
+        var eyeBtn = document.querySelector('.term-view-btn[data-floor="' + floorId + '"]');
+
+        // If panel is open on terminal tab, close it
+        if (!isCollapsed && activePanelTab[floorId] === 'terminal') {
+            panel.classList.add('collapsed');
+            if (eyeBtn) eyeBtn.classList.remove('panel-active');
+            refitTerminal(floorId);
+            return;
+        }
 
         // Expand panel if collapsed
-        var isCollapsed = panel.classList.contains('collapsed');
         if (isCollapsed) {
             panel.classList.remove('collapsed');
-            // Activate eye button visually
-            var eyeBtn = document.querySelector('.term-view-btn[data-floor="' + floorId + '"]');
-            if (eyeBtn) eyeBtn.classList.add('panel-active');
         }
+        if (eyeBtn) eyeBtn.classList.add('panel-active');
+
+        // Deactivate the panel toggle button if it exists
+        var panelBtn = document.querySelector('.panel-toggle-btn[data-floor="' + floorId + '"]');
+        if (panelBtn) panelBtn.classList.remove('panel-active');
 
         // Switch to terminal tab
         activePanelTab[floorId] = 'terminal';
