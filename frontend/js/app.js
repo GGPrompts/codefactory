@@ -709,15 +709,14 @@
                 });
                 refreshBar.appendChild(refreshBtn);
 
-                var markdown = '```\n' + text + '\n```';
-                var contentWrap = document.createElement('div');
-                contentWrap.className = 'term-view-content industrial-prose';
+                var contentWrap = document.createElement('pre');
+                contentWrap.className = 'term-view-content';
+                contentWrap.style.cssText = 'margin:0;padding:12px;overflow:auto;font-family:monospace;font-size:13px;white-space:pre;color:var(--steel-light);background:var(--steel-darkest);';
+                contentWrap.textContent = text;
 
                 container.innerHTML = '';
                 container.appendChild(refreshBar);
                 container.appendChild(contentWrap);
-
-                MarkdownPanel.render(contentWrap, markdown);
             } else {
                 container.innerHTML =
                     '<div class="panel-error">' +
