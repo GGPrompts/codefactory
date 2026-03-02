@@ -327,7 +327,14 @@
                         var resolved = Object.assign({}, profile, {
                             cwd: profile.cwd || defaultCwd || null
                         });
+                        // Lock scroll position during power-on to prevent camera jump
+                        var section = document.getElementById('floor-' + floorId);
+                        var scrollY = window.scrollY;
                         CodeFactoryTerminals.powerOn(floorId, resolved);
+                        // Restore scroll position after DOM reflow
+                        requestAnimationFrame(function() {
+                            window.scrollTo(0, scrollY);
+                        });
                         // Focus terminal after it connects
                         setTimeout(function() { CodeFactoryTerminals.focus(floorId); }, 200);
                         // If panel is configured and was open, load its content
@@ -1112,110 +1119,98 @@
     document.addEventListener('keydown', unlockAudio, { once: false });
 
     // ==============================================================
-    // MOBILE ELEVATOR SWIPE PANEL
+    // MOBILE BOTTOM BAR
     // ==============================================================
-    var mobileElevatorRegistered = false;
+    var mobileBottomBar = null;
     var mobileMediaQuery = window.matchMedia('(max-width: 768px)');
 
     /**
-     * Build a compact elevator panel for the right-edge swipe panel on mobile.
-     * Mirrors the desktop elevator buttons with just emoji/number icons.
+     * Build a fixed bottom bar with floor buttons for mobile navigation.
      */
     function setupMobileElevator() {
         var isMobile = mobileMediaQuery.matches;
 
-        // Don't register mobile elevator if a floor panel claims the right edge
-        var rightClaimedByFloor = activeFloorPanelEdges.indexOf('right') !== -1;
+        if (isMobile && !mobileBottomBar && floorCount > 0) {
+            mobileBottomBar = document.createElement('nav');
+            mobileBottomBar.className = 'mobile-bottom-bar';
 
-        if (isMobile && !mobileElevatorRegistered && floorCount > 0 && !rightClaimedByFloor) {
-            var wrapper = document.createElement('div');
-            wrapper.className = 'mobile-elevator';
+            var inner = document.createElement('div');
+            inner.className = 'mobile-bottom-bar-inner';
 
-            // Header
-            var header = document.createElement('div');
-            header.className = 'mobile-elevator-header';
-            header.textContent = 'FLOORS';
-            wrapper.appendChild(header);
-
-            // Indicator showing current floor
-            var ind = document.createElement('div');
-            ind.className = 'mobile-elevator-indicator';
-            ind.id = 'mobileElevatorIndicator';
-            ind.textContent = floorLabels[currentFloor] || 'L';
-            wrapper.appendChild(ind);
-
-            // Floor buttons (highest first, matching desktop order)
-            var btnContainer = document.createElement('div');
-            btnContainer.className = 'mobile-elevator-buttons';
-
-            // Query the desktop buttons to mirror them
-            var desktopBtns = elevatorButtons.querySelectorAll('.floor-btn');
-            for (var i = 0; i < desktopBtns.length; i++) {
-                var srcBtn = desktopBtns[i];
-                var btn = document.createElement('button');
-                btn.className = 'mobile-floor-btn' + (srcBtn.classList.contains('has-icon') ? ' has-icon' : '');
-                btn.setAttribute('data-target', srcBtn.dataset.target);
-                btn.setAttribute('data-label', srcBtn.dataset.label);
-                btn.innerHTML = srcBtn.innerHTML;
-                if (srcBtn.dataset.target === currentFloor) {
-                    btn.classList.add('active');
-                }
-                btnContainer.appendChild(btn);
-            }
-
-            // Lobby button
+            // Lobby button first (far left)
             var lobbyBtn = document.createElement('button');
-            lobbyBtn.className = 'mobile-floor-btn';
+            lobbyBtn.className = 'mobile-bar-btn';
             lobbyBtn.setAttribute('data-target', 'lobby');
             lobbyBtn.setAttribute('data-label', 'Lobby');
             lobbyBtn.textContent = 'L';
             if (currentFloor === 'lobby') {
                 lobbyBtn.classList.add('active');
             }
-            btnContainer.appendChild(lobbyBtn);
+            inner.appendChild(lobbyBtn);
 
-            wrapper.appendChild(btnContainer);
+            // Floor buttons (lowest floor first, left to right)
+            var desktopBtns = elevatorButtons.querySelectorAll('.floor-btn');
+            for (var i = desktopBtns.length - 1; i >= 0; i--) {
+                var srcBtn = desktopBtns[i];
+                var btn = document.createElement('button');
+                btn.className = 'mobile-bar-btn';
+                btn.setAttribute('data-target', srcBtn.dataset.target);
+                btn.setAttribute('data-label', srcBtn.dataset.label);
+                btn.innerHTML = srcBtn.innerHTML;
+                if (srcBtn.dataset.target === currentFloor) {
+                    btn.classList.add('active');
+                }
+                inner.appendChild(btn);
+            }
 
-            // Attach click handlers to all mobile buttons
-            var mobileBtns = btnContainer.querySelectorAll('.mobile-floor-btn');
-            for (var j = 0; j < mobileBtns.length; j++) {
-                mobileBtns[j].addEventListener('click', (function(mbtn) {
+            mobileBottomBar.appendChild(inner);
+
+            // Attach click handlers
+            var barBtns = inner.querySelectorAll('.mobile-bar-btn');
+            for (var j = 0; j < barBtns.length; j++) {
+                barBtns[j].addEventListener('click', (function(mbtn) {
                     return function() {
                         playClick();
                         var targetId = mbtn.dataset.target;
                         var target = document.getElementById(targetId);
                         if (target) {
+                            // Instant scroll on mobile to avoid bounce-back
                             jumpTarget = targetId;
-                            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            target.scrollIntoView({ behavior: 'instant', block: 'start' });
+                            // Immediately update current floor + clear jump
+                            currentFloor = targetId;
+                            jumpTarget = null;
+                            syncMobileElevator();
+                            // Focus terminal if applicable
+                            var floorNum = targetId.replace('floor-', '');
+                            if (floorNum !== 'lobby') {
+                                CodeFactoryTerminals.focus(floorNum);
+                            }
                         }
-                        // Auto-close swipe panel after selection
-                        SwipePanels.hidePanel('right');
                     };
-                })(mobileBtns[j]));
+                })(barBtns[j]));
             }
 
-            SwipePanels.registerPanel('right', wrapper);
-            mobileElevatorRegistered = true;
-        } else if (!isMobile && mobileElevatorRegistered) {
-            SwipePanels.unregisterPanel('right');
-            mobileElevatorRegistered = false;
+            document.body.appendChild(mobileBottomBar);
+        } else if (!isMobile && mobileBottomBar) {
+            mobileBottomBar.remove();
+            mobileBottomBar = null;
         }
     }
 
     /**
-     * Sync the mobile elevator buttons' active state with the current floor.
+     * Sync the mobile bottom bar buttons' active state with the current floor.
      */
     function syncMobileElevator() {
-        if (!mobileElevatorRegistered) return;
-        var panel = SwipePanels.getPanelElement('right');
-        if (!panel) return;
-        var mobileBtns = panel.querySelectorAll('.mobile-floor-btn');
-        for (var i = 0; i < mobileBtns.length; i++) {
-            mobileBtns[i].classList.toggle('active', mobileBtns[i].dataset.target === currentFloor);
+        if (!mobileBottomBar) return;
+        var barBtns = mobileBottomBar.querySelectorAll('.mobile-bar-btn');
+        for (var i = 0; i < barBtns.length; i++) {
+            barBtns[i].classList.toggle('active', barBtns[i].dataset.target === currentFloor);
         }
-        var mInd = document.getElementById('mobileElevatorIndicator');
-        if (mInd) {
-            mInd.textContent = floorLabels[currentFloor] || '?';
+        // Scroll active button into view within the bar
+        var activeBtn = mobileBottomBar.querySelector('.mobile-bar-btn.active');
+        if (activeBtn) {
+            activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
     }
 
@@ -1260,6 +1255,10 @@
 
         function updateActiveFloor() {
             ticking = false;
+            // Skip scroll-based updates during jump animations or viewport resizes (keyboard)
+            if (resizeGuard) return;
+            if (jumpTarget && mobileMediaQuery.matches) return;
+            var isMobile = mobileMediaQuery.matches;
             var bestFloor = null;
             var bestVisibility = -1;
             var vh = window.innerHeight;
@@ -1274,16 +1273,18 @@
                     bestFloor = floor.id;
                 }
 
-                // Door animation
-                var floorCenter = rect.top + rect.height / 2;
-                var vpCenter = vh / 2;
-                var dist = Math.abs(floorCenter - vpCenter) / vh;
-                var openness = Math.max(0, Math.min(1, (0.9 - dist) / 0.65));
-                openness = openness * openness * (3 - 2 * openness);
-                if (jumpTarget && floor.id !== jumpTarget) {
-                    openness = 0;
+                // Door animation (desktop only — doors are hidden on mobile)
+                if (!isMobile) {
+                    var floorCenter = rect.top + rect.height / 2;
+                    var vpCenter = vh / 2;
+                    var dist = Math.abs(floorCenter - vpCenter) / vh;
+                    var openness = Math.max(0, Math.min(1, (0.9 - dist) / 0.65));
+                    openness = openness * openness * (3 - 2 * openness);
+                    if (jumpTarget && floor.id !== jumpTarget) {
+                        openness = 0;
+                    }
+                    floor.style.setProperty('--door-open', openness);
                 }
-                floor.style.setProperty('--door-open', openness);
             });
 
             if (bestFloor && bestFloor !== currentFloor) {
@@ -1298,11 +1299,10 @@
                 }
                 indicator.textContent = floorLabels[bestFloor] || '?';
 
-                // Apply per-floor swipe panels for the new floor
-                applyFloorPanels(bestFloor.replace('floor-', ''));
-
-                // Re-register mobile elevator if needed (floor panels may have claimed right edge)
-                setupMobileElevator();
+                // Apply per-floor swipe panels for the new floor (desktop only)
+                if (!isMobile) {
+                    applyFloorPanels(bestFloor.replace('floor-', ''));
+                }
 
                 if (arrived) {
                     playDing();
@@ -1315,22 +1315,24 @@
                     }
                 }
 
-                indicator.classList.add('flash');
-                setTimeout(function () {
-                    indicator.classList.remove('flash');
-                }, 300);
+                if (!isMobile) {
+                    indicator.classList.add('flash');
+                    setTimeout(function () {
+                        indicator.classList.remove('flash');
+                    }, 300);
 
-                if (newRank > prevRank) {
-                    arrow.innerHTML = '&#9650;';
-                } else {
-                    arrow.innerHTML = '&#9660;';
+                    if (newRank > prevRank) {
+                        arrow.innerHTML = '&#9650;';
+                    } else {
+                        arrow.innerHTML = '&#9660;';
+                    }
                 }
 
                 buttons.forEach(function (btn) {
                     btn.classList.toggle('active', btn.dataset.target === bestFloor);
                 });
 
-                // Sync mobile elevator panel if active
+                // Sync mobile bottom bar
                 syncMobileElevator();
             }
         }
@@ -1399,13 +1401,32 @@
 
         // visualViewport API: track soft keyboard on mobile.
         // Updates --vvh CSS custom property so terminal containers resize.
+        // Uses a resize guard to prevent scroll handler from jumping floors
+        // during keyboard open/close when floor heights change.
+        var resizeGuard = false;
         if (window.visualViewport) {
             var vvTick = null;
             function updateVisualViewport() {
                 var vh = window.visualViewport.height;
                 document.documentElement.style.setProperty('--vvh', vh + 'px');
+
+                // Lock scroll to current floor during resize
+                resizeGuard = true;
+                var currentEl = document.getElementById(currentFloor);
+                if (currentEl) {
+                    currentEl.scrollIntoView({ behavior: 'instant', block: 'start' });
+                }
+
                 clearTimeout(vvTick);
-                vvTick = setTimeout(refitAllTerminals, 150);
+                vvTick = setTimeout(function() {
+                    refitAllTerminals();
+                    // Re-anchor after refit
+                    var el = document.getElementById(currentFloor);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'instant', block: 'start' });
+                    }
+                    resizeGuard = false;
+                }, 200);
             }
             window.visualViewport.addEventListener('resize', updateVisualViewport);
             // Set initial value

@@ -9,7 +9,7 @@ var SwipePanels = (function () {
     // -- Configuration --
     var SWIPE_THRESHOLD = 50;      // minimum px to trigger a swipe
     var SWIPE_MAX_CROSS  = 80;     // max perpendicular drift before cancel
-    var EDGE_ZONE        = 30;     // px from edge where swipe-to-open starts
+    var EDGE_ZONE        = 50;     // px from edge where swipe-to-open starts
     var TRANSITION_MS    = 300;    // CSS transition duration
 
     // -- Valid edges --

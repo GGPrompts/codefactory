@@ -1509,7 +1509,87 @@ section.floor.powered-on .profile-edit-form {
     border-color: var(--hazard-yellow);
 }
 
-/* ── Mobile Elevator (inside right swipe panel) ── */
+/* ── Mobile Bottom Bar (fixed floor navigation) ── */
+.mobile-bottom-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    background: var(--iron-black);
+    border-top: 2px solid var(--steel-mid);
+    z-index: 499;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.mobile-bottom-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.mobile-bottom-bar-inner {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    gap: 2px;
+    padding: 0 4px;
+    min-width: min-content;
+}
+
+.mobile-bar-btn {
+    flex: 0 0 auto;
+    height: 40px;
+    min-width: 40px;
+    padding: 0 8px;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--bright-steel);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.mobile-bar-btn:active {
+    background: var(--steel-dark);
+}
+
+.mobile-bar-btn.active {
+    border-color: var(--hazard-yellow);
+    color: var(--hazard-yellow);
+    text-shadow: 0 0 6px rgba(255, 184, 0, 0.4);
+}
+
+@media (max-width: 768px) {
+    .mobile-bottom-bar {
+        display: block;
+    }
+
+    /* Add bottom padding to shaft so content isn't hidden behind bar */
+    main.shaft {
+        padding-bottom: 48px !important;
+    }
+
+    /* Shrink floor content to account for bottom bar */
+    .floor-content-row {
+        height: calc(var(--vvh) - 40px - 48px) !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .floor-content-row {
+        height: calc(var(--vvh) - 34px - 48px) !important;
+    }
+}
+
+/* ── Mobile Elevator (inside right swipe panel, legacy) ── */
 .mobile-elevator {
     padding: 16px 12px;
     display: flex;
