@@ -17,7 +17,7 @@ Install both tools:
 
 Versions on laptop: `bd v0.56.1`, `dolt v1.82.6`
 
-## How It Works on the Laptop
+## How It Works
 
 A single `dolt sql-server` process runs on `127.0.0.1:3307` and hosts databases for multiple projects. Each project's `.beads/metadata.json` tells bd which database name to use.
 
@@ -25,20 +25,20 @@ A single `dolt sql-server` process runs on `127.0.0.1:3307` and hosts databases 
 
 ```
 dolt sql-server (port 3307)
-  └── data-dir: ~/projects/htmlstyleguides/.beads/dolt/
-        ├── beads_codefactory/     ← one dolt DB per project
+  └── data-dir: ~/beads-dolt/
+        ├── beads_codefactory/     <- one dolt DB per project
         ├── beads_TabzChrome/
         ├── beads_htmlstyleguides/
         ├── beads_pixeloot/
-        └── config.yaml            ← server listener config
+        └── config.yaml            <- server listener config
 ```
 
 Each project repo has:
 ```
 project/.beads/
-  ├── metadata.json    ← points to its dolt database name
-  ├── config.yaml      ← beads config (mostly defaults)
-  └── dolt/            ← may or may not exist locally
+  ├── metadata.json    <- points to its dolt database name
+  ├── config.yaml      <- beads config (mostly defaults)
+  └── dolt/            <- may or may not exist locally
 ```
 
 ### Per-Project metadata.json (Dolt-enabled)
@@ -53,20 +53,32 @@ project/.beads/
 }
 ```
 
-## Setting Up on Desktop
+## Syncing via ObsidianVault (File-Based Remote)
 
-### 1. Pick a data directory
+Beads issues sync between machines using Dolt file-based remotes stored in `~/ObsidianVault/beads-remotes/`. The Obsidian vault sync (Obsidian Sync, iCloud, Syncthing, etc.) handles transport between devices.
 
-Choose where the shared dolt data dir will live. On the laptop it ended up at `~/projects/htmlstyleguides/.beads/dolt/` but any location works. A cleaner choice:
+```
+~/ObsidianVault/beads-remotes/
+  ├── beads_codefactory/       <- dolt remote for each project
+  ├── beads_TabzChrome/
+  ├── beads_htmlstyleguides/
+  └── beads_pixeloot/
+```
+
+### Daily Workflow
+
+```bash
+bd dolt pull          # start of session: pull latest
+# ... do work, create/close issues ...
+bd dolt push          # end of session: push changes
+```
+
+## Setting Up on a New Machine (Desktop)
+
+### 1. Create the shared dolt data directory
 
 ```bash
 mkdir -p ~/beads-dolt
-cd ~/beads-dolt
-```
-
-### 2. Initialize the dolt server config
-
-```bash
 cd ~/beads-dolt
 
 # Create server config
@@ -78,75 +90,108 @@ data_dir: .
 EOF
 ```
 
-### 3. Start the dolt server
+### 2. Configure dolt identity
+
+```bash
+dolt config --global --add user.email "marcinek.matthew@gmail.com"
+dolt config --global --add user.name "GGPrompts"
+```
+
+### 3. Initialize databases for each project
+
+```bash
+# For each project that uses dolt:
+mkdir -p ~/beads-dolt/beads_codefactory
+cd ~/beads-dolt/beads_codefactory
+dolt init
+```
+
+### 4. Start the dolt server
 
 ```bash
 cd ~/beads-dolt
 dolt sql-server --host 127.0.0.1 --port 3307 --data-dir .
 ```
 
-To run in background (e.g., via systemd or tmux):
+To run in background:
 ```bash
-nohup dolt sql-server --host 127.0.0.1 --port 3307 --data-dir . &
+cd ~/beads-dolt
+nohup dolt sql-server --host 127.0.0.1 --port 3307 --data-dir . > /tmp/dolt-server.log 2>&1 &
 ```
 
-### 4. Initialize beads in a project
+### 5. Initialize beads in each project
 
 ```bash
 cd ~/projects/codefactory
-bd init --prefix=cf
-```
-
-Then update `.beads/metadata.json` to use dolt:
-```json
-{
-  "database": "dolt",
-  "jsonl_export": "issues.jsonl",
-  "backend": "dolt",
-  "dolt_mode": "server",
-  "dolt_database": "beads_codefactory"
-}
-```
-
-### 5. Test the connection
-
-```bash
+bd init --prefix codefactory --server
 bd dolt show
-# Should show: ✓ Server connection OK
+# Should show: Server connection OK, Database: beads_codefactory
 ```
 
-## Syncing Between Machines
-
-To share issues between laptop and desktop, you need a dolt remote (DoltHub or file-based).
-
-### Option A: DoltHub Remote
+### 6. Add the ObsidianVault remote
 
 ```bash
-# On each machine, inside the dolt database directory:
-cd ~/beads-dolt/beads_codefactory
-dolt remote add origin https://doltremoteapi.dolthub.com/GGPrompts/beads_codefactory
+# Create remote directories
+mkdir -p ~/ObsidianVault/beads-remotes/beads_codefactory
 
-# Then use bd commands to sync:
-bd dolt push    # push local changes
-bd dolt pull    # pull remote changes
+# Add remote to each dolt database
+cd ~/beads-dolt/beads_codefactory
+dolt remote add origin file:///home/marci/ObsidianVault/beads-remotes/beads_codefactory
+dolt push origin main
 ```
 
-### Option B: File-Based Remote (shared drive/NFS)
+### 7. Pull existing data from the other machine
 
+Wait for the ObsidianVault to sync, then:
 ```bash
 cd ~/beads-dolt/beads_codefactory
-dolt remote add origin file:///path/to/shared/drive/beads_codefactory
+dolt pull origin main
 ```
 
-### Daily Workflow
+## Setting Up on the Laptop (Adding Remotes)
+
+The laptop already has beads and dolt working. Just need to add the ObsidianVault remotes and push.
+
+### 1. Find the dolt data directory
 
 ```bash
-bd dolt pull          # start of session: pull latest
-# ... do work, create/close issues ...
-bd dolt push          # end of session: push changes
+# Check where the dolt server is running from:
+ps aux | grep dolt
+# Look for --data-dir or the cwd of the process
+# On laptop it was: ~/projects/htmlstyleguides/.beads/dolt/
 ```
 
-## Projects Using Dolt (on laptop)
+### 2. Create remote directories and add remotes
+
+```bash
+# Create the remote directories in ObsidianVault
+mkdir -p ~/ObsidianVault/beads-remotes/beads_codefactory
+mkdir -p ~/ObsidianVault/beads-remotes/beads_TabzChrome
+mkdir -p ~/ObsidianVault/beads-remotes/beads_htmlstyleguides
+mkdir -p ~/ObsidianVault/beads-remotes/beads_pixeloot
+
+# For each project, go to its dolt database directory and add the remote:
+# (The database dirs are subdirectories of the dolt server's data-dir)
+
+cd ~/projects/htmlstyleguides/.beads/dolt/beads_codefactory
+dolt remote add origin file:///home/marci/ObsidianVault/beads-remotes/beads_codefactory
+dolt push origin main
+
+cd ~/projects/htmlstyleguides/.beads/dolt/beads_TabzChrome
+dolt remote add origin file:///home/marci/ObsidianVault/beads-remotes/beads_TabzChrome
+dolt push origin main
+
+# Repeat for each project...
+```
+
+### 3. Verify
+
+```bash
+cd ~/projects/codefactory
+bd dolt push    # should push to the file remote via ObsidianVault
+```
+
+## Projects Using Dolt
 
 | Project | Database Name |
 |---------|--------------|
@@ -160,6 +205,8 @@ Other projects still use local SQLite (`beads.db`) and aren't synced.
 ## Troubleshooting
 
 - **Connection refused**: Make sure `dolt sql-server` is running on port 3307
-- **Database not found**: The database directory needs to exist in the data-dir. Run `bd init` or create it with `dolt init` inside the data-dir
+- **Database not found**: The database directory needs to exist in the data-dir. Run `dolt init` inside `~/beads-dolt/<database_name>/`
+- **table not found: issues**: The beads schema isn't initialized. Run `bd init --prefix <name> --server` from the project directory
 - **bd dolt show**: Quick way to verify connection and config
 - **bd dolt test**: Tests the server connection
+- **bd dolt push fails with "no store available"**: Use `dolt push origin main` directly from the database directory instead
