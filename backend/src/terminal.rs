@@ -322,14 +322,36 @@ impl TerminalManager {
     /// An empty Vec signals EOF (session exited).
     /// Replaces any previous subscriber (only one WebSocket at a time).
     pub fn subscribe_output(&self, floor_id: &str) -> Result<mpsc::UnboundedReceiver<Vec<u8>>> {
-        let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
+        let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
         let session = sessions
-            .get(floor_id)
+            .get_mut(floor_id)
             .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
 
         let (tx, rx) = mpsc::unbounded_channel();
         // Replace any previous subscriber.
         *session.output_sink.lock().map_err(|e| anyhow!("Sink lock poisoned: {e}"))? = Some(tx);
+
+        // Force tmux to redraw by doing a tiny resize bump.  The new
+        // subscriber has a fresh xterm.js instance with an empty screen,
+        // but since the PTY client never disconnected, tmux doesn't know
+        // it needs to redraw.  Shrink by 1 col then restore to trigger
+        // a full repaint via SIGWINCH.
+        let cols = session.cols;
+        let rows = session.rows;
+        if cols > 1 {
+            let _ = session.pty_master.resize(PtySize {
+                rows,
+                cols: cols - 1,
+                pixel_width: 0,
+                pixel_height: 0,
+            });
+            let _ = session.pty_master.resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            });
+        }
 
         Ok(rx)
     }
