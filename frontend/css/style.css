@@ -1266,6 +1266,26 @@ nav.elevator-panel {
     color: rgba(232, 228, 220, 0.6);
 }
 
+.lobby-actions {
+    margin-top: 16px;
+}
+
+.lobby-action-btn {
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    color: var(--bright-steel);
+    background: transparent;
+    border: 1px solid var(--steel-mid);
+    padding: 6px 16px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+}
+
+.lobby-action-btn:active {
+    background: var(--steel-mid);
+    color: var(--dirty-white);
+}
+
 .lobby-ascend {
     display: flex;
     flex-direction: column;
@@ -1958,6 +1978,14 @@ section.floor.powered-on .profile-edit-form {
     align-items: center;
     padding: 0 4px;
     gap: 4px;
+}
+
+.mobile-bar-chat-form {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
 }
 
 .mobile-bar-chat-input {

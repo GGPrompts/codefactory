@@ -38,6 +38,7 @@
             setupMobileBar();
             initLobbyWorkdir();
             initLobbySettings();
+            initLobbyRefresh();
             reconnectExistingSessions();
             console.log('[CodeFactory] Loaded ' + profiles.length + ' profiles');
         })
@@ -1191,6 +1192,15 @@
         });
     }
 
+    function initLobbyRefresh() {
+        var btn = document.getElementById('lobby-refresh-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function() {
+            playClick();
+            window.location.reload();
+        });
+    }
+
     function initLobbySettings() {
         var container = document.getElementById('lobby-profiles');
         var addBtn = document.getElementById('lobby-add-btn');
@@ -1442,13 +1452,21 @@
             var chatPanel = document.createElement('div');
             chatPanel.className = 'mobile-bar-panel mobile-bar-chat';
 
+            var chatForm = document.createElement('form');
+            chatForm.className = 'mobile-bar-chat-form';
+            chatForm.setAttribute('action', 'javascript:void(0)');
+
             var chatInput = document.createElement('input');
             chatInput.type = 'text';
             chatInput.className = 'mobile-bar-chat-input';
             chatInput.placeholder = 'type here...';
-            chatInput.autocomplete = 'off';
+            chatInput.setAttribute('autocomplete', 'one-time-code');
             chatInput.autocapitalize = 'off';
             chatInput.spellcheck = false;
+            chatInput.enterKeyHint = 'send';
+            chatInput.setAttribute('data-form-type', 'other');
+            chatInput.setAttribute('data-lpignore', 'true');
+            chatInput.setAttribute('aria-autocomplete', 'none');
 
             // Prevent swipe detection when interacting with input
             chatInput.addEventListener('touchstart', function(e) {
@@ -1456,6 +1474,7 @@
             }, { passive: true });
 
             var chatSend = document.createElement('button');
+            chatSend.type = 'button';
             chatSend.className = 'mobile-bar-chat-send';
             chatSend.textContent = '\u25B6';
 
@@ -1473,22 +1492,21 @@
                 var encoded = btoa(unescape(encodeURIComponent(text)));
                 entry.ws.send(JSON.stringify({ type: 'terminal-input', data: encoded }));
 
-                // Send Enter after 400ms delay (needed for apps like Claude Code)
+                // Send Enter after delay (needs to be long enough for apps
+                // like Claude Code to finish processing the pasted text)
                 setTimeout(function() {
                     if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
-                        var enterEncoded = btoa('\n');
+                        var enterEncoded = btoa('\r');
                         entry.ws.send(JSON.stringify({ type: 'terminal-input', data: enterEncoded }));
                     }
-                }, 400);
+                }, 800);
 
                 chatInput.value = '';
             }
 
-            chatInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    sendChatInput();
-                }
+            chatForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                sendChatInput();
             });
 
             chatSend.addEventListener('touchstart', function(e) {
@@ -1502,8 +1520,9 @@
                 sendChatInput();
             });
 
-            chatPanel.appendChild(chatInput);
-            chatPanel.appendChild(chatSend);
+            chatForm.appendChild(chatInput);
+            chatForm.appendChild(chatSend);
+            chatPanel.appendChild(chatForm);
             mobileBarTrack.appendChild(chatPanel);
 
             // Panel 2: Elevator nav
@@ -1596,6 +1615,13 @@
         if (mobileBarTrack) {
             var pct = index * -33.333;
             mobileBarTrack.style.transform = 'translateX(' + pct + '%)';
+            // Disable pointer-events on off-screen panels so their elements
+            // can't intercept taps (mobile browsers don't always clip touch
+            // targets with overflow:hidden on transformed containers).
+            var panels = mobileBarTrack.querySelectorAll('.mobile-bar-panel');
+            for (var i = 0; i < panels.length; i++) {
+                panels[i].style.pointerEvents = (i === index) ? '' : 'none';
+            }
         }
         if (mobileBarDots) {
             var dots = mobileBarDots.querySelectorAll('.mobile-bar-dot');
