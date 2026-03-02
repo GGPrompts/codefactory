@@ -98,9 +98,11 @@ var CodeFactoryTerminals = (function() {
         // Clear any previous terminal content
         container.innerHTML = '';
 
+        var isMobile = window.matchMedia('(max-width: 768px)').matches;
+        var initialFontSize = isMobile ? 13 : 16;
         var xterm = new Terminal({
             cursorBlink: true,
-            fontSize: 16,
+            fontSize: initialFontSize,
             fontFamily: "'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'Hack Nerd Font', 'DejaVu Sans Mono', 'Menlo', 'Consolas', monospace",
             theme: TERMINAL_THEME,
             allowTransparency: false,

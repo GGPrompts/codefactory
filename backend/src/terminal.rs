@@ -80,6 +80,18 @@ impl TerminalManager {
             // Resolve working directory (expand ~ to $HOME)
             let resolved_cwd = cwd.map(|c| crate::config::expand_tilde(c));
 
+            // Remove Claude Code env vars from tmux global environment
+            // so shells inside tmux sessions can launch claude independently.
+            let _ = Command::new("tmux")
+                .args(["set-environment", "-gu", "CLAUDECODE"])
+                .output();
+            let _ = Command::new("tmux")
+                .args(["set-environment", "-gu", "CLAUDE_CODE_TMPDIR"])
+                .output();
+            let _ = Command::new("tmux")
+                .args(["set-environment", "-gu", "CLAUDE_CODE_ENTRYPOINT"])
+                .output();
+
             let mut tmux_args = vec![
                 "new-session".to_string(),
                 "-d".to_string(),
@@ -103,6 +115,7 @@ impl TerminalManager {
 
             let output = Command::new("tmux")
                 .args(&tmux_args)
+                .env_remove("CLAUDECODE")
                 .output()
                 .context("Failed to run tmux new-session")?;
 
@@ -179,6 +192,8 @@ impl TerminalManager {
 
         // Remove parent TMUX env var to prevent nested tmux errors.
         cmd.env_remove("TMUX");
+        // Remove CLAUDECODE env var so Claude Code can launch in terminal floors.
+        cmd.env_remove("CLAUDECODE");
 
         let _child = pair
             .slave
