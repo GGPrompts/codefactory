@@ -302,6 +302,7 @@
       skip: 0,
       selectedHash: null,
       expandedHashes: {},
+      detailsCache: {},
     };
 
     var apiBase = window.location.origin;
@@ -550,7 +551,9 @@
       // Expanded details placeholder
       if (isExpanded) {
         html += '<div class="gg-details" data-hash="' + node.hash + '">';
-        html += '<div class="gg-details-loading"><span class="gg-spinner"></span> Loading details...</div>';
+        if (!state.detailsCache[node.hash]) {
+          html += '<div class="gg-details-loading"><span class="gg-spinner"></span> Loading details...</div>';
+        }
         html += "</div>";
       }
 
@@ -569,9 +572,14 @@
       // Re-render rows only (not full render to keep scroll position)
       renderRows();
 
-      // Load details for newly expanded
+      // Render from cache or fetch
       if (state.expandedHashes[hash]) {
-        fetchCommitDetails(hash);
+        if (state.detailsCache[hash]) {
+          var el = rowsContainer.querySelector('.gg-details[data-hash="' + hash + '"]');
+          if (el) renderDetails(el, state.detailsCache[hash]);
+        } else {
+          fetchCommitDetails(hash);
+        }
       }
     }
 
@@ -587,12 +595,16 @@
         })
         .then(function (result) {
           var data = result.data;
+          state.detailsCache[hash] = data;
           if (!state.expandedHashes[hash]) return; // collapsed while loading
-          renderDetails(detailsEl, data);
+          // Re-query DOM in case renderRows() replaced the element
+          var el = rowsContainer.querySelector('.gg-details[data-hash="' + hash + '"]');
+          if (el) renderDetails(el, data);
         })
         .catch(function (err) {
           if (!state.expandedHashes[hash]) return;
-          detailsEl.innerHTML = '<div class="gg-details-error">' + escapeHtml(err.message) + "</div>";
+          var el = rowsContainer.querySelector('.gg-details[data-hash="' + hash + '"]');
+          if (el) el.innerHTML = '<div class="gg-details-error">' + escapeHtml(err.message) + "</div>";
         });
     }
 
