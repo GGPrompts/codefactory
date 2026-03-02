@@ -1902,6 +1902,92 @@ section.floor.powered-on .profile-edit-form {
     text-shadow: 0 0 6px rgba(255, 184, 0, 0.4);
 }
 
+/* ── Extra Keys Bar (mobile terminal keyboard row) ── */
+.extra-keys-bar {
+    display: none;
+    position: fixed;
+    bottom: 48px;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent 0, transparent 2px,
+            rgba(74, 84, 89, 0.04) 2px, rgba(74, 84, 89, 0.04) 4px
+        ),
+        linear-gradient(180deg, var(--steel-dark) 0%, var(--iron-black) 100%);
+    border-top: 1px solid var(--steel-mid);
+    z-index: 498;
+    padding: 4px 0;
+}
+
+body.extra-keys-visible .extra-keys-bar {
+    display: block;
+}
+
+.extra-keys-row {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    gap: 3px;
+    padding: 0 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    min-width: min-content;
+}
+
+.extra-keys-row::-webkit-scrollbar {
+    display: none;
+}
+
+.extra-key-btn {
+    flex: 0 0 auto;
+    height: 30px;
+    min-width: 36px;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--bright-steel);
+    background: var(--iron-black);
+    border: 1px solid var(--steel-mid);
+    border-radius: 3px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    touch-action: manipulation;
+    transition: border-color 0.1s, color 0.1s, background 0.1s;
+    white-space: nowrap;
+}
+
+.extra-key-btn:active {
+    background: var(--steel-mid);
+    color: var(--dirty-white);
+}
+
+.extra-key-btn.mod-active {
+    border-color: var(--hazard-yellow);
+    color: var(--hazard-yellow);
+    background: rgba(255, 184, 0, 0.1);
+}
+
+.extra-key-btn.mod-locked {
+    border-color: var(--hazard-yellow);
+    color: var(--iron-black);
+    background: var(--hazard-yellow);
+    box-shadow: 0 0 6px rgba(255, 184, 0, 0.5);
+    animation: mod-locked-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mod-locked-pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(255, 184, 0, 0.5); }
+    50% { box-shadow: 0 0 12px rgba(255, 184, 0, 0.9); }
+}
+
 @media (max-width: 768px) {
     .mobile-bottom-bar {
         display: block;
@@ -1916,11 +2002,24 @@ section.floor.powered-on .profile-edit-form {
     .floor-content-row {
         height: calc(var(--vvh) - 40px - 48px) !important;
     }
+
+    /* When extra keys bar is visible, shrink further */
+    body.extra-keys-visible .floor-content-row {
+        height: calc(var(--vvh) - 40px - 48px - 80px) !important;
+    }
+
+    body.extra-keys-visible main.shaft {
+        padding-bottom: 128px !important;
+    }
 }
 
 @media (max-width: 480px) {
     .floor-content-row {
         height: calc(var(--vvh) - 34px - 48px) !important;
+    }
+
+    body.extra-keys-visible .floor-content-row {
+        height: calc(var(--vvh) - 34px - 48px - 80px) !important;
     }
 }
 

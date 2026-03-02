@@ -108,6 +108,11 @@
         }
         setupMobileElevator();
 
+        // Sync extra keys visibility after re-render
+        if (typeof ExtraKeys !== 'undefined') {
+            ExtraKeys.syncVisibility(currentFloor, mobileMediaQuery.matches);
+        }
+
         // Auto-load page floors
         autoLoadPageFloors(enabledProfiles);
     }
@@ -367,7 +372,13 @@
                             window.scrollTo(0, scrollY);
                         });
                         // Focus terminal after it connects
-                        setTimeout(function() { CodeFactoryTerminals.focus(floorId); }, 200);
+                        setTimeout(function() {
+                            CodeFactoryTerminals.focus(floorId);
+                            // Show extra keys bar now that terminal is powered on
+                            if (typeof ExtraKeys !== 'undefined') {
+                                ExtraKeys.syncVisibility('floor-' + floorId, mobileMediaQuery.matches);
+                            }
+                        }, 200);
                         // If panel is configured and was open, load its content
                         if (profile.panel && getPanelState(floorId)) {
                             var content = document.getElementById('panel-content-' + floorId);
@@ -386,6 +397,9 @@
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
                 CodeFactoryTerminals.detach(floorId);
+                if (typeof ExtraKeys !== 'undefined') {
+                    ExtraKeys.syncVisibility('floor-' + floorId, mobileMediaQuery.matches);
+                }
             });
         });
 
@@ -399,6 +413,9 @@
                     powerOffPage(floorId);
                 } else {
                     CodeFactoryTerminals.kill(floorId);
+                }
+                if (typeof ExtraKeys !== 'undefined') {
+                    ExtraKeys.syncVisibility('floor-' + floorId, mobileMediaQuery.matches);
                 }
             });
         });
@@ -1463,6 +1480,10 @@
                             currentFloor = targetId;
                             jumpTarget = null;
                             syncMobileElevator();
+                            if (typeof ExtraKeys !== 'undefined') {
+                                ExtraKeys.setFloor(targetId);
+                                ExtraKeys.syncVisibility(targetId, true);
+                            }
                             // Focus terminal if applicable
                             var floorNum = targetId.replace('floor-', '');
                             if (floorNum !== 'lobby') {
@@ -1474,6 +1495,12 @@
             }
 
             document.body.appendChild(mobileBottomBar);
+
+            // Initialize extra keys bar for mobile terminals
+            if (typeof ExtraKeys !== 'undefined') {
+                ExtraKeys.init();
+                ExtraKeys.syncVisibility(currentFloor, isMobile);
+            }
         } else if (!isMobile && mobileBottomBar) {
             mobileBottomBar.remove();
             mobileBottomBar = null;
@@ -1616,6 +1643,12 @@
 
                 // Sync mobile bottom bar
                 syncMobileElevator();
+
+                // Sync extra keys bar
+                if (typeof ExtraKeys !== 'undefined') {
+                    ExtraKeys.setFloor(bestFloor);
+                    ExtraKeys.syncVisibility(bestFloor, mobileMediaQuery.matches);
+                }
             }
         }
 
