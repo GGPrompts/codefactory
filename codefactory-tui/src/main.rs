@@ -332,6 +332,14 @@ impl App {
     }
 
     fn handle_normal(&mut self, key: KeyEvent) {
+        // Ignore keys with control/alt modifiers — these are either
+        // intentional shortcuts we don't handle, or phantom bytes from
+        // tmux client reattach (e.g. 0x0A=Ctrl+J, 0x04=Ctrl+D).
+        if key.modifiers.intersects(
+            KeyModifiers::CONTROL | KeyModifiers::ALT
+        ) {
+            return;
+        }
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
 
@@ -853,10 +861,26 @@ fn main() -> io::Result<()> {
 
     let mut app = App::new(config);
 
+    // Debug log for tracing phantom input during tmux reattach
+    let debug_log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/codefactory-tui-events.log")
+        .ok();
+
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
-        match event::read()? {
+        let evt = event::read()?;
+        if let Some(ref mut log) = debug_log.as_ref().ok_or(()).err() {
+            // no-op
+        }
+        // Log ALL events to file for debugging
+        if let Some(log) = &debug_log {
+            use std::io::Write;
+            let _ = writeln!(&*log, "{:?} {:?}", std::time::SystemTime::now(), evt);
+        }
+        match evt {
             Event::Key(key) => app.handle_key(key),
             Event::Mouse(mouse) => app.handle_mouse(mouse),
             _ => {}

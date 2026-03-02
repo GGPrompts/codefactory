@@ -138,19 +138,17 @@ impl TerminalManager {
             }
         }
 
-        // Diagnostic: capture pane content before PTY attach
+        // Detach any stale clients before opening a new PTY.
+        // On page refresh the old PTY reader keeps the master fd alive (via dup),
+        // so the old `tmux attach-session` may still be running.  Detaching it
+        // first prevents a dual-client window where tmux briefly has two clients
+        // attached, which causes resize churn and phantom input in TUI apps.
         if tmux_exists {
-            if let Ok(output) = Command::new("tmux")
-                .args(["capture-pane", "-t", &tmux_session_name, "-p", "-S", "-5"])
-                .output()
-            {
-                let pane = String::from_utf8_lossy(&output.stdout);
-                warn!(
-                    floor_id = %floor_id,
-                    pane_before = %pane.trim_end(),
-                    "Pane content BEFORE attach (last 5 lines)"
-                );
-            }
+            let _ = Command::new("tmux")
+                .args(["detach-client", "-s", &tmux_session_name])
+                .output();
+            // Give the old client a moment to exit so the PTY pair closes
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
 
         // Open a PTY and attach to the tmux session.
@@ -209,26 +207,6 @@ impl TerminalManager {
 
         sessions.insert(floor_id.to_string(), session);
 
-        // Diagnostic: capture pane content after PTY attach
-        if tmux_exists {
-            let diag_tmux = tmux_session_name.clone();
-            let diag_floor = floor_id.to_string();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(500));
-                if let Ok(output) = Command::new("tmux")
-                    .args(["capture-pane", "-t", &diag_tmux, "-p", "-S", "-5"])
-                    .output()
-                {
-                    let pane = String::from_utf8_lossy(&output.stdout);
-                    eprintln!(
-                        "[DIAG] Floor {} pane AFTER attach (last 5 lines):\n{}",
-                        diag_floor,
-                        pane.trim_end()
-                    );
-                }
-            });
-        }
-
         info!(
             floor_id = %floor_id,
             tmux = %tmux_session_name,
@@ -246,7 +224,6 @@ impl TerminalManager {
             .get_mut(floor_id)
             .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
 
-        // Diagnostic: log all PTY writes to trace phantom input
         warn!(
             floor_id = %floor_id,
             len = data.len(),

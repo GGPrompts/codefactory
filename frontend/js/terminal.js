@@ -1,6 +1,7 @@
-// CodeFactory Terminal Manager
+// CodeFactory Terminal Manager  (v3 — mouse guard)
 var CodeFactoryTerminals = (function() {
     'use strict';
+    console.log('[CodeFactory] terminal.js v3 loaded (mouse guard)');
 
     var terminals = {};  // floor_id -> { xterm, fitAddon, ws, connected, initialized, config, powered }
     var WS_BASE = 'ws://' + window.location.host + '/ws/';
@@ -141,6 +142,19 @@ var CodeFactoryTerminals = (function() {
             e.preventDefault();
         });
 
+        // Block mouse events at the DOM level during the guard period.
+        // xterm.js converts browser mouse events into SGR escape sequences
+        // and sends them via onData. On reconnect, even passive hovering
+        // generates mouse-motion sequences that tmux/TUI apps misinterpret.
+        // Capturing at the DOM level prevents xterm from ever seeing them.
+        var mouseBlocker = function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+        };
+        ['mousedown', 'mouseup', 'mousemove', 'wheel', 'click', 'dblclick'].forEach(function(evt) {
+            container.addEventListener(evt, mouseBlocker, true);
+        });
+
         // Canvas renderer for GPU-accelerated rendering
         if (CanvasAddonCtor) {
             try {
@@ -152,6 +166,16 @@ var CodeFactoryTerminals = (function() {
         }
 
         if (fitAddon) fitAddon.fit();
+
+        // Function to remove the mouse blocker listeners
+        var mouseBlocked = true;
+        var unblockMouse = function() {
+            if (!mouseBlocked) return;
+            mouseBlocked = false;
+            ['mousedown', 'mouseup', 'mousemove', 'wheel', 'click', 'dblclick'].forEach(function(evt) {
+                container.removeEventListener(evt, mouseBlocker, true);
+            });
+        };
 
         var entry = {
             xterm: xterm,
@@ -169,6 +193,7 @@ var CodeFactoryTerminals = (function() {
             outputGuardTimer: null,
             inputGuardTimer: null,
             escGuardTimer: null,
+            unblockMouse: unblockMouse,
         };
         terminals[floorId] = entry;
 
@@ -197,6 +222,7 @@ var CodeFactoryTerminals = (function() {
                     clearTimeout(entry.inputGuardTimer);
                     entry.inputGuardTimer = setTimeout(function() {
                         entry.inputGuarded = false;
+                        entry.unblockMouse();
                     }, 500);
                 });
             } else {
@@ -215,6 +241,7 @@ var CodeFactoryTerminals = (function() {
         // never arrives or the flush callback never fires.
         entry.inputGuardTimer = setTimeout(function() {
             entry.inputGuarded = false;
+            entry.unblockMouse();
         }, 5000);
 
         // ESC guard: blocks ALL escape-sequence-starting data for longer
@@ -319,10 +346,11 @@ var CodeFactoryTerminals = (function() {
             delete reconnectTimers[floorId];
         }
 
-        // Cancel guard timers
+        // Cancel guard timers and mouse blocker
         clearTimeout(entry.outputGuardTimer);
         clearTimeout(entry.inputGuardTimer);
         clearTimeout(entry.escGuardTimer);
+        entry.unblockMouse();
 
         // Tell the backend what to do before closing
         if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
@@ -465,6 +493,7 @@ var CodeFactoryTerminals = (function() {
                     // Fallback: drop guard after 5s if flush callback never fires
                     entry.inputGuardTimer = setTimeout(function() {
                         entry.inputGuarded = false;
+                        entry.unblockMouse();
                     }, 5000);
 
                     // Reset ESC guard: blocks escape-starting data longer

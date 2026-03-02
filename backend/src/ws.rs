@@ -111,8 +111,7 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
         while let Some(msg) = rx.recv().await {
             match serde_json::to_string(&msg) {
                 Ok(json) => {
-                    if let Err(e) = ws_sender.send(Message::Text(json.into())).await {
-                        error!(error = %e, "Failed to send message over WebSocket");
+                    if let Err(_) = ws_sender.send(Message::Text(json.into())).await {
                         break;
                     }
                 }
