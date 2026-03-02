@@ -1385,6 +1385,131 @@ section.floor.powered-on .profile-edit-form {
 }
 
 /* ══════════════════════════════════════════════════════════
+   SWIPE PANELS — Edge-based slide-in panels
+   ══════════════════════════════════════════════════════════ */
+#swipe-panels {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    pointer-events: none;
+}
+
+/* Backdrop overlay */
+.swipe-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 500;
+}
+
+.swipe-panel-backdrop--visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Base panel styles */
+.swipe-panel {
+    position: fixed;
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent 0, transparent 2px,
+            rgba(74, 84, 89, 0.04) 2px, rgba(74, 84, 89, 0.04) 4px
+        ),
+        linear-gradient(180deg, var(--steel-dark) 0%, var(--iron-black) 100%);
+    border: 2px solid var(--steel-mid);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.6);
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    z-index: 510;
+}
+
+.swipe-panel--open {
+    pointer-events: auto;
+}
+
+/* -- Left panel -- */
+.swipe-panel--left {
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    transform: translateX(-100%);
+    border-left: none;
+    border-top: none;
+    border-bottom: none;
+    border-right: 3px solid var(--rust-mid);
+}
+
+.swipe-panel--left.swipe-panel--open {
+    transform: translateX(0);
+}
+
+/* -- Right panel -- */
+.swipe-panel--right {
+    top: 0;
+    right: 0;
+    width: 280px;
+    height: 100%;
+    transform: translateX(100%);
+    border-right: none;
+    border-top: none;
+    border-bottom: none;
+    border-left: 3px solid var(--rust-mid);
+}
+
+.swipe-panel--right.swipe-panel--open {
+    transform: translateX(0);
+}
+
+/* -- Top panel -- */
+.swipe-panel--top {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50vh;
+    max-height: 400px;
+    transform: translateY(-100%);
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-bottom: 3px solid var(--rust-mid);
+}
+
+.swipe-panel--top.swipe-panel--open {
+    transform: translateY(0);
+}
+
+/* -- Bottom panel -- */
+.swipe-panel--bottom {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50vh;
+    max-height: 400px;
+    transform: translateY(100%);
+    border-bottom: none;
+    border-left: none;
+    border-right: none;
+    border-top: 3px solid var(--rust-mid);
+}
+
+.swipe-panel--bottom.swipe-panel--open {
+    transform: translateY(0);
+}
+
+/* Pinned panels: no backdrop, push-style */
+.swipe-panel--pinned {
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+    border-color: var(--hazard-yellow);
+}
+
+/* ══════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════ */
 
