@@ -272,6 +272,12 @@
                     '</div>' +
                     '<!-- Power off bar for page floors -->' +
                     '<div class="power-off-bar" id="power-off-bar-' + floorId + '">' +
+                        '<div class="page-nav-btns">' +
+                            '<button class="power-btn page-nav-btn" data-floor="' + floorId + '" data-nav="back" title="Back">[&#9664;]</button>' +
+                            '<button class="power-btn page-nav-btn" data-floor="' + floorId + '" data-nav="forward" title="Forward">[&#9654;]</button>' +
+                            '<button class="power-btn page-nav-btn" data-floor="' + floorId + '" data-nav="refresh" title="Refresh">[&#8635;]</button>' +
+                            '<button class="power-btn page-nav-btn" data-floor="' + floorId + '" data-nav="home" title="Home">[&#8962;]</button>' +
+                        '</div>' +
                         '<button class="power-btn kill-btn" data-floor="' + floorId + '">[POWER OFF]</button>' +
                     '</div>' +
                 '</div>' +
@@ -422,6 +428,46 @@
                     CodeFactoryTerminals.kill(floorId);
                 }
                 syncMobileBar();
+            });
+        });
+
+        // Page navigation buttons (back/forward/refresh/home)
+        document.querySelectorAll('.page-nav-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var floorId = btn.dataset.floor;
+                var action = btn.dataset.nav;
+                var container = document.getElementById('page-' + floorId);
+                if (!container) return;
+                var iframe = container.querySelector('iframe');
+                if (!iframe) return;
+
+                if (action === 'home') {
+                    var section = document.getElementById('floor-' + floorId);
+                    var originalPage = section ? section.dataset.page : null;
+                    if (originalPage) {
+                        var profile = findProfile(floorId);
+                        var homeUrl = resolvePanelUrl(originalPage);
+                        var pageCwd = (profile && (profile.cwd || defaultCwd)) || '';
+                        if (pageCwd) {
+                            homeUrl += (homeUrl.indexOf('?') === -1 ? '?' : '&') + 'path=' + encodeURIComponent(pageCwd);
+                        }
+                        iframe.src = homeUrl;
+                    }
+                } else if (action === 'refresh') {
+                    try {
+                        iframe.contentWindow.location.reload();
+                    } catch (err) {
+                        iframe.src = iframe.src;
+                    }
+                } else {
+                    try {
+                        if (action === 'back') iframe.contentWindow.history.back();
+                        if (action === 'forward') iframe.contentWindow.history.forward();
+                    } catch (err) {
+                        // Cross-origin: cannot access history
+                    }
+                }
             });
         });
 

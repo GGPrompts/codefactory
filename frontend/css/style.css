@@ -1666,10 +1666,22 @@ section.floor.powered-on .profile-edit-form {
 /* Power off bar (below terminal when online) */
 .power-off-bar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     gap: 8px;
     width: calc(100vw - 150px);
     padding: 8px 0;
+}
+
+.page-nav-btns {
+    display: flex;
+    gap: 4px;
+}
+
+.page-nav-btn {
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 0.75rem;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2471,6 +2483,11 @@ section.floor.powered-on .profile-edit-form {
     .power-off-bar {
         width: 100vw;
         padding: 6px 12px;
+    }
+
+    .page-nav-btn {
+        min-width: 44px;
+        min-height: 44px;
     }
 
     /* ── Lobby adjustments ── */
