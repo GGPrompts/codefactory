@@ -13,6 +13,7 @@ use futures::{stream::StreamExt, SinkExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
+use tokio::time::Instant;
 
 use crate::state::AppState;
 
@@ -123,29 +124,108 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
     // Channel for sending messages to the WebSocket (used by both PTY reader and main loop)
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
 
-    // Forwarder task: reads from mpsc channel and sends to WebSocket
+    // Subscribe to session status broadcasts — fed directly into the forwarder
+    // via biased select! so PTY output always takes priority.
+    let mut status_rx = state.status_tx.subscribe();
+
+    // Forwarder task: reads from PTY/control mpsc channel AND status broadcast.
+    // PTY output gets biased priority; status updates are rate-limited to 1/sec.
     let forwarder_handle = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            match serde_json::to_string(&msg) {
-                Ok(json) => {
-                    if let Err(_) = ws_sender.send(Message::Text(json.into())).await {
-                        break;
+        let mut last_status_send = Instant::now() - std::time::Duration::from_secs(2);
+        let status_interval = std::time::Duration::from_secs(1);
+        // Buffer the most recent status message received between sends
+        let mut pending_status: Option<ServerMessage> = None;
+        // Timer that fires when the rate-limit window elapses
+        let mut status_timer = std::pin::pin!(tokio::time::sleep(status_interval));
+        let mut rx_closed = false;
+
+        loop {
+            // If both channels are done, exit.
+            if rx_closed {
+                break;
+            }
+
+            tokio::select! {
+                biased;
+
+                // Priority 1: PTY output and control messages
+                msg = rx.recv() => {
+                    match msg {
+                        Some(m) => {
+                            match serde_json::to_string(&m) {
+                                Ok(json) => {
+                                    if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(error = %e, "Failed to serialize server message");
+                                }
+                            }
+                        }
+                        None => {
+                            // mpsc sender dropped — flush any pending status then exit
+                            if let Some(status_msg) = pending_status.take() {
+                                if let Ok(json) = serde_json::to_string(&status_msg) {
+                                    let _ = ws_sender.send(Message::Text(json.into())).await;
+                                }
+                            }
+                            rx_closed = true;
+                        }
                     }
                 }
-                Err(e) => {
-                    error!(error = %e, "Failed to serialize server message");
-                }
-            }
-        }
-    });
 
-    // Subscribe to session status broadcasts
-    let mut status_rx = state.status_tx.subscribe();
-    let status_tx_ws = tx.clone();
-    let status_handle = tokio::spawn(async move {
-        while let Ok(msg) = status_rx.recv().await {
-            if status_tx_ws.send(msg).is_err() {
-                break;
+                // Priority 2: Status broadcast — buffer and rate-limit
+                result = status_rx.recv() => {
+                    match result {
+                        Ok(msg) => {
+                            let now = Instant::now();
+                            if now.duration_since(last_status_send) >= status_interval {
+                                // Enough time has passed — send immediately
+                                match serde_json::to_string(&msg) {
+                                    Ok(json) => {
+                                        if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                                            break;
+                                        }
+                                        last_status_send = now;
+                                        pending_status = None;
+                                    }
+                                    Err(e) => {
+                                        error!(error = %e, "Failed to serialize status message");
+                                    }
+                                }
+                            } else {
+                                // Rate-limited — buffer and wait for timer
+                                pending_status = Some(msg);
+                                let remaining = status_interval - now.duration_since(last_status_send);
+                                status_timer.as_mut().reset(Instant::now() + remaining);
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!(lagged = n, "Status broadcast lagged, skipping old messages");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            // Status channel closed — continue serving PTY output
+                        }
+                    }
+                }
+
+                // Priority 3: Flush buffered status when rate-limit window elapses
+                _ = &mut status_timer, if pending_status.is_some() => {
+                    if let Some(status_msg) = pending_status.take() {
+                        match serde_json::to_string(&status_msg) {
+                            Ok(json) => {
+                                if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                                    break;
+                                }
+                                last_status_send = Instant::now();
+                            }
+                            Err(e) => {
+                                error!(error = %e, "Failed to serialize buffered status message");
+                            }
+                        }
+                    }
+                }
             }
         }
     });
@@ -404,15 +484,13 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
         let _ = state.terminal_manager.disconnect_session(&floor_id);
     }
 
-    // Abort the forwarding task (async, non-blocking — safe to abort).
+    // Abort the PTY forwarding task (async, non-blocking — safe to abort).
     if let Some(handle) = pty_fwd_handle {
         handle.abort();
     }
 
-    // Abort the status broadcast forwarder
-    status_handle.abort();
-
-    // Drop the sender to signal the forwarder to stop
+    // Drop the sender to signal the forwarder to stop (it handles both PTY
+    // output and status broadcasts in a single select! loop).
     drop(tx);
     let _ = forwarder_handle.await;
 

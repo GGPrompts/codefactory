@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
+use arc_swap::ArcSwap;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -24,7 +25,8 @@ struct TerminalSession {
     /// Current output subscriber.  Set to Some(tx) when a WebSocket is
     /// connected, None when disconnected.  The persistent reader task
     /// checks this on every read and discards data when None.
-    output_sink: Arc<Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>>,
+    /// Uses ArcSwap for lock-free reads in the hot reader loop.
+    output_sink: Arc<ArcSwap<Option<mpsc::UnboundedSender<Vec<u8>>>>>,
     /// Set to false when the persistent reader task exits (PTY EOF/error).
     reader_alive: Arc<AtomicBool>,
     cols: u16,
@@ -242,8 +244,8 @@ impl TerminalManager {
             .take_writer()
             .context("Failed to take PTY writer")?;
 
-        let output_sink: Arc<Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>> =
-            Arc::new(Mutex::new(None));
+        let output_sink: Arc<ArcSwap<Option<mpsc::UnboundedSender<Vec<u8>>>>> =
+            Arc::new(ArcSwap::from_pointee(None));
         let reader_alive = Arc::new(AtomicBool::new(true));
 
         // Start persistent reader task.  This task runs for the lifetime of
@@ -261,28 +263,25 @@ impl TerminalManager {
                         info!(floor_id = %reader_floor_id, "PTY reader EOF");
                         alive_clone.store(false, Ordering::SeqCst);
                         // Signal subscriber that session exited (empty vec = EOF).
-                        if let Ok(sink) = sink_clone.lock() {
-                            if let Some(ref tx) = *sink {
-                                let _ = tx.send(Vec::new());
-                            }
+                        let guard = sink_clone.load();
+                        if let Some(ref tx) = **guard {
+                            let _ = tx.send(Vec::new());
                         }
                         break;
                     }
                     Ok(n) => {
-                        if let Ok(sink) = sink_clone.lock() {
-                            if let Some(ref tx) = *sink {
-                                // Ignore send errors — subscriber disconnected.
-                                let _ = tx.send(buf[..n].to_vec());
-                            }
+                        let guard = sink_clone.load();
+                        if let Some(ref tx) = **guard {
+                            // Ignore send errors — subscriber disconnected.
+                            let _ = tx.send(buf[..n].to_vec());
                         }
                     }
                     Err(e) => {
                         error!(floor_id = %reader_floor_id, error = %e, "PTY read error");
                         alive_clone.store(false, Ordering::SeqCst);
-                        if let Ok(sink) = sink_clone.lock() {
-                            if let Some(ref tx) = *sink {
-                                let _ = tx.send(Vec::new());
-                            }
+                        let guard = sink_clone.load();
+                        if let Some(ref tx) = **guard {
+                            let _ = tx.send(Vec::new());
                         }
                         break;
                     }
@@ -334,8 +333,8 @@ impl TerminalManager {
             .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
 
         let (tx, rx) = mpsc::unbounded_channel();
-        // Replace any previous subscriber.
-        *session.output_sink.lock().map_err(|e| anyhow!("Sink lock poisoned: {e}"))? = Some(tx);
+        // Replace any previous subscriber (lock-free swap).
+        session.output_sink.store(Arc::new(Some(tx)));
 
         // Force tmux to redraw by doing a tiny resize bump on rows.
         // The new subscriber has a fresh xterm.js instance with an empty
@@ -429,10 +428,8 @@ impl TerminalManager {
 
         match sessions.get(floor_id) {
             Some(session) => {
-                // Drop the output subscriber so reader discards data.
-                if let Ok(mut sink) = session.output_sink.lock() {
-                    *sink = None;
-                }
+                // Drop the output subscriber so reader discards data (lock-free swap).
+                session.output_sink.store(Arc::new(None));
                 info!(
                     floor_id = %floor_id,
                     tmux = %session.tmux_session,
@@ -460,10 +457,8 @@ impl TerminalManager {
                     "Closing terminal session and killing tmux"
                 );
 
-                // Clear output sink.
-                if let Ok(mut sink) = session.output_sink.lock() {
-                    *sink = None;
-                }
+                // Clear output sink (lock-free swap).
+                session.output_sink.store(Arc::new(None));
 
                 let output = Command::new("tmux")
                     .args(["kill-session", "-t", tmux_name])

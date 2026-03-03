@@ -696,64 +696,72 @@ var CodeFactoryTerminals = (function() {
             subagentCount: msg.subagentCount || 0,
         };
 
-        // Update elevator button glow
-        var btn = document.querySelector('.floor-btn[data-target="floor-' + fid + '"]');
-        if (btn) {
-            // Remove all claude status classes
-            btn.classList.remove('claude-awaiting', 'claude-processing', 'claude-idle');
+        // Defer DOM mutations to idle time to avoid blocking input processing
+        var doDomUpdate = function() {
+            // Update elevator button glow
+            var btn = document.querySelector('.floor-btn[data-target="floor-' + fid + '"]');
+            if (btn) {
+                // Remove all claude status classes
+                btn.classList.remove('claude-awaiting', 'claude-processing', 'claude-idle');
 
-            switch (msg.status) {
-                case 'awaiting_input':
-                    btn.classList.add('claude-awaiting');
-                    break;
-                case 'processing':
-                case 'tool_use':
-                    btn.classList.add('claude-processing');
-                    break;
-                case 'idle':
-                    btn.classList.add('claude-idle');
-                    break;
-            }
-
-            // Update tooltip with status info
-            var label = btn.getAttribute('data-label') || '';
-            var baseName = label.replace(/ \[.*\]$/, '');  // strip previous status suffix
-            var statusSuffix = '';
-            if (msg.status === 'awaiting_input') {
-                statusSuffix = ' [AWAITING INPUT]';
-            } else if (msg.status === 'tool_use' && msg.currentTool) {
-                statusSuffix = ' [' + msg.currentTool + ']';
-            } else if (msg.status === 'processing') {
-                statusSuffix = ' [PROCESSING]';
-            }
-            btn.setAttribute('data-label', baseName + statusSuffix);
-        }
-
-        // Update floor header status badge if this floor is active (powered on)
-        var floorStatusEl = document.getElementById('status-' + fid);
-        if (floorStatusEl) {
-            var entry = terminals[fid];
-            if (entry && entry.powered && entry.connected) {
-                floorStatusEl.classList.remove('claude-header-awaiting', 'claude-header-processing');
                 switch (msg.status) {
                     case 'awaiting_input':
-                        floorStatusEl.textContent = 'AWAITING INPUT';
-                        floorStatusEl.className = 'floor-status online claude-header-awaiting';
+                        btn.classList.add('claude-awaiting');
                         break;
                     case 'processing':
-                        floorStatusEl.textContent = 'PROCESSING';
-                        floorStatusEl.className = 'floor-status online claude-header-processing';
-                        break;
                     case 'tool_use':
-                        floorStatusEl.textContent = msg.currentTool ? msg.currentTool.toUpperCase() : 'TOOL USE';
-                        floorStatusEl.className = 'floor-status online claude-header-processing';
+                        btn.classList.add('claude-processing');
                         break;
                     case 'idle':
-                        floorStatusEl.textContent = 'ONLINE';
-                        floorStatusEl.className = 'floor-status online';
+                        btn.classList.add('claude-idle');
                         break;
                 }
+
+                // Update tooltip with status info
+                var label = btn.getAttribute('data-label') || '';
+                var baseName = label.replace(/ \[.*\]$/, '');  // strip previous status suffix
+                var statusSuffix = '';
+                if (msg.status === 'awaiting_input') {
+                    statusSuffix = ' [AWAITING INPUT]';
+                } else if (msg.status === 'tool_use' && msg.currentTool) {
+                    statusSuffix = ' [' + msg.currentTool + ']';
+                } else if (msg.status === 'processing') {
+                    statusSuffix = ' [PROCESSING]';
+                }
+                btn.setAttribute('data-label', baseName + statusSuffix);
             }
+
+            // Update floor header status badge if this floor is active (powered on)
+            var floorStatusEl = document.getElementById('status-' + fid);
+            if (floorStatusEl) {
+                var entry = terminals[fid];
+                if (entry && entry.powered && entry.connected) {
+                    floorStatusEl.classList.remove('claude-header-awaiting', 'claude-header-processing');
+                    switch (msg.status) {
+                        case 'awaiting_input':
+                            floorStatusEl.textContent = 'AWAITING INPUT';
+                            floorStatusEl.className = 'floor-status online claude-header-awaiting';
+                            break;
+                        case 'processing':
+                            floorStatusEl.textContent = 'PROCESSING';
+                            floorStatusEl.className = 'floor-status online claude-header-processing';
+                            break;
+                        case 'tool_use':
+                            floorStatusEl.textContent = msg.currentTool ? msg.currentTool.toUpperCase() : 'TOOL USE';
+                            floorStatusEl.className = 'floor-status online claude-header-processing';
+                            break;
+                        case 'idle':
+                            floorStatusEl.textContent = 'ONLINE';
+                            floorStatusEl.className = 'floor-status online';
+                            break;
+                    }
+                }
+            }
+        };
+        if (window.requestIdleCallback) {
+            requestIdleCallback(doDomUpdate);
+        } else {
+            setTimeout(doDomUpdate, 0);
         }
     }
 

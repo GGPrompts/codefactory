@@ -11,10 +11,3 @@ self.addEventListener('install', function(event) {
 self.addEventListener('activate', function(event) {
     event.waitUntil(self.clients.claim());
 });
-
-// Pass all fetches through to the network.  We don't cache because
-// the backend runs locally on the same device — offline mode isn't
-// meaningful when the server and client are co-located.
-self.addEventListener('fetch', function(event) {
-    event.respondWith(fetch(event.request));
-});

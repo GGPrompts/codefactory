@@ -23,7 +23,9 @@
     var buttons = [];  // NodeList -> array of .floor-btn elements
     var floorLabels = {};  // id -> label string
     var floorRank = {};    // id -> numeric rank
-    var viewObserver = null; // IntersectionObserver, created in initElevatorMechanics
+    var viewObserver = null; // IntersectionObserver for entrance animations, created in initElevatorMechanics
+    var activeFloorObserver = null; // IntersectionObserver for active floor detection, created in initElevatorMechanics
+    var floorRatios = {};  // floor.id -> intersectionRatio, used by activeFloorObserver
 
     // ==============================================================
     // FETCH PROFILES & RENDER
@@ -93,11 +95,22 @@
         // Rebuild references
         rebuildDOMReferences(enabledProfiles);
 
-        // Re-observe new floor elements for entrance animations
+        // Re-observe new floor elements for entrance animations and active floor detection
         if (viewObserver) {
             floors.forEach(function(floor) {
                 viewObserver.observe(floor);
             });
+        }
+        if (activeFloorObserver) {
+            // Clear stale ratios and re-observe all floors + lobby
+            floorRatios = {};
+            floors.forEach(function(floor) {
+                activeFloorObserver.observe(floor);
+            });
+            var lobbyEl = document.getElementById('lobby');
+            if (lobbyEl) {
+                activeFloorObserver.observe(lobbyEl);
+            }
         }
 
         // Attach floor event listeners (power on/off, edit)
@@ -2161,97 +2174,120 @@
             viewObserver.observe(floor);
         });
 
-        // Scroll handler for door animations + active floor
-        var ticking = false;
+        // -- IntersectionObserver for active floor detection --
+        // Reset intersection ratios for fresh observer
+        floorRatios = {};
+
+        activeFloorObserver = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                floorRatios[entry.target.id] = entry.intersectionRatio;
+            });
+
+            // Skip updates during viewport resizes (keyboard) or mobile jump animations
+            if (resizeGuard) return;
+            if (jumpTarget && mobileMediaQuery.matches) return;
+
+            // Find the floor with the highest intersection ratio
+            var bestFloor = null;
+            var bestRatio = -1;
+            var keys = Object.keys(floorRatios);
+            for (var k = 0; k < keys.length; k++) {
+                if (floorRatios[keys[k]] > bestRatio) {
+                    bestRatio = floorRatios[keys[k]];
+                    bestFloor = keys[k];
+                }
+            }
+
+            if (bestFloor && bestFloor !== currentFloor) {
+                onFloorChanged(bestFloor);
+            }
+        }, { threshold: [0, 0.25, 0.5, 0.75, 1.0] });
+
+        // Observe all floor elements (including lobby)
+        floors.forEach(function (floor) {
+            activeFloorObserver.observe(floor);
+        });
+        var lobbyEl = document.getElementById('lobby');
+        if (lobbyEl) {
+            activeFloorObserver.observe(lobbyEl);
+        }
+
+        // Door animation scroll handler (desktop only — doors are hidden on mobile)
+        var doorTicking = false;
         window.addEventListener('scroll', function () {
-            if (!ticking) {
-                requestAnimationFrame(updateActiveFloor);
-                ticking = true;
+            if (mobileMediaQuery.matches) return;
+            if (!doorTicking) {
+                requestAnimationFrame(updateDoorAnimations);
+                doorTicking = true;
             }
         });
 
-        function updateActiveFloor() {
-            ticking = false;
-            // Skip scroll-based updates during jump animations or viewport resizes (keyboard)
-            if (resizeGuard) return;
-            if (jumpTarget && mobileMediaQuery.matches) return;
-            var isMobile = mobileMediaQuery.matches;
-            var bestFloor = null;
-            var bestVisibility = -1;
+        function updateDoorAnimations() {
+            doorTicking = false;
             var vh = window.innerHeight;
-
             floors.forEach(function (floor) {
                 var rect = floor.getBoundingClientRect();
-                var top = Math.max(0, rect.top);
-                var bottom = Math.min(vh, rect.bottom);
-                var visible = Math.max(0, bottom - top);
-                if (visible > bestVisibility) {
-                    bestVisibility = visible;
-                    bestFloor = floor.id;
+                var floorCenter = rect.top + rect.height / 2;
+                var vpCenter = vh / 2;
+                var dist = Math.abs(floorCenter - vpCenter) / vh;
+                var openness = Math.max(0, Math.min(1, (0.9 - dist) / 0.65));
+                openness = openness * openness * (3 - 2 * openness);
+                if (jumpTarget && floor.id !== jumpTarget) {
+                    openness = 0;
                 }
+                floor.style.setProperty('--door-open', openness);
+            });
+        }
 
-                // Door animation (desktop only — doors are hidden on mobile)
-                if (!isMobile) {
-                    var floorCenter = rect.top + rect.height / 2;
-                    var vpCenter = vh / 2;
-                    var dist = Math.abs(floorCenter - vpCenter) / vh;
-                    var openness = Math.max(0, Math.min(1, (0.9 - dist) / 0.65));
-                    openness = openness * openness * (3 - 2 * openness);
-                    if (jumpTarget && floor.id !== jumpTarget) {
-                        openness = 0;
+        // Respond to a floor change (called by IntersectionObserver)
+        function onFloorChanged(bestFloor) {
+            var isMobile = mobileMediaQuery.matches;
+            var prevRank = floorRank[currentFloor] || 0;
+            var newRank = floorRank[bestFloor] || 0;
+
+            currentFloor = bestFloor;
+            var wasJump = !!jumpTarget;
+            var arrived = !jumpTarget || bestFloor === jumpTarget;
+            if (arrived && jumpTarget) {
+                jumpTarget = null;
+            }
+            indicator.textContent = floorLabels[bestFloor] || '?';
+
+            // Apply per-floor swipe panels for the new floor (desktop only)
+            if (!isMobile) {
+                applyFloorPanels(bestFloor.replace('floor-', ''));
+            }
+
+            if (arrived) {
+                playDing();
+                // Focus terminal only on explicit jump (button/keyboard), not manual scroll
+                if (wasJump) {
+                    var floorNum = bestFloor.replace('floor-', '');
+                    if (floorNum !== 'lobby') {
+                        CodeFactoryTerminals.focus(floorNum);
                     }
-                    floor.style.setProperty('--door-open', openness);
                 }
+            }
+
+            if (!isMobile) {
+                indicator.classList.add('flash');
+                setTimeout(function () {
+                    indicator.classList.remove('flash');
+                }, 300);
+
+                if (newRank > prevRank) {
+                    arrow.innerHTML = '&#9650;';
+                } else {
+                    arrow.innerHTML = '&#9660;';
+                }
+            }
+
+            buttons.forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.target === bestFloor);
             });
 
-            if (bestFloor && bestFloor !== currentFloor) {
-                var prevRank = floorRank[currentFloor] || 0;
-                var newRank = floorRank[bestFloor] || 0;
-
-                currentFloor = bestFloor;
-                var wasJump = !!jumpTarget;
-                var arrived = !jumpTarget || bestFloor === jumpTarget;
-                if (arrived && jumpTarget) {
-                    jumpTarget = null;
-                }
-                indicator.textContent = floorLabels[bestFloor] || '?';
-
-                // Apply per-floor swipe panels for the new floor (desktop only)
-                if (!isMobile) {
-                    applyFloorPanels(bestFloor.replace('floor-', ''));
-                }
-
-                if (arrived) {
-                    playDing();
-                    // Focus terminal only on explicit jump (button/keyboard), not manual scroll
-                    if (wasJump) {
-                        var floorNum = bestFloor.replace('floor-', '');
-                        if (floorNum !== 'lobby') {
-                            CodeFactoryTerminals.focus(floorNum);
-                        }
-                    }
-                }
-
-                if (!isMobile) {
-                    indicator.classList.add('flash');
-                    setTimeout(function () {
-                        indicator.classList.remove('flash');
-                    }, 300);
-
-                    if (newRank > prevRank) {
-                        arrow.innerHTML = '&#9650;';
-                    } else {
-                        arrow.innerHTML = '&#9660;';
-                    }
-                }
-
-                buttons.forEach(function (btn) {
-                    btn.classList.toggle('active', btn.dataset.target === bestFloor);
-                });
-
-                // Sync mobile bar
-                syncMobileBar();
-            }
+            // Sync mobile bar
+            syncMobileBar();
         }
 
         // Button clicks — delegated so they survive DOM rebuilds
@@ -2351,8 +2387,10 @@
             document.documentElement.style.setProperty('--vvh', initVh + 'px');
         }
 
-        // Initial state
-        updateActiveFloor();
+        // Initial door animation (IntersectionObserver fires automatically for floor detection)
+        if (!mobileMediaQuery.matches) {
+            updateDoorAnimations();
+        }
     }
 
     // ==============================================================
