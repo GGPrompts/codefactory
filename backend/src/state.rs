@@ -19,6 +19,8 @@ pub struct AppState {
     pub log_tx: broadcast::Sender<ServerMessage>,
     /// Ring buffer of recent log entries for GET /api/logs
     pub logs: RwLock<VecDeque<ServerMessage>>,
+    /// Broadcast channel for live-reload file change notifications
+    pub reload_tx: broadcast::Sender<ServerMessage>,
 }
 
 impl AppState {
@@ -34,12 +36,14 @@ impl AppState {
         log_tx: broadcast::Sender<ServerMessage>,
     ) -> Self {
         let (status_tx, _) = broadcast::channel(64);
+        let (reload_tx, _) = broadcast::channel(16);
         Self {
             profile_config: RwLock::new(config),
             terminal_manager: TerminalManager::new(),
             status_tx,
             log_tx,
             logs: RwLock::new(VecDeque::with_capacity(500)),
+            reload_tx,
         }
     }
 }

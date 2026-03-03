@@ -89,6 +89,12 @@ pub enum ServerMessage {
         stack: Option<String>,
         timestamp: String,
     },
+
+    #[serde(rename = "file-changed")]
+    FileChanged {
+        path: String,
+        change_type: String,
+    },
 }
 
 // ── WebSocket upgrade handler ───────────────────────────────────────────────

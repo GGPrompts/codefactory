@@ -106,6 +106,7 @@ async fn main() {
         .route("/api/logs/ingest", post(logs_ingest))
         .route("/api/logs", get(get_logs))
         .route("/ws/logs", get(ws_logs_handler))
+        .route("/ws/livereload", get(ws_livereload_handler))
         .fallback_service(frontend_dir)
         .layer(cors)
         .with_state(app_state.clone());
@@ -146,6 +147,12 @@ async fn main() {
     let poller_state = app_state.clone();
     tokio::spawn(async move {
         session_status_poller(poller_state).await;
+    });
+
+    // File change poller: watches frontend files and broadcasts changes for live reload
+    let reload_state = app_state.clone();
+    tokio::spawn(async move {
+        file_change_poller(reload_state).await;
     });
 
     axum::serve(listener, app)
@@ -651,6 +658,158 @@ async fn handle_logs_socket(
                 }
             }
         }
+    }
+}
+
+// ── Live Reload WebSocket + File Poller ───────────────────────────────────
+
+async fn ws_livereload_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_livereload_socket(socket, state))
+}
+
+async fn handle_livereload_socket(
+    socket: axum::extract::ws::WebSocket,
+    state: Arc<AppState>,
+) {
+    use axum::extract::ws::Message;
+    use futures::{SinkExt, StreamExt};
+
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let mut reload_rx = state.reload_tx.subscribe();
+
+    let connected = serde_json::to_string(&ServerMessage::Connected).unwrap_or_default();
+    let _ = ws_sender.send(Message::Text(connected.into())).await;
+
+    loop {
+        tokio::select! {
+            result = reload_rx.recv() => {
+                match result {
+                    Ok(msg) => {
+                        if let Ok(json) = serde_json::to_string(&msg) {
+                            if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!("ws/livereload client lagged by {} messages", n);
+                    }
+                    Err(_) => break,
+                }
+            }
+            msg = ws_receiver.next() => {
+                match msg {
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+/// Polls frontend files for mtime changes and broadcasts FileChanged messages.
+async fn file_change_poller(state: Arc<AppState>) {
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use std::time::SystemTime;
+
+    let scan_dirs: Vec<PathBuf> = vec![
+        "frontend/css".into(),
+        "frontend/js".into(),
+        "frontend/pages".into(),
+    ];
+    let scan_root = PathBuf::from("frontend");
+
+    // Collect initial mtimes
+    let mut mtimes: HashMap<PathBuf, SystemTime> = HashMap::new();
+    for path in collect_frontend_files(&scan_dirs, &scan_root) {
+        if let Ok(meta) = std::fs::metadata(&path) {
+            if let Ok(mtime) = meta.modified() {
+                mtimes.insert(path, mtime);
+            }
+        }
+    }
+
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        let current_files = collect_frontend_files(&scan_dirs, &scan_root);
+        for path in &current_files {
+            let current_mtime = match std::fs::metadata(path).and_then(|m| m.modified()) {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+
+            let changed = match mtimes.get(path) {
+                Some(&prev) => current_mtime != prev,
+                None => true, // new file
+            };
+
+            if changed {
+                mtimes.insert(path.clone(), current_mtime);
+
+                let rel = path.to_string_lossy().to_string();
+                let change_type = classify_change(&rel);
+
+                info!(path = %rel, change_type = %change_type, "Frontend file changed");
+                let _ = state.reload_tx.send(ServerMessage::FileChanged {
+                    path: rel,
+                    change_type,
+                });
+            }
+        }
+    }
+}
+
+fn collect_frontend_files(
+    scan_dirs: &[std::path::PathBuf],
+    scan_root: &std::path::Path,
+) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+
+    // Scan subdirectories recursively
+    for dir in scan_dirs {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    files.push(path);
+                }
+            }
+        }
+    }
+
+    // Scan root-level HTML files (e.g., frontend/index.html)
+    if let Ok(entries) = std::fs::read_dir(scan_root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if ext == "html" {
+                        files.push(path);
+                    }
+                }
+            }
+        }
+    }
+
+    files
+}
+
+fn classify_change(path: &str) -> String {
+    if path.ends_with(".css") {
+        "css".into()
+    } else if path.contains("pages/") && path.ends_with(".html") {
+        "page".into()
+    } else if path.ends_with(".js") {
+        "js".into()
+    } else if path.ends_with(".html") {
+        "html".into()
+    } else {
+        "other".into()
     }
 }
 
