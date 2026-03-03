@@ -18,7 +18,9 @@ struct TerminalSession {
     tmux_session: String,
     #[allow(dead_code)]
     pty_master: Box<dyn MasterPty + Send>,
-    pty_writer: Box<dyn Write + Send>,
+    /// Writer has its own lock so input writes don't contend with
+    /// spawn/resize/subscribe operations on the sessions map.
+    pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
     /// Current output subscriber.  Set to Some(tx) when a WebSocket is
     /// connected, None when disconnected.  The persistent reader task
     /// checks this on every read and discards data when None.
@@ -291,7 +293,7 @@ impl TerminalManager {
         let session = TerminalSession {
             tmux_session: tmux_session_name.clone(),
             pty_master: pair.master,
-            pty_writer: writer,
+            pty_writer: Arc::new(Mutex::new(writer)),
             output_sink,
             reader_alive,
             cols,
@@ -361,16 +363,20 @@ impl TerminalManager {
     }
 
     /// Write input data to the PTY for a given floor.
+    ///
+    /// Grabs only the per-session writer lock (not the sessions map lock)
+    /// so input writes don't contend with spawn/resize/subscribe operations.
     pub fn write_input(&self, floor_id: &str, data: &[u8]) -> Result<()> {
-        let mut sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
-        let session = sessions
-            .get_mut(floor_id)
-            .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
+        let writer = {
+            let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
+            let session = sessions
+                .get(floor_id)
+                .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
+            Arc::clone(&session.pty_writer)
+        }; // sessions lock released here
 
-        session
-            .pty_writer
-            .write_all(data)
-            .context("Failed to write to PTY")?;
+        let mut writer = writer.lock().map_err(|e| anyhow!("Writer lock poisoned: {e}"))?;
+        writer.write_all(data).context("Failed to write to PTY")?;
 
         Ok(())
     }

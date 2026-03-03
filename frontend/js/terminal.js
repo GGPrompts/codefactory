@@ -332,6 +332,26 @@ var CodeFactoryTerminals = (function() {
             + '|\\x1b\\[\\?[0-9;]*u'         // Kitty keyboard mode report
             + '|\\x1b\\[[0-9;]*t'            // Window manipulation responses
         , 'g');
+        // Batch input: accumulate keystrokes for a few ms to reduce
+        // per-keystroke WebSocket overhead (JSON + base64 + frame each way).
+        var inputBuf = '';
+        var inputTimer = null;
+        var INPUT_BATCH_MS = 8;
+
+        function flushInput() {
+            inputTimer = null;
+            if (!inputBuf || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) {
+                inputBuf = '';
+                return;
+            }
+            var encoded = btoa(unescape(encodeURIComponent(inputBuf)));
+            entry.ws.send(JSON.stringify({
+                type: 'terminal-input',
+                data: encoded
+            }));
+            inputBuf = '';
+        }
+
         xterm.onData(function(data) {
             if (entry.inputGuarded) {
                 return;
@@ -343,12 +363,9 @@ var CodeFactoryTerminals = (function() {
             }
             var filtered = data.replace(autoResponseRe, '');
             if (filtered.length === 0) return;
-            if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
-                var encoded = btoa(unescape(encodeURIComponent(filtered)));
-                entry.ws.send(JSON.stringify({
-                    type: 'terminal-input',
-                    data: encoded
-                }));
+            inputBuf += filtered;
+            if (!inputTimer) {
+                inputTimer = setTimeout(flushInput, INPUT_BATCH_MS);
             }
         });
 
