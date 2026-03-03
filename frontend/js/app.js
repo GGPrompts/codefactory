@@ -2114,18 +2114,10 @@
             barBtns[i].classList.toggle('active', barBtns[i].dataset.target === currentFloor);
         }
 
-        // Scroll active nav button into view within the nav container
-        var activeBtn = mobileBar.querySelector('.mobile-bar-btn.active');
-        if (activeBtn) {
-            var navInner = activeBtn.parentElement;
-            if (navInner && navInner.classList.contains('mobile-bar-nav-inner')) {
-                var btnLeft = activeBtn.offsetLeft;
-                var btnWidth = activeBtn.offsetWidth;
-                var scrollLeft = navInner.scrollLeft;
-                var containerWidth = navInner.clientWidth;
-                // Center the button in the scrollable container
-                navInner.scrollLeft = btnLeft - (containerWidth - btnWidth) / 2;
-            }
+        // Reset nav scroll to the start (L button) so the list is predictable
+        var navInner = mobileBar.querySelector('.mobile-bar-nav-inner');
+        if (navInner) {
+            navInner.scrollLeft = 0;
         }
 
         // Update extra keys floor
