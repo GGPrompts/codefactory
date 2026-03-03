@@ -726,8 +726,8 @@ var CodeFactoryTerminals = (function() {
         }
     }
 
-    // Fetch initial session statuses on load
-    function fetchInitialStatuses() {
+    // Fetch session statuses and update elevator button online indicators
+    function fetchSessionStatuses() {
         fetch('/api/session-status')
             .then(function(r) { return r.json(); })
             .then(function(data) {
@@ -736,14 +736,32 @@ var CodeFactoryTerminals = (function() {
                         handleSessionStatus(s);
                     });
                 }
+                // Apply online glow to all active tmux floor buttons
+                var allBtns = document.querySelectorAll('.floor-btn[data-target]');
+                var activeSet = {};
+                if (data && data.activeFloors) {
+                    data.activeFloors.forEach(function(af) {
+                        activeSet[af.floorId] = true;
+                    });
+                }
+                allBtns.forEach(function(btn) {
+                    var target = btn.getAttribute('data-target') || '';
+                    var floorId = target.replace('floor-', '');
+                    if (activeSet[floorId]) {
+                        btn.classList.add('floor-online');
+                    } else {
+                        btn.classList.remove('floor-online');
+                    }
+                });
             })
             .catch(function(e) {
                 console.warn('[CodeFactory] Failed to fetch session statuses:', e);
             });
     }
 
-    // Check initial statuses after a short delay (DOM needs to be ready)
-    setTimeout(fetchInitialStatuses, 1500);
+    // Check statuses after a short delay (DOM needs to be ready), then poll
+    setTimeout(fetchSessionStatuses, 1500);
+    setInterval(fetchSessionStatuses, 10000);
 
     // Suppress input to all terminals during page unload / refresh so that
     // stray keystrokes (Enter from address bar, browser shortcut keys) don't

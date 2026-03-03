@@ -343,7 +343,8 @@
             var name = profile.name || 'Terminal Bay ' + floorId;
             var btnContent = profile.icon ? escapeHtml(profile.icon) : floorId;
             var iconClass = profile.icon ? ' has-icon' : '';
-            html += '<button class="floor-btn' + iconClass + '" data-target="floor-' + floorId +
+            var pageClass = profile.page ? ' floor-btn-page' : '';
+            html += '<button class="floor-btn' + iconClass + pageClass + '" data-target="floor-' + floorId +
                     '" data-label="' + escapeAttr(name) + '">' + btnContent + '</button>';
         }
         elevatorButtons.innerHTML = html;
