@@ -2157,11 +2157,16 @@ section.floor.powered-on .profile-edit-form {
     outline: none;
     caret-color: var(--hazard-yellow);
     -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+    white-space: nowrap;
+    line-height: 32px;
 }
 
-.mobile-bar-chat-input::placeholder {
+.mobile-bar-chat-input:empty::before {
+    content: 'type here...';
     color: var(--steel-mid);
     font-style: italic;
+    pointer-events: none;
 }
 
 .mobile-bar-chat-input:focus {

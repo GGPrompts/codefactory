@@ -1823,26 +1823,30 @@
             var chatPanel = document.createElement('div');
             chatPanel.className = 'mobile-bar-panel mobile-bar-chat';
 
-            var chatForm = document.createElement('form');
-            chatForm.className = 'mobile-bar-chat-form';
-            chatForm.setAttribute('action', 'javascript:void(0)');
+            var chatRow = document.createElement('div');
+            chatRow.className = 'mobile-bar-chat-form';
 
-            var chatInput = document.createElement('input');
-            chatInput.type = 'text';
+            var chatInput = document.createElement('div');
             chatInput.className = 'mobile-bar-chat-input';
-            chatInput.placeholder = 'type here...';
-            chatInput.setAttribute('autocomplete', 'one-time-code');
-            chatInput.autocapitalize = 'off';
+            chatInput.setAttribute('contenteditable', 'true');
+            chatInput.setAttribute('role', 'textbox');
             chatInput.spellcheck = false;
-            chatInput.enterKeyHint = 'send';
-            chatInput.setAttribute('data-form-type', 'other');
-            chatInput.setAttribute('data-lpignore', 'true');
-            chatInput.setAttribute('aria-autocomplete', 'none');
+            chatInput.setAttribute('autocorrect', 'off');
+            chatInput.setAttribute('autocapitalize', 'off');
+            chatInput.setAttribute('enterkeyhint', 'send');
 
             // Prevent swipe detection when interacting with input
             chatInput.addEventListener('touchstart', function(e) {
                 e.stopPropagation();
             }, { passive: true });
+
+            // Enter key sends (without shift)
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChatInput();
+                }
+            });
 
             var chatSend = document.createElement('button');
             chatSend.type = 'button';
@@ -1850,7 +1854,7 @@
             chatSend.textContent = '\u25B6';
 
             function sendChatInput() {
-                var text = chatInput.value;
+                var text = (chatInput.textContent || '').trim();
                 if (!text) return;
                 var floorId = currentFloor ? currentFloor.replace('floor-', '') : null;
                 if (!floorId || floorId === 'lobby') return;
@@ -1872,13 +1876,8 @@
                     }
                 }, 800);
 
-                chatInput.value = '';
+                chatInput.textContent = '';
             }
-
-            chatForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                sendChatInput();
-            });
 
             chatSend.addEventListener('touchstart', function(e) {
                 e.preventDefault();
@@ -1891,9 +1890,9 @@
                 sendChatInput();
             });
 
-            chatForm.appendChild(chatInput);
-            chatForm.appendChild(chatSend);
-            chatPanel.appendChild(chatForm);
+            chatRow.appendChild(chatInput);
+            chatRow.appendChild(chatSend);
+            chatPanel.appendChild(chatRow);
             mobileBarTrack.appendChild(chatPanel);
 
             // Panel 2: Elevator nav

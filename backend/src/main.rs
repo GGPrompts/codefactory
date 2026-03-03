@@ -1595,6 +1595,11 @@ async fn git_generate_message(Query(params): Query<GitActionParams>) -> impl Int
 
     let child = tokio::process::Command::new("claude")
         .args(["--model", "haiku", "--print", "-p", "-"])
+        .env_remove("CLAUDECODE")
+        .env_remove("CLAUDE_CODE_SESSION")
+        .env_remove("CLAUDE_SESSION_ID")
+        .env_remove("CLAUDE_CODE_ENTRYPOINT")
+        .env_remove("CLAUDE_CODE_TMPDIR")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -1622,8 +1627,8 @@ async fn git_generate_message(Query(params): Query<GitActionParams>) -> impl Int
         drop(stdin);
     }
 
-    // Wait with 30s timeout
-    let timeout = std::time::Duration::from_secs(30);
+    // Wait with 60s timeout (CLI startup + API call can be slow on mobile)
+    let timeout = std::time::Duration::from_secs(60);
     match tokio::time::timeout(timeout, child.wait_with_output()).await {
         Ok(Ok(output)) if output.status.success() => {
             let message = String::from_utf8_lossy(&output.stdout).trim().to_string();

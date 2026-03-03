@@ -655,9 +655,10 @@ html, body {
     operating = val;
     var btns = [refreshBtn, stageBtn, unstageBtn, commitBtn, fetchBtn, pullBtn, pushBtn, sparkleBtn];
     for (var i = 0; i < btns.length; i++) {
-      if (val) {
-        btns[i].disabled = true;
-      }
+      btns[i].disabled = val;
+    }
+    if (!val) {
+      updateSelectionButtons();
     }
   }
 
