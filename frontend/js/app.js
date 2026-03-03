@@ -742,7 +742,7 @@
         captureTerminalText(floorId, contentDiv);
 
         // Open the swipe panel
-        SwipePanels.open('left');
+        SwipePanels.showPanel('left');
     }
 
     /**
@@ -2014,8 +2014,20 @@
         var startX = 0;
         var startY = 0;
         var tracking = false;
+        var inhibited = false; // true when nav inner can scroll in swipe direction
+        var navInnerEl = null;
         var barWidth = 0;
         var panelCount = 3;
+
+        // Find the nav-inner element if the touch is inside it
+        function findNavInner(target) {
+            var el = target;
+            while (el && el !== mobileBar) {
+                if (el.classList.contains('mobile-bar-nav-inner')) return el;
+                el = el.parentElement;
+            }
+            return null;
+        }
 
         mobileBar.addEventListener('touchstart', function(e) {
             // Don't intercept key button taps (they stopPropagation)
@@ -2023,17 +2035,30 @@
             startX = e.touches[0].clientX;
             startY = e.touches[0].clientY;
             tracking = false;
+            inhibited = false;
+            navInnerEl = findNavInner(e.target);
             barWidth = mobileBar.offsetWidth;
         }, { passive: true });
 
         mobileBar.addEventListener('touchmove', function(e) {
             if (e.target.classList.contains('extra-key-btn')) return;
+            if (inhibited) return; // let the inner element scroll
             var dx = e.touches[0].clientX - startX;
             var dy = e.touches[0].clientY - startY;
 
             // Determine direction on first significant move
             if (!tracking) {
                 if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+                    // If inside nav scroll, only inhibit if nav can scroll in this direction
+                    if (navInnerEl) {
+                        var canScrollRight = navInnerEl.scrollLeft < navInnerEl.scrollWidth - navInnerEl.clientWidth - 1;
+                        var canScrollLeft = navInnerEl.scrollLeft > 1;
+                        // Swiping left (dx < 0) scrolls content right, swiping right scrolls left
+                        if ((dx < 0 && canScrollRight) || (dx > 0 && canScrollLeft)) {
+                            inhibited = true;
+                            return;
+                        }
+                    }
                     tracking = true;
                     mobileBarTrack.classList.add('dragging');
                 } else if (Math.abs(dy) > 8) {
@@ -2056,6 +2081,7 @@
         }, { passive: false });
 
         mobileBar.addEventListener('touchend', function(e) {
+            if (inhibited) { inhibited = false; return; }
             if (!tracking) return;
             tracking = false;
             mobileBarTrack.classList.remove('dragging');

@@ -450,8 +450,13 @@ async fn get_page(Path(name): Path<String>) -> impl IntoResponse {
             .replace('/', "")
             .replace('\\', "")
             .replace("..", "");
-        let pages_dir = config::expand_tilde("~/.config/codefactory/pages");
-        std::path::PathBuf::from(&pages_dir).join(&sanitized)
+        // Try user config dir first, then fall back to bundled frontend/pages/
+        let config_path = std::path::PathBuf::from(config::expand_tilde("~/.config/codefactory/pages")).join(&sanitized);
+        if tokio::fs::metadata(&config_path).await.map(|m| m.is_file()).unwrap_or(false) {
+            config_path
+        } else {
+            std::path::PathBuf::from("frontend/pages").join(&sanitized)
+        }
     };
 
     match tokio::fs::metadata(&file_path).await {

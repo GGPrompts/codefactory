@@ -77,12 +77,18 @@ var SwipePanels = (function () {
     function onTouchStart(e) {
         if (e.touches.length !== 1) return;
         var touch = e.touches[0];
+        // Check if touch started inside an open panel's content
+        var insidePanel = false;
+        if (openEdge && panels[openEdge]) {
+            insidePanel = panels[openEdge].el.contains(e.target);
+        }
         touchData = {
             startX: touch.clientX,
             startY: touch.clientY,
             startTime: Date.now(),
             startEdge: detectEdgeZone(touch.clientX, touch.clientY),
-            moved: false
+            moved: false,
+            insidePanel: insidePanel
         };
     }
 
@@ -119,7 +125,7 @@ var SwipePanels = (function () {
             direction = dy > 0 ? 'down' : 'up';
         }
 
-        handleSwipe(direction, touchData.startEdge);
+        handleSwipe(direction, touchData.startEdge, touchData.insidePanel);
         touchData = null;
     }
 
@@ -136,8 +142,9 @@ var SwipePanels = (function () {
     // ==============================================================
     // SWIPE LOGIC
     // ==============================================================
-    function handleSwipe(direction, startEdge) {
+    function handleSwipe(direction, startEdge, insidePanel) {
         // If a panel is open, swiping in the panel's own direction closes it
+        // But NOT if the swipe started inside the panel (user is scrolling content)
         if (openEdge) {
             var shouldClose = false;
             if (openEdge === 'left' && direction === 'left') shouldClose = true;
@@ -145,7 +152,7 @@ var SwipePanels = (function () {
             if (openEdge === 'top' && direction === 'up') shouldClose = true;
             if (openEdge === 'bottom' && direction === 'down') shouldClose = true;
 
-            if (shouldClose && !panels[openEdge].pinned) {
+            if (shouldClose && !panels[openEdge].pinned && !insidePanel) {
                 hidePanel(openEdge);
                 return;
             }

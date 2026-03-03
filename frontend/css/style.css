@@ -27,7 +27,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; font-size: 16px; }
+html { scroll-behavior: smooth; font-size: 16px; overflow-x: hidden; }
 
 body {
     font-family: var(--font-heading);
@@ -2063,6 +2063,7 @@ section.floor.powered-on .profile-edit-form {
     flex-direction: column;
     padding: 1px 0;
     gap: 1px;
+    overflow: hidden;
 }
 
 .extra-keys-row {
@@ -2191,6 +2192,7 @@ section.floor.powered-on .profile-edit-form {
 .mobile-bar-nav {
     display: flex;
     align-items: center;
+    overflow: hidden;
 }
 
 .mobile-bar-nav-inner {
