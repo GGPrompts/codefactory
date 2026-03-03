@@ -27,7 +27,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; font-size: 16px; overflow-x: hidden; }
+html { font-size: 16px; overflow-x: hidden; }
 
 body {
     font-family: var(--font-heading);
@@ -723,7 +723,7 @@ nav.elevator-panel {
     font-family: var(--font-mono);
     font-size: 0.95rem;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: border-color 0.3s, color 0.3s, box-shadow 0.3s, background 0.3s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1602,7 +1602,7 @@ section.floor.powered-on .profile-edit-form {
     background: linear-gradient(180deg, var(--steel-dark) 0%, var(--iron-black) 100%);
     color: var(--bright-steel);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s, background 0.2s;
     text-transform: uppercase;
 }
 
@@ -2533,6 +2533,16 @@ section.floor.powered-on .profile-edit-form {
     /* ── Narrow right swipe panel for elevator buttons ── */
     .swipe-panel--right {
         width: 100px;
+    }
+
+    /* ── Disable expensive box-shadow animations on mobile ── */
+    .floor-btn.claude-awaiting,
+    .floor-btn.claude-processing {
+        animation: none;
+    }
+    .floor-status.claude-header-awaiting,
+    .floor-status.claude-header-processing {
+        animation: none;
     }
 }
 

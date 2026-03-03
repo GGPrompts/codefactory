@@ -108,7 +108,7 @@ var CodeFactoryTerminals = (function() {
             allowTransparency: false,
             allowProposedApi: true,
             scrollback: 0,  // tmux manages scrollback
-            minimumContrastRatio: 4.5,
+            minimumContrastRatio: isMobile ? 1 : 4.5,
         });
 
         var FitAddonCtor = resolveAddon('FitAddon');
@@ -168,6 +168,12 @@ var CodeFactoryTerminals = (function() {
             var touchStartY = 0;
             var scrolling = false;
             var SCROLL_THRESHOLD = 20; // px per scroll tick
+            var SCROLL_THROTTLE_MS = 50;
+            var lastScrollSend = 0;
+
+            // Pre-compute encoded scroll messages to avoid btoa/JSON.stringify per event
+            var SCROLL_UP_MSG = JSON.stringify({ type: 'terminal-input', data: btoa('\x1b[<65;1;1M') });
+            var SCROLL_DOWN_MSG = JSON.stringify({ type: 'terminal-input', data: btoa('\x1b[<64;1;1M') });
 
             container.addEventListener('touchstart', function(e) {
                 if (e.touches.length === 1) {
@@ -178,16 +184,20 @@ var CodeFactoryTerminals = (function() {
 
             container.addEventListener('touchmove', function(e) {
                 if (e.touches.length !== 1) return;
-                e.preventDefault(); // always stop page scroll on terminal
                 var dy = touchStartY - e.touches[0].clientY;
                 if (Math.abs(dy) >= SCROLL_THRESHOLD) {
-                    var btn = dy > 0 ? 65 : 64;
-                    var seq = '\x1b[<' + btn + ';1;1M';
-                    if (entry.ws && entry.ws.readyState === WebSocket.OPEN && !entry.inputGuarded) {
-                        var encoded = btoa(unescape(encodeURIComponent(seq)));
-                        entry.ws.send(JSON.stringify({ type: 'terminal-input', data: encoded }));
+                    e.preventDefault(); // only prevent default once scrolling confirmed
+                    scrolling = true;
+                    var now = Date.now();
+                    if (now - lastScrollSend >= SCROLL_THROTTLE_MS) {
+                        if (entry.ws && entry.ws.readyState === WebSocket.OPEN && !entry.inputGuarded) {
+                            entry.ws.send(dy > 0 ? SCROLL_UP_MSG : SCROLL_DOWN_MSG);
+                        }
+                        lastScrollSend = now;
                     }
                     touchStartY = e.touches[0].clientY;
+                } else if (!scrolling) {
+                    e.preventDefault(); // still block page scroll on terminal
                 }
             }, { passive: false });
 
@@ -209,8 +219,9 @@ var CodeFactoryTerminals = (function() {
             container.addEventListener(evt, mouseBlocker, true);
         });
 
-        // Canvas renderer for GPU-accelerated rendering
-        if (CanvasAddonCtor) {
+        // Canvas renderer for GPU-accelerated rendering (skip on mobile —
+        // DOM renderer is faster and avoids main-thread canvas repaint jank)
+        if (CanvasAddonCtor && !isMobile) {
             try {
                 var canvasAddon = new CanvasAddonCtor();
                 xterm.loadAddon(canvasAddon);
@@ -361,7 +372,10 @@ var CodeFactoryTerminals = (function() {
             if (entry.escGuarded && data.charCodeAt(0) === 0x1b) {
                 return;
             }
-            var filtered = data.replace(autoResponseRe, '');
+            // Fast path: single printable character — skip regex
+            var filtered = (data.length === 1 && data.charCodeAt(0) >= 0x20)
+                ? data
+                : data.replace(autoResponseRe, '');
             if (filtered.length === 0) return;
             inputBuf += filtered;
             if (!inputTimer) {

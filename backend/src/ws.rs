@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 use axum::{
     extract::{
@@ -160,6 +161,7 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
     let mut pty_fwd_handle: Option<tokio::task::JoinHandle<()>> = None;
     let mut session_closed = false;
     let mut spawned = false;
+    let mut cached_writer: Option<Arc<Mutex<Box<dyn Write + Send>>>> = None;
 
     while let Some(result) = ws_receiver.next().await {
         match result {
@@ -173,17 +175,22 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                     continue;
                                 }
 
-                                // Spawn terminal session with optional cwd.
-                                // Returns true if a new tmux session was created,
-                                // false if reattaching to an existing one.
-                                let is_new_session = match state.terminal_manager.spawn_session(
-                                    &floor_id,
-                                    cols,
-                                    rows,
-                                    cwd.as_deref(),
-                                ) {
-                                    Ok(is_new) => is_new,
-                                    Err(e) => {
+                                // Spawn terminal session in spawn_blocking to avoid
+                                // blocking the tokio worker thread (spawn_session uses
+                                // std::process::Command and thread::sleep internally).
+                                let spawn_floor_id = floor_id.clone();
+                                let spawn_cwd = cwd.clone();
+                                let spawn_state = state.clone();
+                                let is_new_session = match tokio::task::spawn_blocking(move || {
+                                    spawn_state.terminal_manager.spawn_session(
+                                        &spawn_floor_id,
+                                        cols,
+                                        rows,
+                                        spawn_cwd.as_deref(),
+                                    )
+                                }).await {
+                                    Ok(Ok(is_new)) => is_new,
+                                    Ok(Err(e)) => {
                                         error!(floor_id = %floor_id, error = %e, "Failed to spawn terminal session");
                                         let _ = send_server_msg(
                                             &tx,
@@ -191,6 +198,10 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                                 message: format!("Failed to spawn terminal: {e}"),
                                             },
                                         );
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        error!(floor_id = %floor_id, error = %e, "spawn_blocking panicked");
                                         break;
                                     }
                                 };
@@ -226,23 +237,47 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                 };
 
                                 // Forwarding task: reads raw bytes from the PTY
-                                // subscription channel and base64-encodes them
-                                // for the WebSocket.
+                                // subscription channel, coalesces back-to-back
+                                // chunks, and base64-encodes them for the WebSocket.
                                 let pty_tx = tx.clone();
                                 let pty_floor_id = floor_id.clone();
                                 pty_fwd_handle = Some(tokio::spawn(async move {
+                                    let mut batch = Vec::new();
                                     while let Some(data) = pty_rx.recv().await {
                                         if data.is_empty() {
-                                            // EOF signal from persistent reader.
                                             info!(floor_id = %pty_floor_id, "PTY reader signalled EOF");
                                             let _ = pty_tx.send(ServerMessage::Closed {
                                                 floor_id: pty_floor_id.clone(),
                                             });
                                             break;
                                         }
+                                        batch.extend_from_slice(&data);
+                                        // Drain any additional ready chunks to coalesce
+                                        // into a single WebSocket message.
+                                        loop {
+                                            match pty_rx.try_recv() {
+                                                Ok(more) => {
+                                                    if more.is_empty() {
+                                                        // EOF — send what we have, then close.
+                                                        if !batch.is_empty() {
+                                                            let encoded = base64::engine::general_purpose::STANDARD.encode(&batch);
+                                                            let _ = pty_tx.send(ServerMessage::Output { data: encoded });
+                                                            batch.clear();
+                                                        }
+                                                        let _ = pty_tx.send(ServerMessage::Closed {
+                                                            floor_id: pty_floor_id.clone(),
+                                                        });
+                                                        return;
+                                                    }
+                                                    batch.extend_from_slice(&more);
+                                                }
+                                                Err(_) => break,
+                                            }
+                                        }
                                         let encoded =
-                                            base64::engine::general_purpose::STANDARD.encode(&data);
+                                            base64::engine::general_purpose::STANDARD.encode(&batch);
                                         let msg = ServerMessage::Output { data: encoded };
+                                        batch.clear();
                                         if pty_tx.send(msg).is_err() {
                                             info!(floor_id = %pty_floor_id, "WS output channel closed, stopping forwarder");
                                             break;
@@ -251,6 +286,10 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                 }));
 
                                 spawned = true;
+
+                                // Cache the writer Arc so input writes skip the
+                                // sessions map lookup on every keystroke.
+                                cached_writer = state.terminal_manager.get_writer(&floor_id).ok();
 
                                 // Only send the initial command for truly new sessions.
                                 // On reattach the process is already running — re-sending
@@ -282,7 +321,17 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                 }
                                 match base64::engine::general_purpose::STANDARD.decode(&data) {
                                     Ok(decoded) => {
-                                        if let Err(e) =
+                                        if let Some(ref writer) = cached_writer {
+                                            // Use cached writer + spawn_blocking to avoid
+                                            // blocking the tokio worker thread on PTY write.
+                                            let w = Arc::clone(writer);
+                                            let input_floor_id = floor_id.clone();
+                                            tokio::task::spawn_blocking(move || {
+                                                if let Err(e) = crate::terminal::TerminalManager::write_input_with_writer(&w, &decoded) {
+                                                    warn!(floor_id = %input_floor_id, error = %e, "Failed to write input to PTY");
+                                                }
+                                            });
+                                        } else if let Err(e) =
                                             state.terminal_manager.write_input(&floor_id, &decoded)
                                         {
                                             warn!(floor_id = %floor_id, error = %e, "Failed to write input to PTY");

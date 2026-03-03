@@ -126,19 +126,23 @@ async fn main() {
         .expect("Failed to bind to address");
 
     // Check for orphaned tmux sessions on startup
-    let recovery_state = app_state.clone();
     tokio::spawn(async move {
         // Give the server a moment to fully start
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        match recovery_state.terminal_manager.list_orphaned_sessions() {
-            Ok(orphans) if !orphans.is_empty() => {
+        match tokio::task::spawn_blocking(|| {
+            crate::terminal::TerminalManager::list_tmux_sessions()
+        }).await {
+            Ok(Ok(orphans)) if !orphans.is_empty() => {
                 info!("Found {} orphaned tmux sessions available for reconnection: {:?}", orphans.len(), orphans);
             }
-            Ok(_) => {
+            Ok(Ok(_)) => {
                 info!("No orphaned tmux sessions found");
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 warn!("Failed to check for orphaned sessions: {}", e);
+            }
+            Err(e) => {
+                warn!("spawn_blocking panicked checking orphaned sessions: {}", e);
             }
         }
     });
@@ -251,18 +255,12 @@ struct SessionsResponse {
 
 /// List tmux sessions available for reconnection.
 async fn get_sessions(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    match state.terminal_manager.list_orphaned_sessions() {
-        Ok(sessions) => (
-            StatusCode::OK,
-            Json(SessionsResponse { sessions }),
-        ),
-        Err(_) => (
-            StatusCode::OK,
-            Json(SessionsResponse { sessions: Vec::new() }),
-        ),
-    }
+    let sessions = tokio::task::spawn_blocking(|| {
+        crate::terminal::TerminalManager::list_tmux_sessions().unwrap_or_default()
+    }).await.unwrap_or_default();
+    (StatusCode::OK, Json(SessionsResponse { sessions }))
 }
 
 /// Return current Claude session status for all floors (polled from state files).
@@ -317,33 +315,30 @@ async fn get_session_status(
         }
     }
 
-    // Include profile info so dashboard pages can get everything in one call
-    let config = state.profile_config.read().unwrap();
-    let profiles: Vec<serde_json::Value> = config
-        .profiles
-        .iter()
-        .enumerate()
-        .map(|(i, p)| {
-            serde_json::json!({
-                "floorIndex": i + 1,
-                "name": p.name,
-                "icon": p.icon,
-                "command": p.command,
-                "enabled": p.enabled,
-                "isPage": p.page.is_some(),
+    // Include profile info so dashboard pages can get everything in one call.
+    // Collect everything from the config lock in a single block, then drop
+    // the guard before any .await points.
+    let (profiles, profile_snapshot): (Vec<serde_json::Value>, Vec<(String, String, String, String)>) = {
+        let config = state.profile_config.read().unwrap();
+        let profiles = config
+            .profiles
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                serde_json::json!({
+                    "floorIndex": i + 1,
+                    "name": p.name,
+                    "icon": p.icon,
+                    "command": p.command,
+                    "enabled": p.enabled,
+                    "isPage": p.page.is_some(),
+                })
             })
-        })
-        .collect();
-
-    // List all active codefactory tmux sessions
-    let active_floors: Vec<serde_json::Value> = state
-        .terminal_manager
-        .list_orphaned_sessions()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|floor_id| {
-            // Find matching profile
-            let prof = config.profiles.iter().enumerate().find(|(_, p)| {
+            .collect();
+        let snapshot = config
+            .profiles
+            .iter()
+            .map(|p| {
                 let slug = p.name.to_lowercase()
                     .chars()
                     .map(|c| if c.is_alphanumeric() { c } else { '-' })
@@ -352,16 +347,25 @@ async fn get_session_status(
                     .filter(|s| !s.is_empty())
                     .collect::<Vec<&str>>()
                     .join("-");
-                slug == floor_id
-            });
-            let (name, icon, command) = match prof {
-                Some((_, p)) => (
-                    p.name.clone(),
-                    p.icon.clone().unwrap_or_default(),
-                    p.command.clone().unwrap_or_default(),
-                ),
-                None => (floor_id.clone(), String::new(), String::new()),
-            };
+                (slug, p.name.clone(), p.icon.clone().unwrap_or_default(), p.command.clone().unwrap_or_default())
+            })
+            .collect();
+        (profiles, snapshot)
+    }; // config guard dropped here
+
+    // List all active codefactory tmux sessions (spawn_blocking to avoid
+    // blocking tokio — list_orphaned_sessions calls std::process::Command).
+    let orphaned = tokio::task::spawn_blocking(|| {
+        crate::terminal::TerminalManager::list_tmux_sessions().unwrap_or_default()
+    }).await.unwrap_or_default();
+    let active_floors: Vec<serde_json::Value> = orphaned
+        .into_iter()
+        .map(|floor_id| {
+            let (name, icon, command) = profile_snapshot
+                .iter()
+                .find(|(slug, _, _, _)| *slug == floor_id)
+                .map(|(_, name, icon, cmd)| (name.clone(), icon.clone(), cmd.clone()))
+                .unwrap_or_else(|| (floor_id.clone(), String::new(), String::new()));
             serde_json::json!({
                 "floorId": floor_id,
                 "name": name,
@@ -736,30 +740,39 @@ async fn file_change_poller(state: Arc<AppState>) {
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
-        let current_files = collect_frontend_files(&scan_dirs, &scan_root);
-        for path in &current_files {
-            let current_mtime = match std::fs::metadata(path).and_then(|m| m.modified()) {
-                Ok(t) => t,
-                Err(_) => continue,
-            };
-
-            let changed = match mtimes.get(path) {
-                Some(&prev) => current_mtime != prev,
-                None => true, // new file
-            };
-
-            if changed {
-                mtimes.insert(path.clone(), current_mtime);
-
-                let rel = path.to_string_lossy().to_string();
-                let change_type = classify_change(&rel);
-
-                info!(path = %rel, change_type = %change_type, "Frontend file changed");
-                let _ = state.reload_tx.send(ServerMessage::FileChanged {
-                    path: rel,
-                    change_type,
-                });
+        // Run blocking filesystem scan off the tokio worker thread.
+        let dirs = scan_dirs.clone();
+        let root = scan_root.clone();
+        let prev = mtimes.clone();
+        let changes = tokio::task::spawn_blocking(move || {
+            let mut changed_files: Vec<(PathBuf, SystemTime, String)> = Vec::new();
+            let current_files = collect_frontend_files(&dirs, &root);
+            for path in &current_files {
+                let current_mtime = match std::fs::metadata(path).and_then(|m| m.modified()) {
+                    Ok(t) => t,
+                    Err(_) => continue,
+                };
+                let changed = match prev.get(path) {
+                    Some(&prev_t) => current_mtime != prev_t,
+                    None => true,
+                };
+                if changed {
+                    let rel = path.to_string_lossy().to_string();
+                    let change_type = classify_change(&rel);
+                    changed_files.push((path.clone(), current_mtime, change_type));
+                }
             }
+            changed_files
+        }).await.unwrap_or_default();
+
+        for (path, mtime, change_type) in changes {
+            mtimes.insert(path.clone(), mtime);
+            let rel = path.to_string_lossy().to_string();
+            info!(path = %rel, change_type = %change_type, "Frontend file changed");
+            let _ = state.reload_tx.send(ServerMessage::FileChanged {
+                path: rel,
+                change_type,
+            });
         }
     }
 }

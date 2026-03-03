@@ -362,22 +362,33 @@ impl TerminalManager {
         Ok(rx)
     }
 
+    /// Get the writer Arc for a given floor (for caching in the WS handler).
+    ///
+    /// Briefly grabs the sessions map lock to clone the Arc, then releases it.
+    pub fn get_writer(&self, floor_id: &str) -> Result<Arc<Mutex<Box<dyn Write + Send>>>> {
+        let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
+        let session = sessions
+            .get(floor_id)
+            .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
+        Ok(Arc::clone(&session.pty_writer))
+    }
+
     /// Write input data to the PTY for a given floor.
     ///
     /// Grabs only the per-session writer lock (not the sessions map lock)
     /// so input writes don't contend with spawn/resize/subscribe operations.
     pub fn write_input(&self, floor_id: &str, data: &[u8]) -> Result<()> {
-        let writer = {
-            let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
-            let session = sessions
-                .get(floor_id)
-                .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
-            Arc::clone(&session.pty_writer)
-        }; // sessions lock released here
-
+        let writer = self.get_writer(floor_id)?;
         let mut writer = writer.lock().map_err(|e| anyhow!("Writer lock poisoned: {e}"))?;
         writer.write_all(data).context("Failed to write to PTY")?;
 
+        Ok(())
+    }
+
+    /// Write input data using a cached writer Arc (avoids sessions map lookup).
+    pub fn write_input_with_writer(writer: &Arc<Mutex<Box<dyn Write + Send>>>, data: &[u8]) -> Result<()> {
+        let mut writer = writer.lock().map_err(|e| anyhow!("Writer lock poisoned: {e}"))?;
+        writer.write_all(data).context("Failed to write to PTY")?;
         Ok(())
     }
 
@@ -490,12 +501,10 @@ impl TerminalManager {
         }
     }
 
-    /// List floor IDs that have live tmux sessions available for reconnection.
+    /// List codefactory tmux sessions (static — no &self needed).
     ///
-    /// Returns ALL codefactory tmux sessions — both orphaned (no PTY) and
-    /// persistent (PTY alive but subscriber disconnected).  `spawn_session`
-    /// handles both cases: it reuses an existing PTY or creates a new one.
-    pub fn list_orphaned_sessions(&self) -> Result<Vec<String>> {
+    /// Safe to call from spawn_blocking since it has no lock dependencies.
+    pub fn list_tmux_sessions() -> Result<Vec<String>> {
         let output = Command::new("tmux")
             .args(["list-sessions", "-F", "#{session_name}"])
             .output()
@@ -522,6 +531,7 @@ impl TerminalManager {
 
         Ok(existing)
     }
+
 }
 
 impl Default for TerminalManager {

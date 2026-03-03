@@ -1783,10 +1783,13 @@
         if (audioUnlocked) return;
         audioUnlocked = true;
         ensureAudio();
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+        document.removeEventListener('keydown', unlockAudio);
     }
-    document.addEventListener('click', unlockAudio, { once: false });
-    document.addEventListener('touchstart', unlockAudio, { once: false });
-    document.addEventListener('keydown', unlockAudio, { once: false });
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
+    document.addEventListener('keydown', unlockAudio);
 
     // ==============================================================
     // UNIFIED MOBILE BAR (swipeable keys + nav)
@@ -2143,12 +2146,7 @@
     // ==============================================================
     function initElevatorMechanics() {
         // Scroll to bottom on load (start at lobby)
-        var htmlEl = document.documentElement;
-        htmlEl.style.scrollBehavior = 'auto';
         window.scrollTo(0, document.body.scrollHeight);
-        requestAnimationFrame(function () {
-            htmlEl.style.scrollBehavior = 'smooth';
-        });
 
         // Intersection observer for entrance animations
         viewObserver = new IntersectionObserver(function (entries) {
@@ -2332,30 +2330,25 @@
         if (window.visualViewport) {
             var vvTick = null;
             function updateVisualViewport() {
-                var vh = window.visualViewport.height;
-                document.documentElement.style.setProperty('--vvh', vh + 'px');
-
-                // Lock scroll to current floor during resize
+                // Debounce the entire handler — keyboard animation fires
+                // 10-20 resize events; collapse into a single layout pass.
                 resizeGuard = true;
-                var currentEl = document.getElementById(currentFloor);
-                if (currentEl) {
-                    currentEl.scrollIntoView({ behavior: 'instant', block: 'start' });
-                }
-
                 clearTimeout(vvTick);
                 vvTick = setTimeout(function() {
+                    var vh = window.visualViewport.height;
+                    document.documentElement.style.setProperty('--vvh', vh + 'px');
                     refitAllTerminals();
-                    // Re-anchor after refit
                     var el = document.getElementById(currentFloor);
                     if (el) {
                         el.scrollIntoView({ behavior: 'instant', block: 'start' });
                     }
                     resizeGuard = false;
-                }, 200);
+                }, 150);
             }
             window.visualViewport.addEventListener('resize', updateVisualViewport);
-            // Set initial value
-            updateVisualViewport();
+            // Set initial value (synchronous, no debounce needed)
+            var initVh = window.visualViewport.height;
+            document.documentElement.style.setProperty('--vvh', initVh + 'px');
         }
 
         // Initial state

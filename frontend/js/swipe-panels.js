@@ -60,7 +60,7 @@ var SwipePanels = (function () {
 
         // Touch listeners on document (passive where possible)
         document.addEventListener('touchstart', onTouchStart, { passive: true });
-        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchmove', onTouchMove, { passive: true });
         document.addEventListener('touchend', onTouchEnd, { passive: true });
 
         // Keyboard: Escape closes open panel
