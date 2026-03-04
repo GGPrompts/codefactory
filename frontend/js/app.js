@@ -842,6 +842,48 @@
     }
 
     // ==============================================================
+    // PAGE FLOOR HELPERS
+    // ==============================================================
+
+    /**
+     * Inject industrial scrollbar styles and jump-link fix into a same-origin iframe.
+     */
+    function injectIframeTheme(iframe) {
+        iframe.addEventListener('load', function() {
+            try {
+                var doc = iframe.contentDocument;
+                if (!doc) return;
+
+                // Industrial scrollbar CSS
+                var style = doc.createElement('style');
+                style.textContent =
+                    '/* Industrial scrollbar theme (injected by CodeFactory) */\n' +
+                    '::-webkit-scrollbar { width: 8px; height: 8px; }\n' +
+                    '::-webkit-scrollbar-track { background: #1A1D1F; border-left: 1px solid #4A5459; }\n' +
+                    '::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #7A8489 0%, #4A5459 100%); border: 1px solid #2C3033; border-radius: 2px; }\n' +
+                    '::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #9BA3A9 0%, #7A8489 100%); }\n' +
+                    '::-webkit-scrollbar-corner { background: #1A1D1F; }\n' +
+                    '* { scrollbar-color: #4A5459 #1A1D1F; scrollbar-width: thin; }\n';
+                doc.head.appendChild(style);
+
+                // Fix jump links: scroll inside iframe, not parent
+                doc.addEventListener('click', function(e) {
+                    var link = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+                    if (!link) return;
+                    var hash = link.getAttribute('href');
+                    if (!hash || hash === '#') return;
+                    var target = doc.querySelector(hash);
+                    if (target) {
+                        e.preventDefault();
+                        target.scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+            } catch (err) {
+                // Cross-origin iframe — cannot inject styles
+            }
+        });
+    }
+
     // PAGE FLOOR POWER ON / OFF
     // ==============================================================
     function powerOnPage(floorId, profile) {
@@ -859,6 +901,7 @@
         iframe.src = pageUrl;
         container.innerHTML = '';
         container.appendChild(iframe);
+        injectIframeTheme(iframe);
 
         // Set floor to powered-on state
         var section = document.getElementById('floor-' + floorId);
@@ -956,6 +999,7 @@
         iframe.style.width = '100%';
         iframe.style.height = '100%';
         iframe.style.border = 'none';
+        injectIframeTheme(iframe);
         return iframe;
     }
 

@@ -206,6 +206,51 @@ var CodeFactoryTerminals = (function() {
             }, { passive: true });
         })();
 
+        // Mobile: pinch-to-zoom changes terminal font size (like Termux).
+        // Intercepts the two-finger gesture, suppresses browser zoom, and
+        // adjusts xterm fontSize.  fitAddon.fit() recalculates cols/rows
+        // and the ResizeObserver sends the new dimensions to the backend.
+        (function() {
+            var MIN_FONT = 6;
+            var MAX_FONT = 30;
+            var initialDistance = 0;
+            var initialFontSz = 0;
+            var pinching = false;
+
+            function touchDist(e) {
+                var dx = e.touches[0].clientX - e.touches[1].clientX;
+                var dy = e.touches[0].clientY - e.touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            container.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 2) {
+                    pinching = true;
+                    initialDistance = touchDist(e);
+                    initialFontSz = xterm.options.fontSize;
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', function(e) {
+                if (!pinching || e.touches.length !== 2) return;
+                e.preventDefault();
+                var dist = touchDist(e);
+                var scale = dist / initialDistance;
+                var newSize = Math.round(initialFontSz * scale);
+                newSize = Math.max(MIN_FONT, Math.min(MAX_FONT, newSize));
+                if (newSize !== xterm.options.fontSize) {
+                    xterm.options.fontSize = newSize;
+                    if (fitAddon) fitAddon.fit();
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchend', function(e) {
+                if (pinching && e.touches.length < 2) {
+                    pinching = false;
+                }
+            }, { passive: true });
+        })();
+
         // Block mouse events at the DOM level during the guard period.
         // xterm.js converts browser mouse events into SGR escape sequences
         // and sends them via onData. On reconnect, even passive hovering
