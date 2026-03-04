@@ -795,6 +795,24 @@ var CodeFactoryTerminals = (function() {
                 btn.setAttribute('data-label', baseName + statusSuffix);
             }
 
+            // Update mobile nav button status
+            var mobileBtn = document.querySelector('.mobile-bar-btn[data-target="floor-' + fid + '"]');
+            if (mobileBtn) {
+                mobileBtn.classList.remove('claude-awaiting', 'claude-processing', 'claude-idle');
+                switch (msg.status) {
+                    case 'awaiting_input':
+                        mobileBtn.classList.add('claude-awaiting');
+                        break;
+                    case 'processing':
+                    case 'tool_use':
+                        mobileBtn.classList.add('claude-processing');
+                        break;
+                    case 'idle':
+                        mobileBtn.classList.add('claude-idle');
+                        break;
+                }
+            }
+
             // Update floor header status badge if this floor is active (powered on)
             var floorStatusEl = document.getElementById('status-' + fid);
             if (floorStatusEl) {

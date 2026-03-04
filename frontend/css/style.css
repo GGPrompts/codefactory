@@ -2248,6 +2248,34 @@ section.floor.powered-on .profile-edit-form {
     text-shadow: 0 0 6px rgba(255, 184, 0, 0.4);
 }
 
+/* Claude session status on mobile nav buttons */
+.mobile-bar-btn.claude-awaiting {
+    border-color: var(--safety-green);
+    color: var(--safety-green);
+    box-shadow: 0 0 4px rgba(45, 139, 71, 0.5);
+}
+
+.mobile-bar-btn.claude-processing {
+    border-color: var(--hazard-orange);
+    color: var(--hazard-orange);
+    box-shadow: 0 0 4px rgba(255, 107, 0, 0.4);
+}
+
+/* Active floor + claude status: claude status wins for border/shadow */
+.mobile-bar-btn.active.claude-awaiting {
+    border-color: var(--safety-green);
+    color: var(--safety-green);
+    text-shadow: 0 0 6px rgba(45, 139, 71, 0.4);
+    box-shadow: 0 0 4px rgba(45, 139, 71, 0.5);
+}
+
+.mobile-bar-btn.active.claude-processing {
+    border-color: var(--hazard-orange);
+    color: var(--hazard-orange);
+    text-shadow: 0 0 6px rgba(255, 107, 0, 0.4);
+    box-shadow: 0 0 4px rgba(255, 107, 0, 0.4);
+}
+
 /* Panel nav buttons (switch between bar panels) */
 .mobile-bar-panel-nav {
     flex: 0 0 auto;
