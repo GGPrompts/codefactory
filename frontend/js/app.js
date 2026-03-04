@@ -1948,7 +1948,88 @@
             var chatSend = document.createElement('button');
             chatSend.type = 'button';
             chatSend.className = 'mobile-bar-chat-send';
-            chatSend.textContent = '\u25B6';
+
+            // Icons
+            var ICON_SEND = '\u25B6';   // ▶
+            var ICON_MIC = '\uD83C\uDF99';  // 🎙
+            var ICON_MIC_ON = '\uD83D\uDD34'; // 🔴
+
+            // Speech recognition state
+            var speechRecognition = null;
+            var isListening = false;
+            var hasSpeechAPI = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+            function updateSendButton() {
+                var hasText = !!(chatInput.textContent || '').trim();
+                if (hasText) {
+                    chatSend.textContent = ICON_SEND;
+                    chatSend.title = 'Send';
+                } else if (isListening) {
+                    chatSend.textContent = ICON_MIC_ON;
+                    chatSend.title = 'Stop listening';
+                    chatSend.classList.add('listening');
+                } else if (hasSpeechAPI) {
+                    chatSend.textContent = ICON_MIC;
+                    chatSend.title = 'Voice input';
+                    chatSend.classList.remove('listening');
+                } else {
+                    chatSend.textContent = ICON_SEND;
+                    chatSend.title = 'Send';
+                }
+            }
+
+            // Watch for input changes to toggle icon
+            chatInput.addEventListener('input', updateSendButton);
+
+            function startSpeechRecognition() {
+                var SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechAPI) return;
+
+                speechRecognition = new SpeechAPI();
+                speechRecognition.continuous = false;
+                speechRecognition.interimResults = true;
+                speechRecognition.lang = 'en-US';
+
+                var finalTranscript = '';
+
+                speechRecognition.onresult = function(event) {
+                    var interim = '';
+                    for (var i = event.resultIndex; i < event.results.length; i++) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript;
+                        } else {
+                            interim += event.results[i][0].transcript;
+                        }
+                    }
+                    chatInput.textContent = finalTranscript + interim;
+                };
+
+                speechRecognition.onend = function() {
+                    isListening = false;
+                    speechRecognition = null;
+                    // Trim and update button state
+                    chatInput.textContent = (chatInput.textContent || '').trim();
+                    updateSendButton();
+                };
+
+                speechRecognition.onerror = function(event) {
+                    console.warn('[Chat] Speech recognition error:', event.error);
+                    isListening = false;
+                    speechRecognition = null;
+                    updateSendButton();
+                };
+
+                isListening = true;
+                finalTranscript = '';
+                updateSendButton();
+                speechRecognition.start();
+            }
+
+            function stopSpeechRecognition() {
+                if (speechRecognition) {
+                    speechRecognition.stop();
+                }
+            }
 
             function sendChatInput() {
                 var text = (chatInput.textContent || '').trim();
@@ -1974,18 +2055,32 @@
                 }, 800);
 
                 chatInput.textContent = '';
+                updateSendButton();
+            }
+
+            function handleSendOrMic() {
+                var hasText = !!(chatInput.textContent || '').trim();
+                if (hasText) {
+                    sendChatInput();
+                } else if (isListening) {
+                    stopSpeechRecognition();
+                } else if (hasSpeechAPI) {
+                    startSpeechRecognition();
+                }
             }
 
             chatSend.addEventListener('touchstart', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                sendChatInput();
+                handleSendOrMic();
             }, { passive: false });
 
             chatSend.addEventListener('click', function(e) {
                 e.preventDefault();
-                sendChatInput();
+                handleSendOrMic();
             });
+
+            updateSendButton();
 
             var chatNavLeft = document.createElement('button');
             chatNavLeft.className = 'mobile-bar-panel-nav';

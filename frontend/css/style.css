@@ -2195,6 +2195,17 @@ section.floor.powered-on .profile-edit-form {
     color: var(--dirty-white);
 }
 
+.mobile-bar-chat-send.listening {
+    border-color: var(--caution-red);
+    background: rgba(212, 44, 44, 0.15);
+    animation: mic-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 4px rgba(212, 44, 44, 0.3); }
+    50% { box-shadow: 0 0 8px rgba(212, 44, 44, 0.6); }
+}
+
 /* Nav panel */
 .mobile-bar-nav {
     display: flex;
