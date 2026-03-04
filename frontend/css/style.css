@@ -1943,6 +1943,7 @@ section.floor.powered-on .profile-edit-form {
     transition: transform 0.3s ease;
     pointer-events: none;
     z-index: 510;
+    overscroll-behavior: contain;
 }
 
 .swipe-panel--open {

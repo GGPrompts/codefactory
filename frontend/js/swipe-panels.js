@@ -188,6 +188,23 @@ var SwipePanels = (function () {
     // ==============================================================
     // SHOW / HIDE / PIN
     // ==============================================================
+    // -- Body scroll lock (prevents page scrolling while panel is open) --
+    var savedScrollY = 0;
+    function lockBodyScroll() {
+        savedScrollY = window.scrollY;
+        document.body.style.position = 'fixed';
+        document.body.style.top = '-' + savedScrollY + 'px';
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+    }
+    function unlockBodyScroll() {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        window.scrollTo(0, savedScrollY);
+    }
+
     function showPanel(edge) {
         if (!panels[edge]) return;
         var p = panels[edge];
@@ -196,6 +213,7 @@ var SwipePanels = (function () {
         p.el.classList.add('swipe-panel--open');
         backdrop.classList.add('swipe-panel-backdrop--visible');
         openEdge = edge;
+        lockBodyScroll();
     }
 
     function hidePanel(edge) {
@@ -207,10 +225,12 @@ var SwipePanels = (function () {
         if (openEdge === edge) {
             openEdge = null;
             backdrop.classList.remove('swipe-panel-backdrop--visible');
+            unlockBodyScroll();
         }
     }
 
     function hideAll() {
+        var wasOpen = !!openEdge;
         EDGES.forEach(function (edge) {
             if (panels[edge] && !panels[edge].pinned) {
                 panels[edge].el.classList.remove('swipe-panel--open');
@@ -218,6 +238,7 @@ var SwipePanels = (function () {
         });
         openEdge = null;
         backdrop.classList.remove('swipe-panel-backdrop--visible');
+        if (wasOpen) unlockBodyScroll();
     }
 
     function togglePanel(edge) {
