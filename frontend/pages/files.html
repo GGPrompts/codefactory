@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Files</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header / Breadcrumbs ── */
+.fb-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.fb-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.fb-crumb {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--bright-steel);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.fb-crumb:hover {
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+  color: var(--hazard-yellow);
+}
+
+.fb-crumb-sep {
+  color: var(--steel-light);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.fb-crumb-current {
+  color: var(--hazard-yellow);
+  font-weight: 600;
+}
+
+.fb-header-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  min-height: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fb-header-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Split View ── */
+.fb-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.fb-tree-pane {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--steel-mid);
+  min-width: 0;
+}
+
+.fb-preview-pane {
+  flex: 1;
+  overflow: auto;
+  display: none;
+  flex-direction: column;
+}
+
+.fb-preview-pane.fb-active {
+  display: flex;
+}
+
+/* When preview is open on wider screens, tree shrinks */
+@media (min-width: 600px) {
+  .fb-tree-pane.fb-has-preview {
+    flex: 0 0 40%;
+    max-width: 40%;
+  }
+  .fb-preview-pane.fb-active {
+    flex: 0 0 60%;
+  }
+}
+
+/* On mobile, preview replaces tree */
+@media (max-width: 599px) {
+  .fb-tree-pane.fb-has-preview {
+    display: none;
+  }
+  .fb-preview-pane.fb-active {
+    flex: 1;
+  }
+}
+
+/* ── File List ── */
+.fb-list {
+  padding: 0;
+}
+
+.fb-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--steel-dark);
+  cursor: pointer;
+  transition: background 0.1s;
+  min-height: 44px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.fb-item:last-child {
+  border-bottom: none;
+}
+
+.fb-item:hover, .fb-item:active {
+  background: var(--steel-dark);
+}
+
+.fb-item.fb-selected {
+  background: color-mix(in srgb, var(--hazard-yellow) 12%, transparent);
+}
+
+.fb-item-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.fb-item-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--dirty-white);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.fb-item-name-dir {
+  color: var(--hazard-yellow);
+  font-weight: 600;
+}
+
+.fb-item-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--steel-light);
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.fb-empty {
+  padding: 20px;
+  color: var(--steel-light);
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ── Preview Header ── */
+.fb-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+.fb-preview-filename {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--hazard-yellow);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fb-preview-size {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--steel-light);
+  flex-shrink: 0;
+}
+
+.fb-preview-close {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.fb-preview-close:hover {
+  background: var(--caution-red);
+  border-color: var(--caution-red);
+}
+
+/* ── Preview Content ── */
+.fb-preview-content {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+}
+
+.fb-code-block {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--bright-steel);
+  tab-size: 4;
+}
+
+.fb-binary-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 8px;
+  color: var(--brushed-steel);
+}
+
+.fb-image-preview {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--steel-dark);
+}
+
+/* ── Context Menu ── */
+.fb-ctx-menu {
+  position: fixed;
+  z-index: 10000;
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+  min-width: 180px;
+  padding: 4px 0;
+  display: none;
+}
+
+.fb-ctx-menu.fb-visible {
+  display: block;
+}
+
+.fb-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.fb-ctx-item:hover, .fb-ctx-item:active {
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+}
+
+.fb-ctx-divider {
+  height: 1px;
+  background: var(--steel-mid);
+  margin: 4px 0;
+}
+
+.fb-ctx-item-danger {
+  color: var(--caution-red);
+}
+
+/* ── Dialog Overlay ── */
+.fb-dialog-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.fb-dialog-overlay.fb-visible {
+  display: flex;
+}
+
+.fb-dialog {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 6px;
+  padding: 20px;
+  min-width: 280px;
+  max-width: 90vw;
+}
+
+.fb-dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  margin-bottom: 16px;
+}
+
+.fb-dialog-input {
+  width: 100%;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  border-radius: 3px;
+  outline: none;
+  margin-bottom: 16px;
+}
+
+.fb-dialog-input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.fb-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.fb-dialog-btn {
+  padding: 8px 16px;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  border-radius: 3px;
+  border: 1px solid var(--steel-light);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.fb-dialog-btn-cancel {
+  background: var(--steel-mid);
+  color: var(--dirty-white);
+}
+
+.fb-dialog-btn-cancel:hover {
+  background: var(--steel-light);
+}
+
+.fb-dialog-btn-ok {
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  border-color: var(--safety-green);
+}
+
+.fb-dialog-btn-ok:hover {
+  background: #36a556;
+}
+
+.fb-dialog-btn-danger {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border-color: var(--caution-red);
+}
+
+.fb-dialog-btn-danger:hover {
+  background: #e43c3c;
+}
+
+/* ── Toast ── */
+.fb-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10001;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.fb-toast.fb-toast-visible {
+  opacity: 1;
+}
+
+.fb-toast-success {
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  border: 1px solid #36a556;
+}
+
+.fb-toast-error {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border: 1px solid #e43c3c;
+}
+
+/* ── Loading ── */
+.fb-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 12px;
+  color: var(--brushed-steel);
+}
+
+.fb-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: fb-spin 0.6s linear infinite;
+}
+
+@keyframes fb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Show hidden toggle ── */
+.fb-toggle-hidden {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  color: var(--steel-light);
+  background: transparent;
+  border: 1px solid var(--steel-mid);
+  border-radius: 3px;
+  cursor: pointer;
+  min-height: 40px;
+  min-width: 40px;
+  flex-shrink: 0;
+}
+
+.fb-toggle-hidden.fb-on {
+  color: var(--hazard-yellow);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .fb-header {
+    padding: 6px 8px;
+  }
+  .fb-item {
+    padding: 8px 10px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="fb-header">
+    <div class="fb-breadcrumb" id="breadcrumb"></div>
+    <button class="fb-toggle-hidden" id="toggle-hidden-btn" title="Show hidden files">.*</button>
+    <button class="fb-header-btn" id="new-btn" title="New file or directory">+</button>
+    <button class="fb-header-btn" id="refresh-btn" title="Refresh">&#8635;</button>
+  </div>
+
+  <div class="fb-body">
+    <div class="fb-tree-pane" id="tree-pane">
+      <div class="fb-loading" id="initial-loading">
+        <div class="fb-spinner"></div>
+        <span>Loading...</span>
+      </div>
+      <div class="fb-list" id="file-list"></div>
+    </div>
+
+    <div class="fb-preview-pane" id="preview-pane">
+      <div class="fb-preview-header">
+        <span class="fb-preview-filename" id="preview-filename">--</span>
+        <span class="fb-preview-size" id="preview-size"></span>
+        <button class="fb-preview-close" id="preview-close" title="Close preview">&times;</button>
+      </div>
+      <div class="fb-preview-content" id="preview-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div class="fb-ctx-menu" id="ctx-menu">
+  <button class="fb-ctx-item" id="ctx-copy-path">Copy Path</button>
+  <button class="fb-ctx-item" id="ctx-copy-name">Copy Name</button>
+  <div class="fb-ctx-divider"></div>
+  <button class="fb-ctx-item" id="ctx-rename">Rename</button>
+  <button class="fb-ctx-item fb-ctx-item-danger" id="ctx-delete">Delete</button>
+</div>
+
+<!-- Dialog -->
+<div class="fb-dialog-overlay" id="dialog-overlay">
+  <div class="fb-dialog" id="dialog-box">
+    <div class="fb-dialog-title" id="dialog-title">Dialog</div>
+    <input class="fb-dialog-input" id="dialog-input" type="text" />
+    <div class="fb-dialog-actions" id="dialog-actions"></div>
+  </div>
+</div>
+
+<div class="fb-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var basePath = params.get("path") || "~";
+  var currentDir = "";  // relative to basePath, empty = root
+  var showHidden = false;
+  var entries = [];
+  var previewOpen = false;
+  var previewFile = null;
+  var toastTimer = null;
+  var ctxTarget = null; // {name, is_dir} for context menu
+
+  // ── DOM refs ──
+  var breadcrumb = document.getElementById("breadcrumb");
+  var toggleHiddenBtn = document.getElementById("toggle-hidden-btn");
+  var newBtn = document.getElementById("new-btn");
+  var refreshBtn = document.getElementById("refresh-btn");
+  var treePaneEl = document.getElementById("tree-pane");
+  var initialLoading = document.getElementById("initial-loading");
+  var fileList = document.getElementById("file-list");
+  var previewPane = document.getElementById("preview-pane");
+  var previewFilename = document.getElementById("preview-filename");
+  var previewSize = document.getElementById("preview-size");
+  var previewClose = document.getElementById("preview-close");
+  var previewContent = document.getElementById("preview-content");
+  var ctxMenu = document.getElementById("ctx-menu");
+  var ctxCopyPath = document.getElementById("ctx-copy-path");
+  var ctxCopyName = document.getElementById("ctx-copy-name");
+  var ctxRename = document.getElementById("ctx-rename");
+  var ctxDelete = document.getElementById("ctx-delete");
+  var dialogOverlay = document.getElementById("dialog-overlay");
+  var dialogTitle = document.getElementById("dialog-title");
+  var dialogInput = document.getElementById("dialog-input");
+  var dialogActions = document.getElementById("dialog-actions");
+  var toastEl = document.getElementById("toast");
+
+  // ── Helpers ──
+
+  function apiUrl(endpoint, extra) {
+    var url = endpoint + "?path=" + encodeURIComponent(basePath);
+    if (currentDir) {
+      url += "&dir=" + encodeURIComponent(currentDir);
+    }
+    if (extra) {
+      url += extra;
+    }
+    return url;
+  }
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb("Invalid JSON"); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function xhrPost(url, body, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb(null, { success: true }); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send(body ? JSON.stringify(body) : "");
+  }
+
+  function showToast(msg, type) {
+    toastEl.textContent = msg;
+    toastEl.className = "fb-toast fb-toast-visible " + (type === "error" ? "fb-toast-error" : "fb-toast-success");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.className = "fb-toast";
+    }, 3000);
+  }
+
+  function formatSize(bytes) {
+    if (bytes === 0) return "--";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
+  }
+
+  function fileIcon(name, isDir) {
+    if (isDir) return "\uD83D\uDCC1"; // folder
+    var ext = name.split(".").pop().toLowerCase();
+    var icons = {
+      js: "\uD83D\uDCDC", ts: "\uD83D\uDCDC", jsx: "\uD83D\uDCDC", tsx: "\uD83D\uDCDC",
+      rs: "\uD83E\uDD80", py: "\uD83D\uDC0D",
+      html: "\uD83C\uDF10", css: "\uD83C\uDFA8",
+      json: "{ }", toml: "\u2699", yaml: "\u2699", yml: "\u2699",
+      md: "\uD83D\uDCDD", txt: "\uD83D\uDCDD",
+      png: "\uD83D\uDDBC", jpg: "\uD83D\uDDBC", jpeg: "\uD83D\uDDBC", gif: "\uD83D\uDDBC",
+      svg: "\uD83D\uDDBC", webp: "\uD83D\uDDBC",
+      sh: "\uD83D\uDCBB", bash: "\uD83D\uDCBB",
+      lock: "\uD83D\uDD12",
+      zip: "\uD83D\uDCE6", tar: "\uD83D\uDCE6", gz: "\uD83D\uDCE6",
+    };
+    return icons[ext] || "\uD83D\uDCC4"; // generic file
+  }
+
+  function isImageExt(name) {
+    var ext = name.split(".").pop().toLowerCase();
+    return ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"].indexOf(ext) !== -1;
+  }
+
+  function currentFullDir() {
+    if (!currentDir) return basePath;
+    return basePath + "/" + currentDir;
+  }
+
+  function joinPath(base, name) {
+    if (!base) return name;
+    return base + "/" + name;
+  }
+
+  // ── Breadcrumb ──
+
+  function renderBreadcrumb() {
+    breadcrumb.innerHTML = "";
+    var parts = [];
+    // Root crumb
+    parts.push({ label: basePath.replace(/^~\//, "~/"), dir: "" });
+    if (currentDir) {
+      var segments = currentDir.split("/");
+      var accum = "";
+      for (var i = 0; i < segments.length; i++) {
+        accum = accum ? (accum + "/" + segments[i]) : segments[i];
+        parts.push({ label: segments[i], dir: accum });
+      }
+    }
+
+    for (var j = 0; j < parts.length; j++) {
+      if (j > 0) {
+        var sep = document.createElement("span");
+        sep.className = "fb-crumb-sep";
+        sep.textContent = "/";
+        breadcrumb.appendChild(sep);
+      }
+      var btn = document.createElement("button");
+      btn.className = "fb-crumb";
+      btn.textContent = parts[j].label;
+      if (j === parts.length - 1) {
+        btn.classList.add("fb-crumb-current");
+      }
+      btn.setAttribute("data-dir", parts[j].dir);
+      btn.addEventListener("click", function () {
+        navigateTo(this.getAttribute("data-dir"));
+      });
+      breadcrumb.appendChild(btn);
+    }
+    // Auto-scroll to end
+    breadcrumb.scrollLeft = breadcrumb.scrollWidth;
+  }
+
+  // ── Directory Loading ──
+
+  function navigateTo(dir) {
+    currentDir = dir || "";
+    closePreview();
+    loadDirectory();
+  }
+
+  function loadDirectory() {
+    initialLoading.style.display = "flex";
+    fileList.innerHTML = "";
+    renderBreadcrumb();
+
+    xhrGet(apiUrl("/api/files/list"), function (err, data) {
+      initialLoading.style.display = "none";
+
+      if (err) {
+        fileList.innerHTML = '<div class="fb-empty">Error: ' + err + '</div>';
+        return;
+      }
+
+      entries = data.entries || [];
+
+      // Update basePath to canonical if at root
+      if (!currentDir && data.path) {
+        // We don't overwrite basePath since user might be using ~ shorthand
+      }
+
+      renderFileList();
+    });
+  }
+
+  function renderFileList() {
+    fileList.innerHTML = "";
+
+    // Parent directory link (if not at root)
+    if (currentDir) {
+      var parentItem = document.createElement("div");
+      parentItem.className = "fb-item";
+      parentItem.innerHTML = '<span class="fb-item-icon">\u2B06</span>' +
+        '<span class="fb-item-name fb-item-name-dir">..</span>' +
+        '<span class="fb-item-meta"></span>';
+      parentItem.addEventListener("click", function () {
+        var parts = currentDir.split("/");
+        parts.pop();
+        navigateTo(parts.join("/"));
+      });
+      fileList.appendChild(parentItem);
+    }
+
+    var visible = entries.filter(function (e) {
+      if (!showHidden && e.name.charAt(0) === ".") return false;
+      return true;
+    });
+
+    if (visible.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "fb-empty";
+      empty.textContent = entries.length > 0 ? "All files hidden (toggle .* to show)" : "Empty directory";
+      fileList.appendChild(empty);
+      return;
+    }
+
+    for (var i = 0; i < visible.length; i++) {
+      fileList.appendChild(buildFileItem(visible[i]));
+    }
+  }
+
+  function buildFileItem(entry) {
+    var div = document.createElement("div");
+    div.className = "fb-item";
+    if (previewFile === entry.name) {
+      div.classList.add("fb-selected");
+    }
+
+    var icon = document.createElement("span");
+    icon.className = "fb-item-icon";
+    icon.textContent = fileIcon(entry.name, entry.is_dir);
+
+    var name = document.createElement("span");
+    name.className = "fb-item-name";
+    if (entry.is_dir) name.classList.add("fb-item-name-dir");
+    name.textContent = entry.name;
+
+    var meta = document.createElement("span");
+    meta.className = "fb-item-meta";
+    meta.textContent = entry.is_dir ? "" : formatSize(entry.size);
+
+    div.appendChild(icon);
+    div.appendChild(name);
+    div.appendChild(meta);
+
+    // Tap handler
+    div.addEventListener("click", function (e) {
+      if (entry.is_dir) {
+        navigateTo(joinPath(currentDir, entry.name));
+      } else {
+        openPreview(entry);
+      }
+    });
+
+    // Long-press / context menu
+    var longPressTimer = null;
+    div.addEventListener("contextmenu", function (e) {
+      e.preventDefault();
+      showContextMenu(e, entry);
+    });
+    div.addEventListener("touchstart", function (e) {
+      longPressTimer = setTimeout(function () {
+        longPressTimer = null;
+        showContextMenu(e.touches[0], entry);
+      }, 500);
+    }, { passive: true });
+    div.addEventListener("touchend", function () {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    });
+    div.addEventListener("touchmove", function () {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    });
+
+    return div;
+  }
+
+  // ── Preview ──
+
+  function openPreview(entry) {
+    previewFile = entry.name;
+    previewOpen = true;
+    previewFilename.textContent = entry.name;
+    previewSize.textContent = formatSize(entry.size);
+    previewContent.innerHTML = '<div class="fb-loading"><div class="fb-spinner"></div><span>Loading...</span></div>';
+
+    previewPane.classList.add("fb-active");
+    treePaneEl.classList.add("fb-has-preview");
+
+    // Re-render list to show selection
+    renderFileList();
+
+    // Image files: show inline
+    if (isImageExt(entry.name)) {
+      var imgUrl = "/api/files/read?path=" + encodeURIComponent(currentFullDir()) + "&file=" + encodeURIComponent(entry.name);
+      // Actually we'll just use the read API; but since it returns JSON, we need the raw path
+      // For images, construct a direct-ish path. We'll base64-encode from the API response if needed.
+      // Actually let's just load via the API and handle binary flag.
+      xhrGet("/api/files/read?path=" + encodeURIComponent(currentFullDir()) + "&file=" + encodeURIComponent(entry.name), function (err, data) {
+        if (err) {
+          previewContent.innerHTML = '<div class="fb-binary-msg"><span>Error: ' + err + '</span></div>';
+          return;
+        }
+        if (data.is_binary) {
+          // For images, we know the path so try to read raw. Unfortunately our API returns JSON.
+          // Show the canonical path for the user.
+          previewContent.innerHTML = '<div class="fb-binary-msg">' +
+            '<span style="font-size:48px">\uD83D\uDDBC</span>' +
+            '<span>Image file</span>' +
+            '<span style="font-size:11px;color:var(--steel-light)">' + data.path + '</span>' +
+            '<span style="font-size:11px;color:var(--steel-light)">' + formatSize(data.size) + '</span>' +
+            '</div>';
+        } else if (data.content && data.extension === "svg") {
+          previewContent.innerHTML = '<div style="padding:20px;background:var(--steel-dark);border-radius:4px;text-align:center">' + data.content + '</div>';
+        } else {
+          previewContent.innerHTML = '<div class="fb-binary-msg"><span>Image preview not available via API</span></div>';
+        }
+      });
+      return;
+    }
+
+    // Text files
+    xhrGet("/api/files/read?path=" + encodeURIComponent(currentFullDir()) + "&file=" + encodeURIComponent(entry.name), function (err, data) {
+      if (err) {
+        previewContent.innerHTML = '<div class="fb-binary-msg"><span>Error: ' + err + '</span></div>';
+        return;
+      }
+
+      if (data.is_binary) {
+        previewContent.innerHTML = '<div class="fb-binary-msg">' +
+          '<span style="font-size:48px">\uD83D\uDCE6</span>' +
+          '<span>Binary file</span>' +
+          '<span style="font-size:11px;color:var(--steel-light)">' + formatSize(data.size) + '</span>' +
+          '</div>';
+        return;
+      }
+
+      var pre = document.createElement("pre");
+      pre.className = "fb-code-block";
+      pre.textContent = data.content;
+      previewContent.innerHTML = "";
+      previewContent.appendChild(pre);
+    });
+  }
+
+  function closePreview() {
+    previewOpen = false;
+    previewFile = null;
+    previewPane.classList.remove("fb-active");
+    treePaneEl.classList.remove("fb-has-preview");
+    previewContent.innerHTML = "";
+    renderFileList();
+  }
+
+  // ── Context Menu ──
+
+  function showContextMenu(evt, entry) {
+    ctxTarget = entry;
+    var x = evt.clientX || evt.pageX || 0;
+    var y = evt.clientY || evt.pageY || 0;
+
+    // Position with bounds checking
+    ctxMenu.classList.add("fb-visible");
+    var rect = ctxMenu.getBoundingClientRect();
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+    if (x < 8) x = 8;
+    if (y < 8) y = 8;
+
+    ctxMenu.style.left = x + "px";
+    ctxMenu.style.top = y + "px";
+  }
+
+  function hideContextMenu() {
+    ctxMenu.classList.remove("fb-visible");
+    ctxTarget = null;
+  }
+
+  // Close context menu on outside click/touch
+  document.addEventListener("click", function (e) {
+    if (!ctxMenu.contains(e.target)) hideContextMenu();
+  });
+  document.addEventListener("touchstart", function (e) {
+    if (!ctxMenu.contains(e.target)) hideContextMenu();
+  }, { passive: true });
+
+  ctxCopyPath.addEventListener("click", function () {
+    if (!ctxTarget) return;
+    var fullPath = currentFullDir() + "/" + ctxTarget.name;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(fullPath).then(function () {
+        showToast("Path copied", "success");
+      });
+    }
+    hideContextMenu();
+  });
+
+  ctxCopyName.addEventListener("click", function () {
+    if (!ctxTarget) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(ctxTarget.name).then(function () {
+        showToast("Name copied", "success");
+      });
+    }
+    hideContextMenu();
+  });
+
+  ctxRename.addEventListener("click", function () {
+    if (!ctxTarget) return;
+    var target = ctxTarget;
+    hideContextMenu();
+    showInputDialog("Rename", target.name, "Rename", function (newName) {
+      if (!newName || newName === target.name) return;
+      xhrPost(apiUrl("/api/files/rename"), { from: target.name, to: newName }, function (err) {
+        if (err) {
+          showToast("Rename failed: " + err, "error");
+        } else {
+          showToast("Renamed to " + newName, "success");
+          if (previewFile === target.name) {
+            previewFile = newName;
+            previewFilename.textContent = newName;
+          }
+          loadDirectory();
+        }
+      });
+    });
+  });
+
+  ctxDelete.addEventListener("click", function () {
+    if (!ctxTarget) return;
+    var target = ctxTarget;
+    hideContextMenu();
+    showConfirmDialog("Delete " + (target.is_dir ? "directory" : "file"), target.name + (target.is_dir ? " (and all contents)" : ""), "Delete", function () {
+      xhrPost(apiUrl("/api/files/delete"), { file: target.name }, function (err) {
+        if (err) {
+          showToast("Delete failed: " + err, "error");
+        } else {
+          showToast("Deleted " + target.name, "success");
+          if (previewFile === target.name) closePreview();
+          loadDirectory();
+        }
+      });
+    });
+  });
+
+  // ── Dialogs ──
+
+  function showInputDialog(title, defaultVal, okLabel, onOk) {
+    dialogTitle.textContent = title;
+    dialogInput.value = defaultVal || "";
+    dialogInput.style.display = "block";
+    dialogActions.innerHTML = "";
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.className = "fb-dialog-btn fb-dialog-btn-cancel";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", closeDialog);
+
+    var okBtn = document.createElement("button");
+    okBtn.className = "fb-dialog-btn fb-dialog-btn-ok";
+    okBtn.textContent = okLabel || "OK";
+    okBtn.addEventListener("click", function () {
+      var val = dialogInput.value.trim();
+      closeDialog();
+      if (onOk) onOk(val);
+    });
+
+    dialogActions.appendChild(cancelBtn);
+    dialogActions.appendChild(okBtn);
+    dialogOverlay.classList.add("fb-visible");
+
+    setTimeout(function () {
+      dialogInput.focus();
+      dialogInput.select();
+    }, 100);
+  }
+
+  function showConfirmDialog(title, message, okLabel, onOk) {
+    dialogTitle.textContent = title;
+    dialogInput.style.display = "none";
+    dialogActions.innerHTML = "";
+
+    // Show message as a paragraph
+    var msgEl = document.createElement("div");
+    msgEl.style.cssText = "margin-bottom:16px;color:var(--bright-steel);font-family:var(--font-mono);font-size:13px;word-break:break-all;";
+    msgEl.textContent = message;
+    dialogInput.parentNode.insertBefore(msgEl, dialogInput);
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.className = "fb-dialog-btn fb-dialog-btn-cancel";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", function () {
+      msgEl.remove();
+      closeDialog();
+    });
+
+    var okBtn = document.createElement("button");
+    okBtn.className = "fb-dialog-btn fb-dialog-btn-danger";
+    okBtn.textContent = okLabel || "OK";
+    okBtn.addEventListener("click", function () {
+      msgEl.remove();
+      closeDialog();
+      if (onOk) onOk();
+    });
+
+    dialogActions.appendChild(cancelBtn);
+    dialogActions.appendChild(okBtn);
+    dialogOverlay.classList.add("fb-visible");
+  }
+
+  function showNewDialog() {
+    dialogTitle.textContent = "New";
+    dialogInput.value = "";
+    dialogInput.style.display = "block";
+    dialogInput.placeholder = "Enter name...";
+    dialogActions.innerHTML = "";
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.className = "fb-dialog-btn fb-dialog-btn-cancel";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", closeDialog);
+
+    var fileBtn = document.createElement("button");
+    fileBtn.className = "fb-dialog-btn fb-dialog-btn-ok";
+    fileBtn.textContent = "File";
+    fileBtn.addEventListener("click", function () {
+      var name = dialogInput.value.trim();
+      closeDialog();
+      if (!name) return;
+      xhrPost(apiUrl("/api/files/create"), { name: name, type: "file" }, function (err) {
+        if (err) {
+          showToast("Create failed: " + err, "error");
+        } else {
+          showToast("Created " + name, "success");
+          loadDirectory();
+        }
+      });
+    });
+
+    var dirBtn = document.createElement("button");
+    dirBtn.className = "fb-dialog-btn fb-dialog-btn-ok";
+    dirBtn.textContent = "Dir";
+    dirBtn.addEventListener("click", function () {
+      var name = dialogInput.value.trim();
+      closeDialog();
+      if (!name) return;
+      xhrPost(apiUrl("/api/files/create"), { name: name, type: "dir" }, function (err) {
+        if (err) {
+          showToast("Create failed: " + err, "error");
+        } else {
+          showToast("Created " + name + "/", "success");
+          loadDirectory();
+        }
+      });
+    });
+
+    dialogActions.appendChild(cancelBtn);
+    dialogActions.appendChild(fileBtn);
+    dialogActions.appendChild(dirBtn);
+    dialogOverlay.classList.add("fb-visible");
+
+    setTimeout(function () { dialogInput.focus(); }, 100);
+  }
+
+  function closeDialog() {
+    dialogOverlay.classList.remove("fb-visible");
+    dialogInput.placeholder = "";
+  }
+
+  // Close dialog on overlay click
+  dialogOverlay.addEventListener("click", function (e) {
+    if (e.target === dialogOverlay) closeDialog();
+  });
+
+  // ── Event Bindings ──
+
+  refreshBtn.addEventListener("click", function () {
+    loadDirectory();
+  });
+
+  toggleHiddenBtn.addEventListener("click", function () {
+    showHidden = !showHidden;
+    toggleHiddenBtn.classList.toggle("fb-on", showHidden);
+    renderFileList();
+  });
+
+  newBtn.addEventListener("click", function () {
+    showNewDialog();
+  });
+
+  previewClose.addEventListener("click", function () {
+    closePreview();
+  });
+
+  // Keyboard: Escape closes preview or dialog
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      if (dialogOverlay.classList.contains("fb-visible")) {
+        closeDialog();
+      } else if (previewOpen) {
+        closePreview();
+      }
+    }
+  });
+
+  // ── Init ──
+  loadDirectory();
+
+})();
+</script>
+</body>
+</html>

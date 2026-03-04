@@ -104,6 +104,12 @@ async fn main() {
         .route("/api/git/commit", post(git_commit_action))
         .route("/api/git/generate-message", post(git_generate_message))
         .route("/api/beads/issues", get(beads_issues))
+        // File browser endpoints
+        .route("/api/files/list", get(files_list))
+        .route("/api/files/read", get(files_read))
+        .route("/api/files/rename", post(files_rename))
+        .route("/api/files/delete", post(files_delete))
+        .route("/api/files/create", post(files_create))
         // Terminal capture endpoint
         .route("/api/terminal/{session}/capture", get(terminal_capture))
         // Termux API endpoints
@@ -2055,6 +2061,312 @@ async fn beads_issues(
     (
         StatusCode::OK,
         Json(serde_json::json!({ "issues": issues })),
+    )
+}
+
+// ── File Browser API Endpoints ────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct FilesListParams {
+    path: Option<String>,
+    dir: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FilesReadParams {
+    path: Option<String>,
+    file: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FilesPathParams {
+    path: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FilesRenameBody {
+    from: String,
+    to: String,
+}
+
+#[derive(Deserialize)]
+struct FilesDeleteBody {
+    file: String,
+}
+
+#[derive(Deserialize)]
+struct FilesCreateBody {
+    name: String,
+    #[serde(rename = "type")]
+    entry_type: String, // "file" or "dir"
+}
+
+/// GET /api/files/list?path=&dir=
+/// List directory contents. `path` is the base/working directory, `dir` is relative subdir.
+async fn files_list(Query(params): Query<FilesListParams>) -> impl IntoResponse {
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded_base = expand_path(&base);
+    let full_path = match params.dir {
+        Some(ref d) if !d.is_empty() => {
+            let p = std::path::PathBuf::from(&expanded_base).join(d);
+            p.to_string_lossy().to_string()
+        }
+        _ => expanded_base.clone(),
+    };
+
+    // Canonicalize to resolve symlinks and ..
+    let canonical = match tokio::fs::canonicalize(&full_path).await {
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": format!("Invalid path: {}", e)})),
+            );
+        }
+    };
+
+    let mut entries = Vec::new();
+    let mut read_dir = match tokio::fs::read_dir(&canonical).await {
+        Ok(rd) => rd,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("Cannot read directory: {}", e)})),
+            );
+        }
+    };
+
+    while let Ok(Some(entry)) = read_dir.next_entry().await {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let meta = match entry.metadata().await {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let is_dir = meta.is_dir();
+        let size = if is_dir { 0 } else { meta.len() };
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        entries.push(serde_json::json!({
+            "name": name,
+            "is_dir": is_dir,
+            "size": size,
+            "modified": modified,
+        }));
+    }
+
+    // Sort: directories first, then alphabetically (case-insensitive)
+    entries.sort_by(|a, b| {
+        let a_dir = a["is_dir"].as_bool().unwrap_or(false);
+        let b_dir = b["is_dir"].as_bool().unwrap_or(false);
+        match (b_dir).cmp(&a_dir) {
+            std::cmp::Ordering::Equal => {
+                let a_name = a["name"].as_str().unwrap_or("").to_lowercase();
+                let b_name = b["name"].as_str().unwrap_or("").to_lowercase();
+                a_name.cmp(&b_name)
+            }
+            other => other,
+        }
+    });
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "path": canonical.to_string_lossy(),
+            "entries": entries,
+        })),
+    )
+}
+
+/// GET /api/files/read?path=&file=
+/// Read file contents. Returns text content with detected mime type info.
+async fn files_read(Query(params): Query<FilesReadParams>) -> impl IntoResponse {
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded_base = expand_path(&base);
+    let file_name = match params.file {
+        Some(ref f) if !f.is_empty() => f.clone(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "file parameter required"})),
+            );
+        }
+    };
+
+    let full_path = std::path::PathBuf::from(&expanded_base).join(&file_name);
+    let canonical = match tokio::fs::canonicalize(&full_path).await {
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": format!("File not found: {}", e)})),
+            );
+        }
+    };
+
+    let meta = match tokio::fs::metadata(&canonical).await {
+        Ok(m) => m,
+        Err(e) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": format!("Cannot stat file: {}", e)})),
+            );
+        }
+    };
+
+    if meta.is_dir() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Path is a directory, not a file"})),
+        );
+    }
+
+    // Size limit: 2MB for text preview
+    let max_size: u64 = 2 * 1024 * 1024;
+    let is_binary;
+    let content;
+
+    if meta.len() > max_size {
+        is_binary = true;
+        content = String::new();
+    } else {
+        match tokio::fs::read(&canonical).await {
+            Ok(bytes) => {
+                // Simple binary detection: check first 8KB for null bytes
+                let check_len = std::cmp::min(bytes.len(), 8192);
+                let has_null = bytes[..check_len].contains(&0);
+                if has_null {
+                    is_binary = true;
+                    content = String::new();
+                } else {
+                    is_binary = false;
+                    content = String::from_utf8_lossy(&bytes).to_string();
+                }
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Cannot read file: {}", e)})),
+                );
+            }
+        }
+    }
+
+    let ext = canonical
+        .extension()
+        .map(|e| e.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "path": canonical.to_string_lossy(),
+            "size": meta.len(),
+            "is_binary": is_binary,
+            "extension": ext,
+            "content": content,
+        })),
+    )
+}
+
+/// POST /api/files/rename?path=  body: {from, to}
+async fn files_rename(
+    Query(params): Query<FilesPathParams>,
+    Json(body): Json<FilesRenameBody>,
+) -> impl IntoResponse {
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded = expand_path(&base);
+    let from_path = std::path::PathBuf::from(&expanded).join(&body.from);
+    let to_path = std::path::PathBuf::from(&expanded).join(&body.to);
+
+    if let Err(e) = tokio::fs::rename(&from_path, &to_path).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Rename failed: {}", e)})),
+        );
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"status": "ok"})),
+    )
+}
+
+/// POST /api/files/delete?path=  body: {file}
+async fn files_delete(
+    Query(params): Query<FilesPathParams>,
+    Json(body): Json<FilesDeleteBody>,
+) -> impl IntoResponse {
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded = expand_path(&base);
+    let target = std::path::PathBuf::from(&expanded).join(&body.file);
+
+    let meta = match tokio::fs::metadata(&target).await {
+        Ok(m) => m,
+        Err(e) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": format!("Not found: {}", e)})),
+            );
+        }
+    };
+
+    let result = if meta.is_dir() {
+        tokio::fs::remove_dir_all(&target).await
+    } else {
+        tokio::fs::remove_file(&target).await
+    };
+
+    if let Err(e) = result {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Delete failed: {}", e)})),
+        );
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"status": "ok"})),
+    )
+}
+
+/// POST /api/files/create?path=  body: {name, type: "file"|"dir"}
+async fn files_create(
+    Query(params): Query<FilesPathParams>,
+    Json(body): Json<FilesCreateBody>,
+) -> impl IntoResponse {
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded = expand_path(&base);
+    let target = std::path::PathBuf::from(&expanded).join(&body.name);
+
+    // Check if already exists
+    if tokio::fs::metadata(&target).await.is_ok() {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": "Already exists"})),
+        );
+    }
+
+    let result = if body.entry_type == "dir" {
+        tokio::fs::create_dir_all(&target).await
+    } else {
+        tokio::fs::write(&target, "").await
+    };
+
+    if let Err(e) = result {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Create failed: {}", e)})),
+        );
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"status": "ok"})),
     )
 }
 
