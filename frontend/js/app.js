@@ -2172,28 +2172,39 @@
             // Swipe gesture
             initBarSwipe();
 
-            // Delegated click handler for panel-nav buttons
-            mobileBar.addEventListener('click', function(e) {
-                var target = e.target;
-                if (target.classList.contains('mobile-bar-panel-nav') && target.dataset.barPanel) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    mobileBarUserOverride = true;
-                    setBarPanel(parseInt(target.dataset.barPanel, 10));
-                    // Re-focus terminal to keep soft keyboard open
-                    var floorId = currentFloor ? currentFloor.replace('floor-', '') : null;
-                    if (floorId && floorId !== 'lobby' && typeof ExtraKeys !== 'undefined' && ExtraKeys.isTerminalFloor(currentFloor)) {
-                        CodeFactoryTerminals.focus(floorId);
-                    }
+            // Panel-nav button handler (shared by touch and click)
+            function handlePanelNav(target) {
+                if (!target.classList.contains('mobile-bar-panel-nav') || !target.dataset.barPanel) return false;
+                mobileBarUserOverride = true;
+                setBarPanel(parseInt(target.dataset.barPanel, 10));
+                // Re-focus terminal to keep soft keyboard open
+                var floorId = currentFloor ? currentFloor.replace('floor-', '') : null;
+                if (floorId && floorId !== 'lobby' && typeof ExtraKeys !== 'undefined' && ExtraKeys.isTerminalFloor(currentFloor)) {
+                    CodeFactoryTerminals.focus(floorId);
                 }
-            });
+                return true;
+            }
+
+            // Touchstart: preventDefault keeps keyboard open, also switch panel
+            // immediately since preventDefault blocks the subsequent click event
             mobileBar.addEventListener('touchstart', function(e) {
                 var target = e.target;
                 if (target.classList.contains('mobile-bar-panel-nav')) {
                     e.preventDefault();  // prevent focus loss (keeps soft keyboard open)
                     e.stopPropagation(); // prevent swipe gesture
+                    handlePanelNav(target);
                 }
             }, { passive: false });
+
+            // Click fallback for non-touch (e.g. Phone Link mouse clicks)
+            mobileBar.addEventListener('click', function(e) {
+                var target = e.target;
+                if (target.classList.contains('mobile-bar-panel-nav')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePanelNav(target);
+                }
+            });
 
             document.body.appendChild(mobileBar);
 
