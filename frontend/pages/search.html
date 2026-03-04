@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Search Header ── */
+.sr-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+}
+
+.sr-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sr-input {
+  flex: 1;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  border-radius: 3px;
+  outline: none;
+  min-height: 40px;
+}
+
+.sr-input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.sr-input::placeholder {
+  color: var(--steel-light);
+}
+
+.sr-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  min-height: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.sr-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.sr-btn.sr-active {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.sr-btn-search {
+  background: var(--safety-green);
+  border-color: var(--safety-green);
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.sr-btn-search:hover {
+  background: #36a556;
+  border-color: #36a556;
+}
+
+/* ── Options Row ── */
+.sr-options-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sr-glob-input {
+  width: 140px;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  border-radius: 3px;
+  outline: none;
+  min-height: 36px;
+}
+
+.sr-glob-input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.sr-glob-input::placeholder {
+  color: var(--steel-light);
+}
+
+.sr-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--steel-light);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ── Replace Row ── */
+.sr-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sr-replace-toggle {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.sr-btn-replace-all {
+  background: var(--rust-mid);
+  border-color: var(--rust-mid);
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+.sr-btn-replace-all:hover {
+  background: var(--rust-light);
+  border-color: var(--rust-light);
+}
+
+/* ── Results ── */
+.sr-results {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sr-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 12px;
+  color: var(--brushed-steel);
+}
+
+.sr-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: sr-spin 0.6s linear infinite;
+}
+
+@keyframes sr-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sr-empty {
+  padding: 20px;
+  color: var(--steel-light);
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ── Result Item ── */
+.sr-item {
+  border-bottom: 1px solid var(--steel-dark);
+  transition: background 0.1s;
+}
+
+.sr-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  min-height: 44px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.sr-item-header:hover, .sr-item-header:active {
+  background: var(--steel-dark);
+}
+
+.sr-item-file {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--hazard-yellow);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.sr-item-line {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--steel-light);
+  flex-shrink: 0;
+}
+
+.sr-item-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--bright-steel);
+  padding: 0 12px 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.sr-match-hl {
+  background: color-mix(in srgb, var(--hazard-yellow) 30%, transparent);
+  color: var(--hazard-yellow);
+  font-weight: 600;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ── Expanded Context ── */
+.sr-context {
+  display: none;
+  padding: 0 12px 10px 12px;
+}
+
+.sr-item.sr-expanded .sr-context {
+  display: block;
+}
+
+.sr-context-block {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--grime);
+  border-radius: 4px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--brushed-steel);
+  tab-size: 4;
+}
+
+.sr-ctx-line {
+  display: block;
+}
+
+.sr-ctx-line-num {
+  display: inline-block;
+  width: 4ch;
+  text-align: right;
+  margin-right: 8px;
+  color: var(--steel-mid);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.sr-ctx-match {
+  background: color-mix(in srgb, var(--hazard-yellow) 12%, transparent);
+  color: var(--dirty-white);
+}
+
+/* ── Per-result Replace ── */
+.sr-replace-bar {
+  display: none;
+  padding: 6px 12px 10px 12px;
+  gap: 6px;
+  align-items: center;
+}
+
+.sr-item.sr-expanded .sr-replace-bar.sr-replace-visible {
+  display: flex;
+}
+
+.sr-replace-input {
+  flex: 1;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  border-radius: 3px;
+  outline: none;
+  min-height: 36px;
+}
+
+.sr-replace-input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.sr-btn-replace {
+  background: var(--rust-mid);
+  border: 1px solid var(--rust-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  padding: 6px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  border-radius: 3px;
+  min-height: 36px;
+  min-width: 44px;
+  flex-shrink: 0;
+}
+
+.sr-btn-replace:hover {
+  background: var(--rust-light);
+  border-color: var(--rust-light);
+}
+
+/* ── Toast ── */
+.sr-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10001;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.sr-toast.sr-toast-visible {
+  opacity: 1;
+}
+
+.sr-toast-success {
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  border: 1px solid #36a556;
+}
+
+.sr-toast-error {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border: 1px solid #e43c3c;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .sr-header {
+    padding: 6px 8px;
+  }
+  .sr-item-header {
+    padding: 8px 10px;
+  }
+  .sr-glob-input {
+    width: 100px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="sr-header">
+    <div class="sr-search-row">
+      <input class="sr-input" id="search-input" type="text" placeholder="Search text or pattern..." autocomplete="off" spellcheck="false" />
+      <button class="sr-btn sr-btn-search" id="search-btn">GO</button>
+    </div>
+    <div class="sr-options-row">
+      <button class="sr-btn" id="regex-btn" title="Use regex">.*</button>
+      <button class="sr-btn" id="case-btn" title="Case sensitive">Aa</button>
+      <input class="sr-glob-input" id="glob-input" type="text" placeholder="*.rs, *.js..." title="File glob filter" />
+      <button class="sr-btn sr-replace-toggle" id="replace-toggle-btn" title="Toggle replace mode">REPL</button>
+      <span class="sr-status" id="status-text"></span>
+    </div>
+    <div class="sr-replace-row" id="replace-row" style="display:none">
+      <input class="sr-input" id="replace-input" type="text" placeholder="Replace with..." autocomplete="off" spellcheck="false" />
+      <button class="sr-btn sr-btn-replace-all" id="replace-all-btn">Replace All</button>
+    </div>
+  </div>
+
+  <div class="sr-results" id="results-container">
+    <div class="sr-empty" id="placeholder-msg">Enter a search query and tap GO</div>
+  </div>
+</div>
+
+<div class="sr-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var basePath = params.get("path") || "~";
+  var useRegex = false;
+  var caseSensitive = false;
+  var replaceMode = false;
+  var results = [];
+  var searching = false;
+  var toastTimer = null;
+
+  // ── DOM refs ──
+  var searchInput = document.getElementById("search-input");
+  var searchBtn = document.getElementById("search-btn");
+  var regexBtn = document.getElementById("regex-btn");
+  var caseBtn = document.getElementById("case-btn");
+  var globInput = document.getElementById("glob-input");
+  var replaceToggleBtn = document.getElementById("replace-toggle-btn");
+  var replaceRow = document.getElementById("replace-row");
+  var replaceInput = document.getElementById("replace-input");
+  var replaceAllBtn = document.getElementById("replace-all-btn");
+  var statusText = document.getElementById("status-text");
+  var resultsContainer = document.getElementById("results-container");
+  var placeholderMsg = document.getElementById("placeholder-msg");
+  var toastEl = document.getElementById("toast");
+
+  // ── Helpers ──
+
+  function showToast(msg, type) {
+    toastEl.textContent = msg;
+    toastEl.className = "sr-toast sr-toast-visible " + (type === "error" ? "sr-toast-error" : "sr-toast-success");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.className = "sr-toast";
+    }, 3000);
+  }
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb("Invalid JSON"); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function xhrPost(url, body, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb(null, { success: true }); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send(body ? JSON.stringify(body) : "");
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  function highlightMatch(text, query) {
+    if (!query) return escapeHtml(text);
+
+    var escaped;
+    if (useRegex) {
+      try {
+        var flags = caseSensitive ? "g" : "gi";
+        var re = new RegExp("(" + query + ")", flags);
+        var parts = text.split(re);
+        var html = "";
+        for (var i = 0; i < parts.length; i++) {
+          if (re.test(parts[i])) {
+            // Reset lastIndex since we reuse the regex
+            re.lastIndex = 0;
+            html += '<span class="sr-match-hl">' + escapeHtml(parts[i]) + '</span>';
+          } else {
+            html += escapeHtml(parts[i]);
+          }
+        }
+        return html;
+      } catch (e) {
+        return escapeHtml(text);
+      }
+    }
+
+    // Fixed string highlight
+    escaped = escapeHtml(query);
+    var lowerText = caseSensitive ? text : text.toLowerCase();
+    var lowerQuery = caseSensitive ? query : query.toLowerCase();
+    var result = "";
+    var idx = 0;
+    var pos;
+
+    while ((pos = lowerText.indexOf(lowerQuery, idx)) !== -1) {
+      result += escapeHtml(text.substring(idx, pos));
+      result += '<span class="sr-match-hl">' + escapeHtml(text.substring(pos, pos + query.length)) + '</span>';
+      idx = pos + query.length;
+    }
+    result += escapeHtml(text.substring(idx));
+    return result;
+  }
+
+  // ── Search ──
+
+  function doSearch() {
+    var query = searchInput.value.trim();
+    if (!query || searching) return;
+
+    searching = true;
+    results = [];
+    resultsContainer.innerHTML = '<div class="sr-loading"><div class="sr-spinner"></div><span>Searching...</span></div>';
+    statusText.textContent = "";
+
+    var url = "/api/search?path=" + encodeURIComponent(basePath) +
+              "&q=" + encodeURIComponent(query) +
+              "&regex=" + useRegex +
+              "&case=" + caseSensitive;
+
+    var glob = globInput.value.trim();
+    if (glob) {
+      url += "&glob=" + encodeURIComponent(glob);
+    }
+
+    xhrGet(url, function (err, data) {
+      searching = false;
+
+      if (err) {
+        resultsContainer.innerHTML = '<div class="sr-empty">Error: ' + escapeHtml(err) + '</div>';
+        statusText.textContent = "Error";
+        return;
+      }
+
+      results = data.results || [];
+      statusText.textContent = results.length + " result" + (results.length !== 1 ? "s" : "");
+
+      if (results.length === 0) {
+        resultsContainer.innerHTML = '<div class="sr-empty">No results found</div>';
+        return;
+      }
+
+      renderResults(query);
+    });
+  }
+
+  function renderResults(query) {
+    resultsContainer.innerHTML = "";
+
+    for (var i = 0; i < results.length; i++) {
+      resultsContainer.appendChild(buildResultItem(results[i], i, query));
+    }
+  }
+
+  function buildResultItem(result, index, query) {
+    var div = document.createElement("div");
+    div.className = "sr-item";
+    div.setAttribute("data-index", index);
+
+    // Header row: file + line number
+    var header = document.createElement("div");
+    header.className = "sr-item-header";
+
+    var fileSpan = document.createElement("span");
+    fileSpan.className = "sr-item-file";
+    fileSpan.textContent = result.file;
+
+    var lineSpan = document.createElement("span");
+    lineSpan.className = "sr-item-line";
+    lineSpan.textContent = ":" + result.line;
+
+    header.appendChild(fileSpan);
+    header.appendChild(lineSpan);
+
+    // Match text
+    var textDiv = document.createElement("div");
+    textDiv.className = "sr-item-text";
+    textDiv.innerHTML = highlightMatch(result.text, query);
+
+    // Context block (hidden until expanded)
+    var contextDiv = document.createElement("div");
+    contextDiv.className = "sr-context";
+
+    var ctxBlock = document.createElement("div");
+    ctxBlock.className = "sr-context-block";
+
+    var ctxBefore = result.context_before || [];
+    var ctxAfter = result.context_after || [];
+    var startLine = result.line - ctxBefore.length;
+
+    var ctxHtml = "";
+    for (var b = 0; b < ctxBefore.length; b++) {
+      ctxHtml += '<span class="sr-ctx-line"><span class="sr-ctx-line-num">' + (startLine + b) + '</span>' + escapeHtml(ctxBefore[b]) + '</span>\n';
+    }
+    ctxHtml += '<span class="sr-ctx-line sr-ctx-match"><span class="sr-ctx-line-num">' + result.line + '</span>' + highlightMatch(result.text, query) + '</span>\n';
+    for (var a = 0; a < ctxAfter.length; a++) {
+      ctxHtml += '<span class="sr-ctx-line"><span class="sr-ctx-line-num">' + (result.line + 1 + a) + '</span>' + escapeHtml(ctxAfter[a]) + '</span>\n';
+    }
+
+    ctxBlock.innerHTML = ctxHtml;
+    contextDiv.appendChild(ctxBlock);
+
+    // Per-result replace bar
+    var replaceBar = document.createElement("div");
+    replaceBar.className = "sr-replace-bar" + (replaceMode ? " sr-replace-visible" : "");
+
+    var repInput = document.createElement("input");
+    repInput.className = "sr-replace-input";
+    repInput.type = "text";
+    repInput.placeholder = "Replace with...";
+    if (replaceInput.value) {
+      repInput.value = replaceInput.value;
+    }
+
+    var repBtn = document.createElement("button");
+    repBtn.className = "sr-btn-replace";
+    repBtn.textContent = "Replace";
+    repBtn.addEventListener("click", (function (r, inp) {
+      return function (e) {
+        e.stopPropagation();
+        doReplace(r, inp.value);
+      };
+    })(result, repInput));
+
+    replaceBar.appendChild(repInput);
+    replaceBar.appendChild(repBtn);
+
+    div.appendChild(header);
+    div.appendChild(textDiv);
+    div.appendChild(contextDiv);
+    div.appendChild(replaceBar);
+
+    // Toggle expand on header tap
+    header.addEventListener("click", function () {
+      div.classList.toggle("sr-expanded");
+    });
+
+    return div;
+  }
+
+  // ── Replace ──
+
+  function doReplace(result, newText) {
+    var url = "/api/search/replace?path=" + encodeURIComponent(basePath);
+    var body = {
+      file: result.file,
+      line: result.line,
+      old: result.text.indexOf(searchInput.value.trim()) !== -1 ? searchInput.value.trim() : result.text,
+      "new": newText
+    };
+
+    // Use the actual search query as the old text to replace
+    body.old = searchInput.value.trim();
+
+    xhrPost(url, body, function (err) {
+      if (err) {
+        showToast("Replace failed: " + err, "error");
+      } else {
+        showToast("Replaced in " + result.file + ":" + result.line, "success");
+        // Re-search to refresh results
+        doSearch();
+      }
+    });
+  }
+
+  function doReplaceAll() {
+    var newText = replaceInput.value;
+    var query = searchInput.value.trim();
+    if (!query || results.length === 0) return;
+
+    var pending = results.length;
+    var successCount = 0;
+    var errorCount = 0;
+
+    for (var i = 0; i < results.length; i++) {
+      (function (result) {
+        var url = "/api/search/replace?path=" + encodeURIComponent(basePath);
+        var body = {
+          file: result.file,
+          line: result.line,
+          old: query,
+          "new": newText
+        };
+
+        xhrPost(url, body, function (err) {
+          if (err) {
+            errorCount++;
+          } else {
+            successCount++;
+          }
+          pending--;
+          if (pending === 0) {
+            if (errorCount > 0) {
+              showToast("Replaced " + successCount + ", failed " + errorCount, errorCount > 0 ? "error" : "success");
+            } else {
+              showToast("Replaced " + successCount + " occurrence" + (successCount !== 1 ? "s" : ""), "success");
+            }
+            // Re-search to refresh
+            doSearch();
+          }
+        });
+      })(results[i]);
+    }
+  }
+
+  // ── Event Bindings ──
+
+  searchBtn.addEventListener("click", function () {
+    doSearch();
+  });
+
+  searchInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      doSearch();
+    }
+  });
+
+  regexBtn.addEventListener("click", function () {
+    useRegex = !useRegex;
+    regexBtn.classList.toggle("sr-active", useRegex);
+  });
+
+  caseBtn.addEventListener("click", function () {
+    caseSensitive = !caseSensitive;
+    caseBtn.classList.toggle("sr-active", caseSensitive);
+  });
+
+  replaceToggleBtn.addEventListener("click", function () {
+    replaceMode = !replaceMode;
+    replaceToggleBtn.classList.toggle("sr-active", replaceMode);
+    replaceRow.style.display = replaceMode ? "flex" : "none";
+
+    // Toggle per-result replace bars
+    var bars = document.querySelectorAll(".sr-replace-bar");
+    for (var i = 0; i < bars.length; i++) {
+      bars[i].classList.toggle("sr-replace-visible", replaceMode);
+    }
+  });
+
+  replaceAllBtn.addEventListener("click", function () {
+    doReplaceAll();
+  });
+
+  // Focus search input on load
+  setTimeout(function () {
+    searchInput.focus();
+  }, 100);
+
+})();
+</script>
+</body>
+</html>

@@ -110,6 +110,9 @@ async fn main() {
         .route("/api/files/rename", post(files_rename))
         .route("/api/files/delete", post(files_delete))
         .route("/api/files/create", post(files_create))
+        // Search endpoints
+        .route("/api/search", get(search_query))
+        .route("/api/search/replace", post(search_replace))
         // Terminal capture endpoint
         .route("/api/terminal/{session}/capture", get(terminal_capture))
         // Termux API endpoints
@@ -2367,6 +2370,358 @@ async fn files_create(
     (
         StatusCode::OK,
         Json(serde_json::json!({"status": "ok"})),
+    )
+}
+
+// ── Search API Endpoints ──────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct SearchParams {
+    path: Option<String>,
+    q: Option<String>,
+    regex: Option<bool>,
+    case: Option<bool>,
+    glob: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SearchReplaceBody {
+    file: String,
+    line: usize,
+    old: String,
+    new: String,
+}
+
+#[derive(Deserialize)]
+struct SearchReplaceParams {
+    path: Option<String>,
+}
+
+/// GET /api/search?path=&q=&regex=bool&case=bool&glob=
+/// Searches project files using ripgrep (rg) with grep -rn fallback.
+async fn search_query(Query(params): Query<SearchParams>) -> impl IntoResponse {
+    let query = match params.q {
+        Some(ref q) if !q.is_empty() => q.clone(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "q parameter required"})),
+            );
+        }
+    };
+
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded = expand_path(&base);
+    let search_dir = match tokio::fs::canonicalize(&expanded).await {
+        Ok(p) => p.to_string_lossy().to_string(),
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": format!("Invalid path: {}", e)})),
+            );
+        }
+    };
+
+    let use_regex = params.regex.unwrap_or(false);
+    let case_sensitive = params.case.unwrap_or(false);
+    let glob_pattern = params.glob.clone();
+    let context_lines: usize = 3;
+
+    // Try ripgrep first, fall back to grep
+    let output = {
+        let mut args: Vec<String> = vec![
+            "--json".to_string(),
+            "-C".to_string(),
+            context_lines.to_string(),
+            "--max-count".to_string(),
+            "200".to_string(),
+        ];
+
+        if !case_sensitive {
+            args.push("-i".to_string());
+        }
+        if !use_regex {
+            args.push("-F".to_string()); // fixed string (literal)
+        }
+        if let Some(ref g) = glob_pattern {
+            if !g.is_empty() {
+                args.push("--glob".to_string());
+                args.push(g.clone());
+            }
+        }
+        args.push("--".to_string());
+        args.push(query.clone());
+        args.push(search_dir.clone());
+
+        tokio::process::Command::new("rg")
+            .args(&args)
+            .output()
+            .await
+    };
+
+    match output {
+        Ok(o) => {
+            // rg returns exit code 1 for no matches (not an error)
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+
+            if !o.status.success() && o.status.code() != Some(1) {
+                let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("rg failed: {}", stderr)})),
+                );
+            }
+
+            let results = parse_rg_json_output(&stdout, &search_dir);
+
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"results": results})),
+            )
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                // Fallback to grep
+                match search_with_grep(&query, &search_dir, use_regex, case_sensitive, &glob_pattern).await {
+                    Ok(results) => (
+                        StatusCode::OK,
+                        Json(serde_json::json!({"results": results})),
+                    ),
+                    Err(err) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": err})),
+                    ),
+                }
+            } else {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Failed to run rg: {}", e)})),
+                )
+            }
+        }
+    }
+}
+
+/// Parse ripgrep JSON output into structured results.
+fn parse_rg_json_output(stdout: &str, search_dir: &str) -> Vec<serde_json::Value> {
+    let mut results: Vec<serde_json::Value> = Vec::new();
+    // Track context lines keyed by (file, match_line_number)
+    let mut context_before: Vec<String> = Vec::new();
+    let mut last_match: Option<serde_json::Value> = None;
+    let mut context_after: Vec<String> = Vec::new();
+    let mut after_count: usize = 0;
+    let context_size: usize = 3;
+
+    for line in stdout.lines() {
+        let parsed: serde_json::Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let msg_type = parsed["type"].as_str().unwrap_or("");
+
+        match msg_type {
+            "match" => {
+                // Flush previous match if any
+                if let Some(mut prev) = last_match.take() {
+                    prev["context_after"] = serde_json::json!(context_after);
+                    results.push(prev);
+                }
+                context_after = Vec::new();
+                after_count = 0;
+
+                let data = &parsed["data"];
+                let file_path = data["path"]["text"].as_str().unwrap_or("");
+                let line_number = data["line_number"].as_u64().unwrap_or(0);
+                let text = data["lines"]["text"].as_str().unwrap_or("").trim_end();
+
+                // Make path relative to search dir
+                let rel_path = if file_path.starts_with(search_dir) {
+                    let stripped = &file_path[search_dir.len()..];
+                    if stripped.starts_with('/') { &stripped[1..] } else { stripped }
+                } else {
+                    file_path
+                };
+
+                last_match = Some(serde_json::json!({
+                    "file": rel_path,
+                    "line": line_number,
+                    "text": text,
+                    "context_before": context_before.clone(),
+                    "context_after": [],
+                }));
+                context_before.clear();
+            }
+            "context" => {
+                let data = &parsed["data"];
+                let text = data["lines"]["text"].as_str().unwrap_or("").trim_end();
+
+                if last_match.is_some() && after_count < context_size {
+                    context_after.push(text.to_string());
+                    after_count += 1;
+                } else {
+                    // This is before-context for the next match
+                    context_before.push(text.to_string());
+                    // Keep only last N lines of context
+                    if context_before.len() > context_size {
+                        context_before.remove(0);
+                    }
+                }
+            }
+            "end" | "begin" | "summary" => {
+                // Flush on file boundary
+                if msg_type == "end" || msg_type == "begin" {
+                    if let Some(mut prev) = last_match.take() {
+                        prev["context_after"] = serde_json::json!(context_after);
+                        results.push(prev);
+                    }
+                    context_before.clear();
+                    context_after = Vec::new();
+                    after_count = 0;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Flush final match
+    if let Some(mut prev) = last_match.take() {
+        prev["context_after"] = serde_json::json!(context_after);
+        results.push(prev);
+    }
+
+    results
+}
+
+/// Fallback search using grep -rn when ripgrep is not available.
+async fn search_with_grep(
+    query: &str,
+    search_dir: &str,
+    use_regex: bool,
+    case_sensitive: bool,
+    _glob_pattern: &Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut args: Vec<String> = vec!["-rn".to_string()];
+
+    if !case_sensitive {
+        args.push("-i".to_string());
+    }
+    if !use_regex {
+        args.push("-F".to_string());
+    }
+    // Limit output
+    args.push("-m".to_string());
+    args.push("200".to_string());
+    args.push("--".to_string());
+    args.push(query.to_string());
+    args.push(search_dir.to_string());
+
+    let output = tokio::process::Command::new("grep")
+        .args(&args)
+        .output()
+        .await
+        .map_err(|e| format!("grep failed: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let mut results: Vec<serde_json::Value> = Vec::new();
+
+    for line in stdout.lines() {
+        // Format: file:line:text
+        let parts: Vec<&str> = line.splitn(3, ':').collect();
+        if parts.len() >= 3 {
+            let file_path = parts[0];
+            let line_num: u64 = parts[1].parse().unwrap_or(0);
+            let text = parts[2].trim_end();
+
+            let rel_path = if file_path.starts_with(search_dir) {
+                let stripped = &file_path[search_dir.len()..];
+                if stripped.starts_with('/') { &stripped[1..] } else { stripped }
+            } else {
+                file_path
+            };
+
+            results.push(serde_json::json!({
+                "file": rel_path,
+                "line": line_num,
+                "text": text,
+                "context_before": [],
+                "context_after": [],
+            }));
+        }
+    }
+
+    Ok(results)
+}
+
+/// POST /api/search/replace?path=  body: {file, line, old, new}
+/// Replace a specific occurrence in a file.
+async fn search_replace(
+    Query(params): Query<SearchReplaceParams>,
+    Json(body): Json<SearchReplaceBody>,
+) -> impl IntoResponse {
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded = expand_path(&base);
+    let file_path = std::path::PathBuf::from(&expanded).join(&body.file);
+
+    let canonical = match tokio::fs::canonicalize(&file_path).await {
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": format!("File not found: {}", e)})),
+            );
+        }
+    };
+
+    // Read file
+    let content = match tokio::fs::read_to_string(&canonical).await {
+        Ok(c) => c,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("Cannot read file: {}", e)})),
+            );
+        }
+    };
+
+    let lines: Vec<&str> = content.lines().collect();
+    let line_idx = body.line.saturating_sub(1); // Convert 1-based to 0-based
+
+    if line_idx >= lines.len() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": format!("Line {} out of range (file has {} lines)", body.line, lines.len())})),
+        );
+    }
+
+    // Verify the old text exists on that line
+    if !lines[line_idx].contains(&body.old) {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": "Old text not found on specified line — file may have changed"})),
+        );
+    }
+
+    // Build new content with the replacement on the target line
+    let mut new_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+    new_lines[line_idx] = new_lines[line_idx].replacen(&body.old, &body.new, 1);
+
+    // Preserve trailing newline if original had one
+    let mut new_content = new_lines.join("\n");
+    if content.ends_with('\n') {
+        new_content.push('\n');
+    }
+
+    if let Err(e) = tokio::fs::write(&canonical, &new_content).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Write failed: {}", e)})),
+        );
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"status": "ok", "line": body.line})),
     )
 }
 
