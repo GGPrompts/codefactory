@@ -2132,7 +2132,7 @@ section.floor.powered-on .profile-edit-form {
 .mobile-bar-chat {
     display: flex;
     align-items: center;
-    padding: 0 4px 0 20px;
+    padding: 0 4px;
     gap: 4px;
 }
 
@@ -2244,6 +2244,40 @@ section.floor.powered-on .profile-edit-form {
     border-color: var(--hazard-yellow);
     color: var(--hazard-yellow);
     text-shadow: 0 0 6px rgba(255, 184, 0, 0.4);
+}
+
+/* Panel nav buttons (switch between bar panels) */
+.mobile-bar-panel-nav {
+    flex: 0 0 auto;
+    height: 19px;
+    min-width: 22px;
+    padding: 0 4px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,184,0,0.2);
+    color: rgba(255,184,0,0.5);
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+}
+
+.mobile-bar-panel-nav:active {
+    background: rgba(255,184,0,0.15);
+    color: var(--hazard-yellow);
+}
+
+/* Taller nav buttons in chat/nav panels */
+.mobile-bar-chat .mobile-bar-panel-nav,
+.mobile-bar-nav .mobile-bar-panel-nav {
+    height: 32px;
+    min-width: 28px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Dot indicators */

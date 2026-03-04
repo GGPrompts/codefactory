@@ -53,7 +53,14 @@ var ExtraKeys = (function () {
         var panel = document.createElement('div');
         panel.className = 'mobile-bar-panel mobile-bar-keys';
 
-        panel.appendChild(createRow(ROW1));
+        var row1 = createRow(ROW1);
+        // Add panel-nav button at end of ROW1 to switch to chat panel
+        var navBtn = document.createElement('button');
+        navBtn.className = 'mobile-bar-panel-nav';
+        navBtn.setAttribute('data-bar-panel', '1');
+        navBtn.textContent = '\u203A'; // ›
+        row1.appendChild(navBtn);
+        panel.appendChild(row1);
         panel.appendChild(createRow(ROW2));
 
         panelEl = panel;

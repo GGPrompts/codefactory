@@ -1987,9 +1987,21 @@
                 sendChatInput();
             });
 
+            var chatNavLeft = document.createElement('button');
+            chatNavLeft.className = 'mobile-bar-panel-nav';
+            chatNavLeft.setAttribute('data-bar-panel', '0');
+            chatNavLeft.textContent = '\u2039'; // ‹
+
+            var chatNavRight = document.createElement('button');
+            chatNavRight.className = 'mobile-bar-panel-nav';
+            chatNavRight.setAttribute('data-bar-panel', '2');
+            chatNavRight.textContent = '\u203A'; // ›
+
             chatRow.appendChild(chatInput);
             chatRow.appendChild(chatSend);
+            chatPanel.appendChild(chatNavLeft);
             chatPanel.appendChild(chatRow);
+            chatPanel.appendChild(chatNavRight);
             mobileBarTrack.appendChild(chatPanel);
 
             // Panel 2: Elevator nav
@@ -1998,6 +2010,13 @@
 
             var navInner = document.createElement('div');
             navInner.className = 'mobile-bar-nav-inner';
+
+            // Nav-to-chat button
+            var navNavLeft = document.createElement('button');
+            navNavLeft.className = 'mobile-bar-panel-nav';
+            navNavLeft.setAttribute('data-bar-panel', '1');
+            navNavLeft.textContent = '\u2039'; // ‹
+            navInner.appendChild(navNavLeft);
 
             // Lobby button
             var lobbyBtn = document.createElement('button');
@@ -2057,6 +2076,23 @@
 
             // Swipe gesture
             initBarSwipe();
+
+            // Delegated click handler for panel-nav buttons
+            mobileBar.addEventListener('click', function(e) {
+                var target = e.target;
+                if (target.classList.contains('mobile-bar-panel-nav') && target.dataset.barPanel) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    mobileBarUserOverride = true;
+                    setBarPanel(parseInt(target.dataset.barPanel, 10));
+                }
+            });
+            mobileBar.addEventListener('touchstart', function(e) {
+                var target = e.target;
+                if (target.classList.contains('mobile-bar-panel-nav')) {
+                    e.stopPropagation(); // prevent swipe gesture
+                }
+            }, { passive: true });
 
             document.body.appendChild(mobileBar);
 
