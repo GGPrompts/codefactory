@@ -714,6 +714,15 @@
         var wrapper = document.createElement('div');
         wrapper.className = 'swipe-markdown-panel';
 
+        // Close button for mobile full-screen panel
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'swipe-panel-close-btn';
+        closeBtn.innerHTML = '&#x2715;';
+        closeBtn.title = 'Close panel';
+        closeBtn.addEventListener('click', function() {
+            SwipePanels.hidePanel('left');
+        });
+
         // Header with optional tabs
         if (hasRefPanel) {
             var tabBar = document.createElement('div');
@@ -736,11 +745,14 @@
             });
             tabBar.appendChild(refTab);
             tabBar.appendChild(termTab);
+            tabBar.appendChild(closeBtn);
             wrapper.appendChild(tabBar);
         } else {
             var header = document.createElement('div');
             header.className = 'swipe-markdown-header';
             header.textContent = 'TERMINAL OUTPUT';
+            header.style.position = 'relative';
+            header.appendChild(closeBtn);
             wrapper.appendChild(header);
         }
 

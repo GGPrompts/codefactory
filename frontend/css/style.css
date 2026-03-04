@@ -497,6 +497,7 @@ section.floor.powered-off .term-view-btn {
 /* ── Mobile Swipe Panel Tabs ── */
 .swipe-panel-tabs {
     display: flex;
+    position: relative;
     border-bottom: 1px solid var(--steel-mid);
     flex-shrink: 0;
 }
@@ -2274,6 +2275,12 @@ section.floor.powered-on .profile-edit-form {
     main.shaft {
         padding-bottom: 48px !important;
     }
+
+    /* Full-screen swipe panels on mobile */
+    .swipe-panel--left {
+        width: 100%;
+        border-right: none;
+    }
 }
 
 /* ── Mobile Elevator (inside right swipe panel, legacy) ── */
@@ -2304,6 +2311,30 @@ section.floor.powered-on .profile-edit-form {
     padding: 10px 8px;
     border-bottom: 1px solid var(--steel-mid);
     flex-shrink: 0;
+}
+
+/* Close button for full-screen swipe panels (mobile) */
+.swipe-panel-close-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    background: none;
+    border: 1px solid var(--steel-mid);
+    color: var(--steel-light);
+    font-size: 1rem;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.swipe-panel-close-btn:active {
+    background: var(--steel-dark);
+    color: var(--dirty-white);
 }
 
 .swipe-markdown-content {
