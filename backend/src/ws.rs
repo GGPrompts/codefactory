@@ -242,6 +242,7 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
     let mut session_closed = false;
     let mut spawned = false;
     let mut cached_writer: Option<Arc<Mutex<Box<dyn Write + Send>>>> = None;
+    let mut cached_input_tx: Option<std::sync::mpsc::Sender<Vec<u8>>> = None;
 
     while let Some(result) = ws_receiver.next().await {
         match result {
@@ -367,9 +368,10 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
 
                                 spawned = true;
 
-                                // Cache the writer Arc so input writes skip the
-                                // sessions map lookup on every keystroke.
+                                // Cache the writer Arc and input channel sender so
+                                // input writes skip the sessions map lookup on every keystroke.
                                 cached_writer = state.terminal_manager.get_writer(&floor_id).ok();
+                                cached_input_tx = state.terminal_manager.get_input_sender(&floor_id).ok();
 
                                 // Only send the initial command for truly new sessions.
                                 // On reattach the process is already running — re-sending
@@ -401,9 +403,14 @@ async fn handle_socket(socket: WebSocket, floor_id: String, state: Arc<AppState>
                                 }
                                 match base64::engine::general_purpose::STANDARD.decode(&data) {
                                     Ok(decoded) => {
-                                        if let Some(ref writer) = cached_writer {
-                                            // Use cached writer + spawn_blocking to avoid
-                                            // blocking the tokio worker thread on PTY write.
+                                        // Send to dedicated writer thread via channel —
+                                        // no spawn_blocking overhead per keystroke.
+                                        if let Some(ref input_tx) = cached_input_tx {
+                                            if let Err(e) = input_tx.send(decoded) {
+                                                warn!(floor_id = %floor_id, error = %e, "PTY input channel closed");
+                                            }
+                                        } else if let Some(ref writer) = cached_writer {
+                                            // Fallback: use cached writer directly
                                             let w = Arc::clone(writer);
                                             let input_floor_id = floor_id.clone();
                                             tokio::task::spawn_blocking(move || {

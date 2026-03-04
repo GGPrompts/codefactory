@@ -108,7 +108,7 @@ var CodeFactoryTerminals = (function() {
             allowTransparency: false,
             allowProposedApi: true,
             scrollback: 0,  // tmux manages scrollback
-            minimumContrastRatio: isMobile ? 1 : 4.5,
+            minimumContrastRatio: 1,  // Trust our theme colors; skip per-cell contrast recalculation
         });
 
         var FitAddonCtor = resolveAddon('FitAddon');
@@ -390,6 +390,8 @@ var CodeFactoryTerminals = (function() {
         , 'g');
         // Batch input: accumulate keystrokes for a few ms to reduce
         // per-keystroke WebSocket overhead (JSON + base64 + frame each way).
+        // Single-character interactive typing flushes immediately (0ms latency);
+        // multi-char data (pastes) batches briefly to coalesce into one frame.
         var inputBuf = '';
         var inputTimer = null;
         var INPUT_BATCH_MS = 8;
@@ -422,9 +424,16 @@ var CodeFactoryTerminals = (function() {
                 ? data
                 : data.replace(autoResponseRe, '');
             if (filtered.length === 0) return;
-            inputBuf += filtered;
-            if (!inputTimer) {
-                inputTimer = setTimeout(flushInput, INPUT_BATCH_MS);
+            // Single-char interactive typing: flush immediately for lowest latency.
+            // Multi-char data (paste, escape sequences): batch to coalesce frames.
+            if (filtered.length === 1 && !inputTimer) {
+                inputBuf += filtered;
+                flushInput();
+            } else {
+                inputBuf += filtered;
+                if (!inputTimer) {
+                    inputTimer = setTimeout(flushInput, INPUT_BATCH_MS);
+                }
             }
         });
 
@@ -657,10 +666,7 @@ var CodeFactoryTerminals = (function() {
                 case 'terminal-output':
                     try {
                         var decoded = atob(msg.data);
-                        var bytes = new Uint8Array(decoded.length);
-                        for (var i = 0; i < decoded.length; i++) {
-                            bytes[i] = decoded.charCodeAt(i);
-                        }
+                        var bytes = Uint8Array.from(decoded, function(c) { return c.charCodeAt(0); });
                         if (entry.outputGuarded) {
                             entry.outputBuffer.push(bytes);
                         } else if (entry.xterm.rows > 0 && entry.xterm.cols > 0) {

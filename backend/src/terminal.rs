@@ -22,6 +22,10 @@ struct TerminalSession {
     /// Writer has its own lock so input writes don't contend with
     /// spawn/resize/subscribe operations on the sessions map.
     pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
+    /// Channel for sending input data to the dedicated writer thread.
+    /// Avoids per-message `spawn_blocking` overhead — a single persistent
+    /// thread drains this channel and writes to the PTY.
+    input_tx: std::sync::mpsc::Sender<Vec<u8>>,
     /// Current output subscriber.  Set to Some(tx) when a WebSocket is
     /// connected, None when disconnected.  The persistent reader task
     /// checks this on every read and discards data when None.
@@ -289,10 +293,37 @@ impl TerminalManager {
             }
         });
 
+        // Dedicated writer thread: drains input channel and writes to PTY.
+        // Eliminates per-message `spawn_blocking` overhead in the WS handler.
+        let pty_writer = Arc::new(Mutex::new(writer));
+        let (input_tx, input_rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        let writer_clone = Arc::clone(&pty_writer);
+        let writer_floor_id = floor_id.to_string();
+        std::thread::Builder::new()
+            .name(format!("pty-writer-{floor_id}"))
+            .spawn(move || {
+                for data in input_rx {
+                    match writer_clone.lock() {
+                        Ok(mut w) => {
+                            if let Err(e) = w.write_all(&data) {
+                                warn!(floor_id = %writer_floor_id, error = %e, "PTY write error");
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            error!(floor_id = %writer_floor_id, error = %e, "Writer lock poisoned");
+                            break;
+                        }
+                    }
+                }
+            })
+            .expect("Failed to spawn PTY writer thread");
+
         let session = TerminalSession {
             tmux_session: tmux_session_name.clone(),
             pty_master: pair.master,
-            pty_writer: Arc::new(Mutex::new(writer)),
+            pty_writer,
+            input_tx,
             output_sink,
             reader_alive,
             cols,
@@ -389,6 +420,18 @@ impl TerminalManager {
         let mut writer = writer.lock().map_err(|e| anyhow!("Writer lock poisoned: {e}"))?;
         writer.write_all(data).context("Failed to write to PTY")?;
         Ok(())
+    }
+
+    /// Get the input channel sender for a given floor (for zero-overhead writes).
+    ///
+    /// The returned sender feeds a dedicated writer thread, avoiding
+    /// per-message `spawn_blocking` in the WebSocket handler.
+    pub fn get_input_sender(&self, floor_id: &str) -> Result<std::sync::mpsc::Sender<Vec<u8>>> {
+        let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
+        let session = sessions
+            .get(floor_id)
+            .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
+        Ok(session.input_tx.clone())
     }
 
     /// Resize the PTY for a given floor.

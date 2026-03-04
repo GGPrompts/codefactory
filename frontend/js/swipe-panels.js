@@ -77,6 +77,13 @@ var SwipePanels = (function () {
     function onTouchStart(e) {
         if (e.touches.length !== 1) return;
         var touch = e.touches[0];
+        // Ignore touches inside the mobile bottom bar — it has its own
+        // horizontal swipe system for switching between panels.
+        var mobileBar = document.getElementById('mobile-bar');
+        if (mobileBar && mobileBar.contains(e.target)) {
+            touchData = null;
+            return;
+        }
         // Check if touch started inside an open panel's content
         var insidePanel = false;
         if (openEdge && panels[openEdge]) {
