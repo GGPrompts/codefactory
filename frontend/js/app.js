@@ -2010,6 +2010,11 @@
                     // Trim and update button state
                     chatInput.textContent = (chatInput.textContent || '').trim();
                     updateSendButton();
+                    // Re-focus terminal so keyboard comes back
+                    var floorId = currentFloor ? currentFloor.replace('floor-', '') : null;
+                    if (floorId && floorId !== 'lobby' && typeof ExtraKeys !== 'undefined' && ExtraKeys.isTerminalFloor(currentFloor)) {
+                        CodeFactoryTerminals.focus(floorId);
+                    }
                 };
 
                 speechRecognition.onerror = function(event) {
@@ -2022,7 +2027,14 @@
                 isListening = true;
                 finalTranscript = '';
                 updateSendButton();
-                speechRecognition.start();
+                try {
+                    speechRecognition.start();
+                } catch (err) {
+                    console.warn('[Chat] Speech recognition failed to start:', err);
+                    isListening = false;
+                    speechRecognition = null;
+                    updateSendButton();
+                }
             }
 
             function stopSpeechRecognition() {
