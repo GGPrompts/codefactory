@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Configuration
-STATE_DIR="/tmp/claude-code-state"
+STATE_DIR="${TMPDIR:-/tmp}/claude-code-state"
 DEBUG_DIR="$STATE_DIR/debug"
 SUBAGENT_DIR="$STATE_DIR/subagents"
 mkdir -p "$STATE_DIR" "$DEBUG_DIR" "$SUBAGENT_DIR"

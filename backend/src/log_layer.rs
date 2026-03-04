@@ -61,7 +61,7 @@ impl<S: Subscriber> Layer<S> for LogBroadcastLayer {
         if let Ok(mut f) = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open("/tmp/codefactory.log")
+            .open(crate::tmp_dir().join("codefactory.log"))
         {
             let _ = f.write_all(line.as_bytes());
         }

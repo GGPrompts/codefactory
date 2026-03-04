@@ -22,6 +22,13 @@ use tracing::{info, warn};
 
 use serde::{Deserialize, Serialize};
 
+/// Returns the temp directory, respecting $TMPDIR (needed for Termux where /tmp is inaccessible).
+fn tmp_dir() -> std::path::PathBuf {
+    std::env::var("TMPDIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+}
+
 use config::ProfileConfig;
 use state::AppState;
 use ws::ServerMessage;
@@ -276,7 +283,7 @@ async fn get_session_status(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
     let claude_floors = claude_floor_ids(&state);
-    let state_dir = std::path::Path::new("/tmp/claude-code-state");
+    let state_dir = tmp_dir().join("claude-code-state");
     let mut statuses = Vec::new();
 
     // Scan all state files — they may be named by session hash, not floor ID.
@@ -554,7 +561,7 @@ fn emit_log_entry(state: &AppState, entry: ServerMessage) {
         if let Ok(mut f) = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open("/tmp/codefactory.log")
+            .open(tmp_dir().join("codefactory.log"))
         {
             let _ = f.write_all(line.as_bytes());
         }
@@ -874,9 +881,8 @@ fn claude_floor_ids(state: &AppState) -> Vec<String> {
 /// and broadcasts SessionStatus messages when state changes.
 async fn session_status_poller(state: Arc<AppState>) {
     use std::collections::HashMap;
-    use std::path::Path;
 
-    let state_dir = Path::new("/tmp/claude-code-state");
+    let state_dir = tmp_dir().join("claude-code-state");
     let mut last_states: HashMap<String, String> = HashMap::new();
 
     loop {

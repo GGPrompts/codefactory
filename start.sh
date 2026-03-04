@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
 # CodeFactory start script
 # Clears stale log file and launches the backend
 
@@ -13,9 +13,10 @@ if [ -n "$EXISTING" ]; then
 fi
 
 # Truncate old log (previous session entries are stale)
-> /tmp/codefactory.log
+LOG_FILE="${TMPDIR:-/tmp}/codefactory.log"
+> "$LOG_FILE"
 
-echo "Log cleared: /tmp/codefactory.log"
+echo "Log cleared: $LOG_FILE"
 echo "Starting CodeFactory backend on :3001..."
 
 echo "Building release binary..."
