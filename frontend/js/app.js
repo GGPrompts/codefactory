@@ -2209,13 +2209,11 @@
             ExtraKeys.setFloor(currentFloor);
         }
 
-        // Auto-switch panel unless user manually swiped
+        // Auto-switch panel only on first load; once the user manually
+        // swipes to a panel it stays put across floor changes.
         if (!mobileBarUserOverride) {
             autoSelectPanel();
         }
-
-        // Reset override on floor change so next navigation auto-selects
-        mobileBarUserOverride = false;
     }
 
     // Listen for viewport changes
