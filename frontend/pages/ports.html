@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ports</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header Bar ── */
+.pt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.pt-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  white-space: nowrap;
+}
+
+.pt-count-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+  color: var(--hazard-yellow);
+  border: 1px solid color-mix(in srgb, var(--hazard-yellow) 35%, transparent);
+}
+
+.pt-header-spacer {
+  flex: 1;
+}
+
+.pt-search {
+  width: 180px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  border-radius: 3px;
+  outline: none;
+  min-height: 40px;
+}
+
+.pt-search:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.pt-search::placeholder {
+  color: var(--steel-light);
+}
+
+.pt-header-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  min-height: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pt-header-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Table ── */
+.pt-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.pt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.pt-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.pt-table th {
+  background: var(--grime);
+  color: var(--brushed-steel);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--steel-mid);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pt-table th:hover {
+  color: var(--dirty-white);
+}
+
+.pt-table th.pt-sort-active {
+  color: var(--hazard-yellow);
+}
+
+.pt-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--steel-dark);
+  white-space: nowrap;
+}
+
+.pt-table tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.pt-table tbody tr:hover {
+  background: var(--steel-dark);
+}
+
+/* ── Highlighted (common) ports ── */
+.pt-highlight {
+  background: color-mix(in srgb, var(--hazard-yellow) 8%, transparent);
+}
+
+.pt-highlight:hover {
+  background: color-mix(in srgb, var(--hazard-yellow) 16%, transparent) !important;
+}
+
+.pt-port-cell {
+  font-weight: 600;
+  color: var(--bright-steel);
+}
+
+.pt-highlight .pt-port-cell {
+  color: var(--hazard-yellow);
+}
+
+.pt-pid-cell {
+  color: var(--steel-light);
+}
+
+.pt-process-cell {
+  color: var(--dirty-white);
+  font-weight: 600;
+}
+
+.pt-state-cell {
+  color: var(--safety-green);
+}
+
+.pt-proto-cell {
+  color: var(--brushed-steel);
+}
+
+/* ── Confirm Dialog ── */
+.pt-confirm-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.pt-confirm-overlay.pt-visible {
+  display: flex;
+}
+
+.pt-confirm-box {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 6px;
+  padding: 20px;
+  min-width: 280px;
+  max-width: 90vw;
+}
+
+.pt-confirm-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  margin-bottom: 12px;
+}
+
+.pt-confirm-msg {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--bright-steel);
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+.pt-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pt-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.pt-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.pt-btn-danger {
+  background: var(--caution-red);
+  border-color: var(--caution-red);
+}
+
+.pt-btn-danger:hover {
+  background: #e43c3c;
+  border-color: #e43c3c;
+  color: var(--dirty-white);
+}
+
+/* ── Toast ── */
+.pt-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10002;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.pt-toast.pt-toast-visible {
+  opacity: 1;
+}
+
+.pt-toast-success {
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  border: 1px solid #36a556;
+}
+
+.pt-toast-error {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border: 1px solid #e43c3c;
+}
+
+/* ── Loading ── */
+.pt-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 12px;
+  color: var(--brushed-steel);
+}
+
+.pt-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: pt-spin 0.6s linear infinite;
+}
+
+@keyframes pt-spin {
+  to { transform: rotate(360deg); }
+}
+
+.pt-empty {
+  padding: 20px;
+  color: var(--steel-light);
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .pt-header {
+    padding: 6px 8px;
+  }
+  .pt-search {
+    width: 100%;
+    order: 10;
+  }
+  .pt-table td, .pt-table th {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="pt-header">
+    <span class="pt-title">Listening Ports</span>
+    <span class="pt-count-badge" id="count-badge">--</span>
+    <span class="pt-header-spacer"></span>
+    <input class="pt-search" id="search-input" type="text" placeholder="Filter..." />
+    <button class="pt-header-btn" id="refresh-btn" title="Refresh">Refresh</button>
+  </div>
+
+  <div class="pt-scroll" id="main-scroll">
+    <div class="pt-loading" id="initial-loading">
+      <div class="pt-spinner"></div>
+      <span>Loading ports...</span>
+    </div>
+    <table class="pt-table" id="ports-table" style="display:none;">
+      <thead>
+        <tr>
+          <th id="sort-port" data-sort="port">Port</th>
+          <th id="sort-proto" data-sort="protocol">Proto</th>
+          <th id="sort-pid" data-sort="pid">PID</th>
+          <th id="sort-process" data-sort="process">Process</th>
+          <th id="sort-state" data-sort="state">State</th>
+        </tr>
+      </thead>
+      <tbody id="ports-body"></tbody>
+    </table>
+    <div class="pt-empty" id="empty-msg" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="pt-confirm-overlay" id="confirm-overlay">
+  <div class="pt-confirm-box">
+    <div class="pt-confirm-title" id="confirm-title">Confirm</div>
+    <div class="pt-confirm-msg" id="confirm-msg"></div>
+    <div class="pt-confirm-actions" id="confirm-actions"></div>
+  </div>
+</div>
+
+<div class="pt-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Common ports to highlight ──
+  var COMMON_PORTS = [22, 80, 443, 3000, 3001, 4000, 5000, 5173, 5432, 6379, 8000, 8080, 8443, 8888, 9090, 27017];
+
+  // ── State ──
+  var ports = [];
+  var filteredPorts = [];
+  var sortField = "port";
+  var sortAsc = true;
+  var refreshTimer = null;
+  var toastTimer = null;
+  var operating = false;
+
+  // ── DOM refs ──
+  var countBadge = document.getElementById("count-badge");
+  var searchInput = document.getElementById("search-input");
+  var refreshBtn = document.getElementById("refresh-btn");
+  var initialLoading = document.getElementById("initial-loading");
+  var portsTable = document.getElementById("ports-table");
+  var portsBody = document.getElementById("ports-body");
+  var emptyMsg = document.getElementById("empty-msg");
+  var confirmOverlay = document.getElementById("confirm-overlay");
+  var confirmTitle = document.getElementById("confirm-title");
+  var confirmMsg = document.getElementById("confirm-msg");
+  var confirmActions = document.getElementById("confirm-actions");
+  var toastEl = document.getElementById("toast");
+
+  var sortHeaders = {
+    port: document.getElementById("sort-port"),
+    protocol: document.getElementById("sort-proto"),
+    pid: document.getElementById("sort-pid"),
+    process: document.getElementById("sort-process"),
+    state: document.getElementById("sort-state")
+  };
+
+  // ── Helpers ──
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb("Invalid JSON"); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function xhrPost(url, body, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb(null, { success: true }); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send(body ? JSON.stringify(body) : "");
+  }
+
+  function showToast(msg, type) {
+    toastEl.textContent = msg;
+    toastEl.className = "pt-toast pt-toast-visible " + (type === "error" ? "pt-toast-error" : "pt-toast-success");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.className = "pt-toast";
+    }, 3000);
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+  }
+
+  function isCommonPort(port) {
+    return COMMON_PORTS.indexOf(port) !== -1;
+  }
+
+  // ── Sorting ──
+
+  function sortPorts(list) {
+    var field = sortField;
+    var asc = sortAsc;
+    var sorted = list.slice();
+    sorted.sort(function (a, b) {
+      var va, vb;
+      if (field === "port" || field === "pid") {
+        va = (field === "pid") ? (a.pid || 0) : a.port;
+        vb = (field === "pid") ? (b.pid || 0) : b.port;
+        return asc ? (va - vb) : (vb - va);
+      }
+      va = (a[field] || "").toLowerCase();
+      vb = (b[field] || "").toLowerCase();
+      if (va < vb) return asc ? -1 : 1;
+      if (va > vb) return asc ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }
+
+  function setSort(field) {
+    if (sortField === field) {
+      sortAsc = !sortAsc;
+    } else {
+      sortField = field;
+      sortAsc = (field === "port" || field === "pid");
+    }
+    updateSortHeaders();
+    applyFilterAndRender();
+  }
+
+  function updateSortHeaders() {
+    var keys = ["port", "protocol", "pid", "process", "state"];
+    var labels = { port: "Port", protocol: "Proto", pid: "PID", process: "Process", state: "State" };
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var arrow = "";
+      if (k === sortField) {
+        arrow = sortAsc ? " \u2191" : " \u2193";
+        sortHeaders[k].className = "pt-sort-active";
+      } else {
+        sortHeaders[k].className = "";
+      }
+      sortHeaders[k].textContent = labels[k] + arrow;
+    }
+  }
+
+  // ── Filtering ──
+
+  function applyFilterAndRender() {
+    var query = searchInput.value.trim().toLowerCase();
+    if (query) {
+      filteredPorts = ports.filter(function (p) {
+        return String(p.port).indexOf(query) !== -1 ||
+               (p.protocol || "").toLowerCase().indexOf(query) !== -1 ||
+               String(p.pid || "").indexOf(query) !== -1 ||
+               (p.process || "").toLowerCase().indexOf(query) !== -1 ||
+               (p.state || "").toLowerCase().indexOf(query) !== -1;
+      });
+    } else {
+      filteredPorts = ports.slice();
+    }
+    filteredPorts = sortPorts(filteredPorts);
+    renderTable();
+  }
+
+  // ── Rendering ──
+
+  function renderTable() {
+    portsBody.innerHTML = "";
+    countBadge.textContent = filteredPorts.length;
+
+    if (filteredPorts.length === 0) {
+      portsTable.style.display = "none";
+      emptyMsg.style.display = "block";
+      emptyMsg.textContent = ports.length === 0 ? "No listening ports found" : "No matches for filter";
+      return;
+    }
+
+    emptyMsg.style.display = "none";
+    portsTable.style.display = "";
+
+    for (var i = 0; i < filteredPorts.length; i++) {
+      portsBody.appendChild(buildRow(filteredPorts[i]));
+    }
+  }
+
+  function buildRow(entry) {
+    var tr = document.createElement("tr");
+    if (isCommonPort(entry.port)) {
+      tr.className = "pt-highlight";
+    }
+
+    var pidText = entry.pid != null ? String(entry.pid) : "-";
+    var processText = entry.process || "-";
+
+    tr.innerHTML =
+      '<td class="pt-port-cell">' + entry.port + '</td>' +
+      '<td class="pt-proto-cell">' + escapeHtml(entry.protocol) + '</td>' +
+      '<td class="pt-pid-cell">' + escapeHtml(pidText) + '</td>' +
+      '<td class="pt-process-cell">' + escapeHtml(processText) + '</td>' +
+      '<td class="pt-state-cell">' + escapeHtml(entry.state) + '</td>';
+
+    // Tap row to kill (if PID available)
+    if (entry.pid != null) {
+      tr.addEventListener("click", function () {
+        showKillConfirm(entry);
+      });
+    } else {
+      tr.style.cursor = "default";
+    }
+
+    return tr;
+  }
+
+  // ── Kill Confirmation ──
+
+  function showKillConfirm(entry) {
+    confirmTitle.textContent = "Kill Process";
+    confirmMsg.textContent = "Send TERM to " + (entry.process || "PID " + entry.pid) +
+      " (PID " + entry.pid + ") on port " + entry.port + "?";
+    confirmActions.innerHTML = "";
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.className = "pt-btn";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", function () {
+      closeConfirm();
+    });
+
+    var okBtn = document.createElement("button");
+    okBtn.className = "pt-btn pt-btn-danger";
+    okBtn.textContent = "Kill";
+    okBtn.addEventListener("click", function () {
+      closeConfirm();
+      doKill(entry);
+    });
+
+    confirmActions.appendChild(cancelBtn);
+    confirmActions.appendChild(okBtn);
+    confirmOverlay.classList.add("pt-visible");
+  }
+
+  function closeConfirm() {
+    confirmOverlay.classList.remove("pt-visible");
+  }
+
+  // ── Kill Action ──
+
+  function doKill(entry) {
+    if (operating) return;
+    operating = true;
+    xhrPost("/api/processes/kill", { pid: entry.pid, signal: "TERM" }, function (err) {
+      operating = false;
+      if (err) {
+        showToast("Kill failed: " + err, "error");
+      } else {
+        showToast("Sent TERM to " + (entry.process || "PID " + entry.pid) + " on port " + entry.port, "success");
+        setTimeout(function () { loadPorts(); }, 500);
+      }
+    });
+  }
+
+  // ── Load Ports ──
+
+  function loadPorts() {
+    xhrGet("/api/ports", function (err, data) {
+      initialLoading.style.display = "none";
+
+      if (err) {
+        showToast("Load failed: " + err, "error");
+        return;
+      }
+
+      ports = data.ports || [];
+      applyFilterAndRender();
+    });
+  }
+
+  // ── Auto Refresh ──
+
+  function startAutoRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(function () {
+      if (!operating) loadPorts();
+    }, 5000);
+  }
+
+  function stopAutoRefresh() {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+  }
+
+  // ── Event Bindings ──
+
+  refreshBtn.addEventListener("click", function () {
+    if (!operating) loadPorts();
+  });
+
+  searchInput.addEventListener("input", function () {
+    applyFilterAndRender();
+  });
+
+  // Sort header clicks
+  var sortKeys = ["port", "protocol", "pid", "process", "state"];
+  for (var i = 0; i < sortKeys.length; i++) {
+    (function (key) {
+      sortHeaders[key].addEventListener("click", function () {
+        setSort(key);
+      });
+    })(sortKeys[i]);
+  }
+
+  confirmOverlay.addEventListener("click", function (e) {
+    if (e.target === confirmOverlay) closeConfirm();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      if (confirmOverlay.classList.contains("pt-visible")) {
+        closeConfirm();
+      }
+    }
+  });
+
+  // Pause auto-refresh when page hidden, resume when visible
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      loadPorts();
+      startAutoRefresh();
+    }
+  });
+
+  // ── Init ──
+  updateSortHeaders();
+  loadPorts();
+  startAutoRefresh();
+
+})();
+</script>
+</body>
+</html>

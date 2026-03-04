@@ -131,6 +131,8 @@ async fn main() {
         // Process manager endpoints
         .route("/api/processes", get(processes_list))
         .route("/api/processes/kill", post(processes_kill))
+        // Ports endpoint
+        .route("/api/ports", get(ports_list))
         // Server control
         .route("/api/shutdown", post(shutdown_server))
         // Log system endpoints
@@ -3492,6 +3494,198 @@ async fn processes_kill(Json(body): Json<KillBody>) -> impl IntoResponse {
             Json(serde_json::json!({"error": format!("failed to run kill: {}", e)})),
         ),
     }
+}
+
+// ── Ports ───────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct PortEntry {
+    port: u16,
+    protocol: String,
+    pid: Option<u32>,
+    process: Option<String>,
+    state: String,
+}
+
+/// GET /api/ports — list listening ports with process info.
+/// Tries `ss -tlnp` first, falls back to `netstat -tlnp`.
+async fn ports_list() -> impl IntoResponse {
+    // Try ss first
+    let ss_result = tokio::process::Command::new("ss")
+        .args(["-tlnp"])
+        .output()
+        .await;
+
+    let (stdout, used_ss) = match ss_result {
+        Ok(o) if o.status.success() => (String::from_utf8_lossy(&o.stdout).to_string(), true),
+        _ => {
+            // Fallback to netstat
+            let netstat_result = tokio::process::Command::new("netstat")
+                .args(["-tlnp"])
+                .output()
+                .await;
+            match netstat_result {
+                Ok(o) if o.status.success() => {
+                    (String::from_utf8_lossy(&o.stdout).to_string(), false)
+                }
+                Ok(o) => {
+                    // netstat without -p (Termux may not support it)
+                    let netstat_nop = tokio::process::Command::new("netstat")
+                        .args(["-tln"])
+                        .output()
+                        .await;
+                    match netstat_nop {
+                        Ok(o2) if o2.status.success() => {
+                            (String::from_utf8_lossy(&o2.stdout).to_string(), false)
+                        }
+                        _ => {
+                            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(serde_json::json!({"error": format!("ss and netstat failed: {}", stderr)})),
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": format!("failed to run ss/netstat: {}", e)})),
+                    );
+                }
+            }
+        }
+    };
+
+    let mut ports = Vec::new();
+
+    for line in stdout.lines().skip(1) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        if used_ss {
+            // ss output: State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 5 {
+                continue;
+            }
+            let state = parts[0].to_string();
+            let local_addr = parts[3];
+
+            // Extract port from address (e.g., "0.0.0.0:3001" or "[::]:3001" or "*:3001")
+            let port = match extract_port(local_addr) {
+                Some(p) => p,
+                None => continue,
+            };
+
+            // Extract PID/process from "users:(("process",pid=123,fd=4))" if present
+            let (pid, process) = if parts.len() > 5 {
+                let process_info = parts[5..].join(" ");
+                extract_pid_process_ss(&process_info)
+            } else {
+                (None, None)
+            };
+
+            ports.push(PortEntry {
+                port,
+                protocol: "tcp".to_string(),
+                pid,
+                process,
+                state,
+            });
+        } else {
+            // netstat output: Proto Recv-Q Send-Q Local Address Foreign Address State PID/Program
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 6 {
+                continue;
+            }
+            let proto = parts[0].to_lowercase();
+            if !proto.starts_with("tcp") {
+                continue;
+            }
+            let local_addr = parts[3];
+            let state = parts[5].to_string();
+
+            let port = match extract_port(local_addr) {
+                Some(p) => p,
+                None => continue,
+            };
+
+            let (pid, process) = if parts.len() > 6 {
+                extract_pid_process_netstat(parts[6])
+            } else {
+                (None, None)
+            };
+
+            ports.push(PortEntry {
+                port,
+                protocol: proto,
+                pid,
+                process,
+                state,
+            });
+        }
+    }
+
+    // Sort by port number
+    ports.sort_by_key(|p| p.port);
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"ports": ports})),
+    )
+}
+
+/// Extract port number from address like "0.0.0.0:3001", "[::]:80", "*:443", ":::8080"
+fn extract_port(addr: &str) -> Option<u16> {
+    // Handle IPv6 bracket notation [::]:port
+    if let Some(bracket_pos) = addr.rfind("]:") {
+        return addr[bracket_pos + 2..].parse().ok();
+    }
+    // Handle :::port (IPv6 short form from netstat)
+    if addr.starts_with(":::") {
+        return addr[3..].parse().ok();
+    }
+    // Handle addr:port (last colon)
+    if let Some(colon_pos) = addr.rfind(':') {
+        return addr[colon_pos + 1..].parse().ok();
+    }
+    None
+}
+
+/// Parse ss process field like `users:(("node",pid=12345,fd=22))`
+fn extract_pid_process_ss(s: &str) -> (Option<u32>, Option<String>) {
+    // Look for pid=NNNN
+    let pid = s
+        .find("pid=")
+        .and_then(|i| {
+            let rest = &s[i + 4..];
+            let end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+            rest[..end].parse::<u32>().ok()
+        });
+
+    // Look for process name in (("name",...))
+    let process = s
+        .find("((\"")
+        .and_then(|i| {
+            let rest = &s[i + 3..];
+            rest.find('"').map(|end| rest[..end].to_string())
+        });
+
+    (pid, process)
+}
+
+/// Parse netstat PID/program field like "12345/node" or "-"
+fn extract_pid_process_netstat(s: &str) -> (Option<u32>, Option<String>) {
+    if s == "-" || s == "-/" {
+        return (None, None);
+    }
+    let parts: Vec<&str> = s.splitn(2, '/').collect();
+    let pid = parts.first().and_then(|p| p.parse::<u32>().ok());
+    let process = parts.get(1).map(|p| p.to_string());
+    (pid, process)
 }
 
 /// Wait for Ctrl+C to trigger graceful shutdown.
