@@ -250,8 +250,9 @@
     }
 
     function buildPageFloorHTML(floorId, profile, name, icon) {
+        var builtinClass = isBuiltinPage(profile) ? ' builtin-page-floor' : '';
         return '' +
-            '<section class="floor powered-off" id="floor-' + floorId + '" data-page="' + escapeAttr(profile.page) + '">' +
+            '<section class="floor powered-off' + builtinClass + '" id="floor-' + floorId + '" data-page="' + escapeAttr(profile.page) + '">' +
                 '<div class="elevator-doors">' +
                     '<div class="door door-left"></div>' +
                     '<div class="door door-right"></div>' +
@@ -974,6 +975,34 @@
             }
         }
         return -1;
+    }
+
+    /**
+     * Check if a profile is a built-in page floor (page field points to
+     * frontend/pages/* or is a bare name without slashes/URLs).
+     * External URLs (http:/https:) and absolute/~ paths outside frontend/pages
+     * are NOT considered built-in.
+     */
+    function isBuiltinPage(profile) {
+        if (!profile.page) return false;
+        var page = profile.page;
+        // External URLs are not built-in
+        if (/^https?:\/\//.test(page)) return false;
+        // Absolute or ~-prefixed paths: only built-in if under frontend/pages/
+        if (page.charAt(0) === '/' || page.charAt(0) === '~') {
+            return page.indexOf('frontend/pages/') !== -1;
+        }
+        // Bare names (no slashes) are built-in page references
+        return true;
+    }
+
+    /**
+     * Get all enabled profiles that are built-in pages, for the pages hub.
+     */
+    function getBuiltinPageProfiles() {
+        return profiles.filter(function(p) {
+            return p.enabled !== false && isBuiltinPage(p);
+        });
     }
 
     // ==============================================================
@@ -1894,6 +1923,8 @@
     var mobileBarPanel = 0;          // 0 = keys, 1 = nav
     var mobileBarUserOverride = false; // user swiped manually
     var mobileMediaQuery = window.matchMedia('(max-width: 768px)');
+    var pagesHubEl = null;           // pages hub floor section (mobile only)
+    var pagesHubActiveTab = null;    // currently active tab profile id
 
     function setupMobileBar() {
         var isMobile = mobileMediaQuery.matches;
@@ -2134,10 +2165,19 @@
             if (currentFloor === 'lobby') lobbyBtn.classList.add('active');
             navInner.appendChild(lobbyBtn);
 
-            // Floor buttons (lowest first)
+            // Floor buttons (lowest first) — skip built-in pages on mobile
+            var builtinPages = getBuiltinPageProfiles();
+            var builtinFloorIds = {};
+            builtinPages.forEach(function(p) {
+                builtinFloorIds['floor-' + p.id] = true;
+            });
+            var hasHub = builtinPages.length > 0;
+
             var desktopBtns = elevatorButtons.querySelectorAll('.floor-btn');
             for (var i = desktopBtns.length - 1; i >= 0; i--) {
                 var srcBtn = desktopBtns[i];
+                // Skip built-in page floors — they go in the hub
+                if (builtinFloorIds[srcBtn.dataset.target]) continue;
                 var btn = document.createElement('button');
                 btn.className = 'mobile-bar-btn';
                 btn.setAttribute('data-target', srcBtn.dataset.target);
@@ -2145,6 +2185,17 @@
                 btn.innerHTML = srcBtn.innerHTML;
                 if (srcBtn.dataset.target === currentFloor) btn.classList.add('active');
                 navInner.appendChild(btn);
+            }
+
+            // Pages hub button (consolidates all built-in page floors)
+            if (hasHub) {
+                var hubBtn = document.createElement('button');
+                hubBtn.className = 'mobile-bar-btn mobile-bar-btn-hub';
+                hubBtn.setAttribute('data-target', 'floor-pages-hub');
+                hubBtn.setAttribute('data-label', 'Pages');
+                hubBtn.textContent = '\uD83D\uDCC4'; // 📄
+                if (currentFloor === 'floor-pages-hub') hubBtn.classList.add('active');
+                navInner.appendChild(hubBtn);
             }
 
             navPanel.appendChild(navInner);
@@ -2225,6 +2276,11 @@
 
             document.body.appendChild(mobileBar);
 
+            // Create pages hub floor (mobile only)
+            if (hasHub) {
+                createPagesHub(builtinPages);
+            }
+
             // Set initial panel based on context
             mobileBarUserOverride = false;
             autoSelectPanel();
@@ -2239,7 +2295,127 @@
             mobileBar = null;
             mobileBarTrack = null;
             mobileBarDots = null;
+            removePagesHub();
         }
+    }
+
+    // ==============================================================
+    // PAGES HUB (mobile-only consolidated page floor)
+    // ==============================================================
+    function createPagesHub(builtinPages) {
+        removePagesHub(); // clean up any existing hub
+
+        pagesHubEl = document.createElement('section');
+        pagesHubEl.className = 'floor powered-on pages-hub-floor';
+        pagesHubEl.id = 'floor-pages-hub';
+
+        var html = '' +
+            '<div class="floor-frame">' +
+                '<div class="pages-hub-tabbar">';
+
+        for (var i = 0; i < builtinPages.length; i++) {
+            var p = builtinPages[i];
+            var tabIcon = p.icon ? escapeHtml(p.icon) + ' ' : '';
+            var tabName = escapeHtml(p.name || p.id);
+            var activeClass = (i === 0) ? ' active' : '';
+            html += '<button class="pages-hub-tab' + activeClass + '" data-hub-page-id="' + escapeAttr(p.id) + '">' +
+                        tabIcon + tabName +
+                    '</button>';
+        }
+
+        html += '</div>' +
+                '<div class="pages-hub-content" id="pages-hub-content"></div>' +
+            '</div>';
+
+        pagesHubEl.innerHTML = html;
+
+        // Insert before lobby so it sits at the bottom of the floors
+        var lobbyEl = document.getElementById('lobby');
+        if (lobbyEl) {
+            lobbyEl.parentNode.insertBefore(pagesHubEl, lobbyEl);
+        } else {
+            floorsContainer.appendChild(pagesHubEl);
+        }
+
+        // Register in floor tracking
+        floorLabels['floor-pages-hub'] = '\uD83D\uDCC4';
+        floorRank['floor-pages-hub'] = 0.5; // between lobby and first floor
+
+        // Observe for active floor detection
+        if (activeFloorObserver) {
+            activeFloorObserver.observe(pagesHubEl);
+        }
+
+        // Attach tab click handlers
+        var tabs = pagesHubEl.querySelectorAll('.pages-hub-tab');
+        for (var j = 0; j < tabs.length; j++) {
+            tabs[j].addEventListener('click', (function(tab) {
+                return function() {
+                    var pageId = tab.getAttribute('data-hub-page-id');
+                    activateHubTab(pageId);
+                };
+            })(tabs[j]));
+        }
+
+        // Auto-load first tab
+        if (builtinPages.length > 0) {
+            activateHubTab(builtinPages[0].id);
+        }
+    }
+
+    function removePagesHub() {
+        if (pagesHubEl) {
+            if (activeFloorObserver) {
+                activeFloorObserver.unobserve(pagesHubEl);
+            }
+            pagesHubEl.remove();
+            pagesHubEl = null;
+            pagesHubActiveTab = null;
+            delete floorLabels['floor-pages-hub'];
+            delete floorRank['floor-pages-hub'];
+            delete floorRatios['floor-pages-hub'];
+        }
+    }
+
+    function activateHubTab(pageId) {
+        if (!pagesHubEl) return;
+        var profile = findProfile(pageId);
+        if (!profile) return;
+
+        pagesHubActiveTab = pageId;
+
+        // Update tab active state
+        var tabs = pagesHubEl.querySelectorAll('.pages-hub-tab');
+        for (var i = 0; i < tabs.length; i++) {
+            tabs[i].classList.toggle('active', tabs[i].getAttribute('data-hub-page-id') === pageId);
+        }
+
+        // Swap iframe
+        var container = document.getElementById('pages-hub-content');
+        if (!container) return;
+
+        var pageUrl = resolvePanelUrl(profile.page);
+        var pageCwd = profile.cwd || defaultCwd || '';
+        if (pageCwd) {
+            pageUrl += (pageUrl.indexOf('?') === -1 ? '?' : '&') + 'path=' + encodeURIComponent(pageCwd);
+        }
+
+        // Reuse existing iframe if same URL, otherwise create new
+        var existing = container.querySelector('iframe');
+        if (existing && existing.getAttribute('data-hub-page-id') === pageId) {
+            return; // already showing this page
+        }
+
+        container.innerHTML = '';
+        var iframe = document.createElement('iframe');
+        iframe.className = 'pages-hub-iframe';
+        iframe.src = pageUrl;
+        iframe.setAttribute('data-hub-page-id', pageId);
+        iframe.setAttribute('frameborder', '0');
+        container.appendChild(iframe);
+        injectIframeTheme(iframe);
+
+        console.log('[PagesHub] Activated tab: ' + profile.name + ' (' + profile.page + ')');
     }
 
     function setBarPanel(index) {

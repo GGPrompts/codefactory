@@ -2672,3 +2672,102 @@ section.floor.powered-on .profile-edit-form {
     .profile-actions { flex-direction: column; gap: 8px; }
     .profile-card { padding: 20px 12px; }
 }
+
+/* ==============================================================
+   PAGES HUB (mobile-only consolidated page floor)
+   ============================================================== */
+
+/* Hide built-in page floors on mobile — they live in the hub */
+@media (max-width: 768px) {
+    section.floor.builtin-page-floor {
+        display: none !important;
+    }
+    /* Also hide shaft walls adjacent to hidden page floors */
+    section.floor.builtin-page-floor + .shaft-wall {
+        display: none !important;
+    }
+}
+
+/* Hub floor layout */
+.pages-hub-floor {
+    display: none; /* hidden on desktop by default */
+}
+
+@media (max-width: 768px) {
+    .pages-hub-floor {
+        display: block;
+        min-height: var(--vvh);
+        padding: 0;
+        background: var(--iron-black);
+    }
+
+    .pages-hub-floor .floor-frame {
+        display: flex;
+        flex-direction: column;
+        height: calc(var(--vvh) - 48px); /* subtract mobile bar height */
+        max-width: 100%;
+        margin: 0;
+    }
+}
+
+/* Tab bar */
+.pages-hub-tabbar {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    background: var(--steel-dark);
+    border-bottom: 2px solid var(--steel-mid);
+    flex-shrink: 0;
+}
+
+.pages-hub-tabbar::-webkit-scrollbar {
+    display: none;
+}
+
+.pages-hub-tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    font-family: var(--font-heading);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--steel-light);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.pages-hub-tab:active {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.pages-hub-tab.active {
+    color: var(--hazard-yellow);
+    border-bottom-color: var(--hazard-yellow);
+}
+
+/* Content area */
+.pages-hub-content {
+    flex: 1 1 0;
+    min-height: 0;
+    position: relative;
+}
+
+.pages-hub-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+/* Hub nav button style in mobile bar */
+.mobile-bar-btn-hub {
+    border-style: dashed;
+}
