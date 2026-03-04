@@ -110,6 +110,7 @@ async fn main() {
         .route("/api/files/rename", post(files_rename))
         .route("/api/files/delete", post(files_delete))
         .route("/api/files/create", post(files_create))
+        .route("/api/files/diff", get(files_diff))
         // Search endpoints
         .route("/api/search", get(search_query))
         .route("/api/search/replace", post(search_replace))
@@ -127,6 +128,9 @@ async fn main() {
         .route("/api/termux/brightness", post(termux_brightness))
         .route("/api/termux/torch", post(termux_torch))
         .route("/api/termux/tts", post(termux_tts))
+        // Process manager endpoints
+        .route("/api/processes", get(processes_list))
+        .route("/api/processes/kill", post(processes_kill))
         // Server control
         .route("/api/shutdown", post(shutdown_server))
         // Log system endpoints
@@ -2378,6 +2382,93 @@ async fn files_create(
     )
 }
 
+/// GET /api/files/diff?path=&a=&b=
+/// Diff two arbitrary files using `diff -u`. `path` is base directory, `a` and `b` are file paths
+/// (absolute or relative to `path`).
+#[derive(Deserialize)]
+struct FilesDiffParams {
+    path: Option<String>,
+    a: Option<String>,
+    b: Option<String>,
+}
+
+async fn files_diff(Query(params): Query<FilesDiffParams>) -> impl IntoResponse {
+    let file_a = match params.a {
+        Some(ref a) if !a.is_empty() => a.clone(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "a parameter required"})),
+            );
+        }
+    };
+
+    let file_b = match params.b {
+        Some(ref b) if !b.is_empty() => b.clone(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "b parameter required"})),
+            );
+        }
+    };
+
+    let base = params.path.unwrap_or_else(|| "~".to_string());
+    let expanded_base = expand_path(&base);
+    let base_path = std::path::PathBuf::from(&expanded_base);
+
+    // Resolve file paths (absolute or relative to base)
+    let resolve = |f: &str| -> String {
+        let p = std::path::PathBuf::from(f);
+        if p.is_absolute() {
+            f.to_string()
+        } else {
+            base_path.join(f).to_string_lossy().to_string()
+        }
+    };
+
+    let path_a = resolve(&file_a);
+    let path_b = resolve(&file_b);
+
+    // Verify both files exist
+    if tokio::fs::metadata(&path_a).await.is_err() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": format!("File not found: {}", file_a)})),
+        );
+    }
+    if tokio::fs::metadata(&path_b).await.is_err() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": format!("File not found: {}", file_b)})),
+        );
+    }
+
+    let output = tokio::process::Command::new("diff")
+        .args(&["-u", &path_a, &path_b])
+        .output()
+        .await;
+
+    match output {
+        Ok(o) => {
+            // diff returns exit code 1 when files differ (not an error)
+            let diff_text = String::from_utf8_lossy(&o.stdout).to_string();
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "diff": diff_text,
+                    "a": path_a,
+                    "b": path_b,
+                })),
+            )
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("diff command failed: {}", e)})),
+        ),
+    }
+}
+
 // ── Search API Endpoints ──────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -3270,6 +3361,135 @@ async fn notes_delete(
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": format!("failed to delete note: {}", e)})),
+        ),
+    }
+}
+
+// ── Process Manager ──────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ProcessEntry {
+    pid: u32,
+    user: String,
+    cpu: f32,
+    mem: f32,
+    command: String,
+    name: String,
+}
+
+/// GET /api/processes — list running processes with CPU/MEM info.
+async fn processes_list() -> impl IntoResponse {
+    let output = tokio::process::Command::new("ps")
+        .args(["-eo", "pid,user,pcpu,pmem,args"])
+        .output()
+        .await;
+
+    match output {
+        Ok(o) if o.status.success() => {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            let mut processes = Vec::new();
+
+            for line in stdout.lines().skip(1) {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+                // Parse: PID USER %CPU %MEM COMMAND...
+                let parts: Vec<&str> = line.splitn(5, char::is_whitespace).collect();
+                // Filter empty parts from extra whitespace
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() < 5 {
+                    continue;
+                }
+                let pid = match parts[0].parse::<u32>() {
+                    Ok(p) => p,
+                    Err(_) => continue,
+                };
+                let user = parts[1].to_string();
+                let cpu = parts[2].parse::<f32>().unwrap_or(0.0);
+                let mem = parts[3].parse::<f32>().unwrap_or(0.0);
+                let command = parts[4..].join(" ");
+                // Extract short name from command (first path component's basename)
+                let name = command
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+
+                processes.push(ProcessEntry {
+                    pid,
+                    user,
+                    cpu,
+                    mem,
+                    command,
+                    name,
+                });
+            }
+
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"processes": processes})),
+            )
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("ps failed: {}", stderr)})),
+            )
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to run ps: {}", e)})),
+        ),
+    }
+}
+
+#[derive(Deserialize)]
+struct KillBody {
+    pid: u32,
+    signal: Option<String>,
+}
+
+/// POST /api/processes/kill — send signal to a process.
+async fn processes_kill(Json(body): Json<KillBody>) -> impl IntoResponse {
+    let sig = match body.signal.as_deref() {
+        Some("KILL") | Some("9") => "KILL",
+        _ => "TERM",
+    };
+
+    // Safety: refuse to kill PID 1 or our own process
+    let my_pid = std::process::id();
+    if body.pid == 1 || body.pid == my_pid {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "refusing to kill protected process"})),
+        );
+    }
+
+    let output = tokio::process::Command::new("kill")
+        .args([&format!("-{}", sig), &body.pid.to_string()])
+        .output()
+        .await;
+
+    match output {
+        Ok(o) if o.status.success() => (
+            StatusCode::OK,
+            Json(serde_json::json!({"status": "ok", "pid": body.pid, "signal": sig})),
+        ),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("kill failed: {}", stderr.trim())})),
+            )
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to run kill: {}", e)})),
         ),
     }
 }

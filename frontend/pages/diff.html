@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diff Viewer</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dv-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px;
+}
+
+/* ── Header Bar ── */
+.dv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.dv-header-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--hazard-yellow);
+}
+
+.dv-header-spacer { flex: 1; }
+
+.dv-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dv-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.dv-btn-active {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Mode Tabs ── */
+.dv-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+.dv-tab {
+  background: transparent;
+  border: 1px solid var(--steel-mid);
+  color: var(--brushed-steel);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 5px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  min-height: 36px;
+}
+
+.dv-tab:hover { color: var(--dirty-white); border-color: var(--steel-light); }
+
+.dv-tab-active {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+  font-weight: 700;
+}
+
+/* ── File Compare Inputs ── */
+.dv-compare-bar {
+  display: none;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.dv-compare-bar.visible { display: flex; }
+
+.dv-compare-bar label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--brushed-steel);
+  white-space: nowrap;
+}
+
+.dv-compare-bar input {
+  flex: 1;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  min-width: 0;
+}
+
+.dv-compare-bar input:focus {
+  outline: none;
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Summary ── */
+.dv-summary {
+  padding: 6px 12px;
+  background: var(--steel-dark);
+  border-bottom: 1px solid var(--steel-mid);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--brushed-steel);
+  flex-shrink: 0;
+}
+
+.dv-summary-added { color: #4ade80; }
+.dv-summary-removed { color: #f87171; }
+
+/* ── File Section ── */
+.dv-file-section {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.dv-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dv-file-header:hover { background: color-mix(in srgb, var(--grime) 80%, var(--hazard-yellow) 20%); }
+
+.dv-file-chevron {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--steel-light);
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.dv-file-chevron.collapsed { transform: rotate(-90deg); }
+
+.dv-file-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--bright-steel);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-file-stats {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  display: flex;
+  gap: 8px;
+}
+
+.dv-file-stats-add { color: #4ade80; }
+.dv-file-stats-del { color: #f87171; }
+
+.dv-file-body {
+  overflow-x: auto;
+}
+
+.dv-file-body.collapsed { display: none; }
+
+/* ── Diff Table ── */
+.dv-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dv-diff-table td {
+  padding: 0 8px;
+  white-space: pre;
+  vertical-align: top;
+}
+
+.dv-diff-table .dv-ln {
+  width: 1px;
+  text-align: right;
+  color: var(--steel-light);
+  user-select: none;
+  padding: 0 6px;
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 11px;
+}
+
+.dv-diff-table .dv-ln:hover {
+  opacity: 1;
+  color: var(--hazard-yellow);
+}
+
+.dv-diff-table .dv-content {
+  width: 100%;
+}
+
+/* Diff line types */
+.dv-line-add {
+  background: color-mix(in srgb, var(--safety-green) 15%, transparent);
+}
+
+.dv-line-add .dv-content { color: #86efac; }
+
+.dv-line-del {
+  background: color-mix(in srgb, var(--caution-red) 15%, transparent);
+}
+
+.dv-line-del .dv-content { color: #fca5a5; }
+
+.dv-line-hunk {
+  background: color-mix(in srgb, var(--hazard-yellow) 8%, transparent);
+}
+
+.dv-line-hunk .dv-content {
+  color: var(--hazard-yellow);
+  font-style: italic;
+}
+
+.dv-line-ctx .dv-content { color: var(--brushed-steel); }
+
+/* ── Toast ── */
+.dv-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--steel-dark);
+  border: 1px solid var(--hazard-yellow);
+  color: var(--hazard-yellow);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 999;
+}
+
+.dv-toast.visible { opacity: 1; }
+
+/* ── Loading / Empty ── */
+.dv-loading {
+  text-align: center;
+  padding: 40px 20px;
+  font-family: var(--font-mono);
+  color: var(--steel-light);
+  font-size: 13px;
+}
+
+.dv-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--steel-light);
+  font-size: 14px;
+}
+
+.dv-error {
+  text-align: center;
+  padding: 20px;
+  color: var(--caution-red);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="dv-header">
+    <span class="dv-header-title">Diff Viewer</span>
+    <div class="dv-header-spacer"></div>
+    <button class="dv-btn" id="refresh-btn">Refresh</button>
+  </div>
+
+  <div class="dv-tabs">
+    <button class="dv-tab dv-tab-active" id="tab-uncommitted">Uncommitted</button>
+    <button class="dv-tab" id="tab-staged">vs HEAD</button>
+    <button class="dv-tab" id="tab-compare">Compare Files</button>
+  </div>
+
+  <div class="dv-compare-bar" id="compare-bar">
+    <label>A:</label>
+    <input type="text" id="compare-a" placeholder="path/to/file-a">
+    <label>B:</label>
+    <input type="text" id="compare-b" placeholder="path/to/file-b">
+    <button class="dv-btn" id="compare-btn">Diff</button>
+  </div>
+
+  <div class="dv-summary" id="summary"></div>
+
+  <div class="dv-scroll" id="diff-container">
+    <div class="dv-loading" id="loading">Loading changes...</div>
+  </div>
+</div>
+
+<div class="dv-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var repoPath = params.get("path") || "";
+  var currentMode = "uncommitted"; // "uncommitted", "staged", "compare"
+  var toastTimer = null;
+
+  // ── DOM refs ──
+  var refreshBtn = document.getElementById("refresh-btn");
+  var tabUncommitted = document.getElementById("tab-uncommitted");
+  var tabStaged = document.getElementById("tab-staged");
+  var tabCompare = document.getElementById("tab-compare");
+  var compareBar = document.getElementById("compare-bar");
+  var compareA = document.getElementById("compare-a");
+  var compareB = document.getElementById("compare-b");
+  var compareBtn = document.getElementById("compare-btn");
+  var summaryEl = document.getElementById("summary");
+  var container = document.getElementById("diff-container");
+  var loadingEl = document.getElementById("loading");
+  var toastEl = document.getElementById("toast");
+
+  // ── Helpers ──
+
+  function apiUrl(endpoint) {
+    return endpoint + (endpoint.indexOf("?") === -1 ? "?" : "&") + "path=" + encodeURIComponent(repoPath);
+  }
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          cb(null, JSON.parse(xhr.responseText));
+        } catch (e) {
+          cb(null, xhr.responseText);
+        }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) {
+          cb("HTTP " + xhr.status);
+        }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function xhrGetText(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        cb(null, xhr.responseText);
+      } else {
+        cb("HTTP " + xhr.status);
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("visible");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove("visible");
+    }, 2000);
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ── Diff Parsing ──
+
+  function parseDiffOutput(raw) {
+    var files = [];
+    var lines = raw.split("\n");
+    var current = null;
+    var i = 0;
+
+    while (i < lines.length) {
+      var line = lines[i];
+
+      // New file diff header
+      if (line.indexOf("diff --git") === 0 || line.indexOf("diff -u") === 0) {
+        if (current) files.push(current);
+        current = { name: "", lines: [], added: 0, removed: 0 };
+        i++;
+        continue;
+      }
+
+      // Extract filename from --- or +++ lines
+      if (current && line.indexOf("--- ") === 0) {
+        i++;
+        continue;
+      }
+      if (current && line.indexOf("+++ ") === 0) {
+        var fname = line.substring(4);
+        if (fname.indexOf("b/") === 0) fname = fname.substring(2);
+        current.name = fname;
+        i++;
+        continue;
+      }
+
+      // Hunk header
+      if (current && line.indexOf("@@") === 0) {
+        current.lines.push({ type: "hunk", text: line, oldLn: null, newLn: null });
+        // Parse starting line numbers
+        var match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        if (match) {
+          current._oldLn = parseInt(match[1], 10);
+          current._newLn = parseInt(match[2], 10);
+        }
+        i++;
+        continue;
+      }
+
+      if (current) {
+        if (line.indexOf("+") === 0 && line.indexOf("+++") !== 0) {
+          current.lines.push({
+            type: "add",
+            text: line.substring(1),
+            oldLn: null,
+            newLn: current._newLn || null
+          });
+          if (current._newLn) current._newLn++;
+          current.added++;
+        } else if (line.indexOf("-") === 0 && line.indexOf("---") !== 0) {
+          current.lines.push({
+            type: "del",
+            text: line.substring(1),
+            oldLn: current._oldLn || null,
+            newLn: null
+          });
+          if (current._oldLn) current._oldLn++;
+          current.removed++;
+        } else if (line.indexOf(" ") === 0 || line === "") {
+          current.lines.push({
+            type: "ctx",
+            text: line.substring(1),
+            oldLn: current._oldLn || null,
+            newLn: current._newLn || null
+          });
+          if (current._oldLn) current._oldLn++;
+          if (current._newLn) current._newLn++;
+        }
+      }
+
+      i++;
+    }
+
+    if (current) files.push(current);
+    return files;
+  }
+
+  // ── Rendering ──
+
+  function renderFiles(files) {
+    container.innerHTML = "";
+    summaryEl.textContent = "";
+
+    if (files.length === 0) {
+      container.innerHTML = '<div class="dv-empty">No changes found</div>';
+      return;
+    }
+
+    var totalAdded = 0;
+    var totalRemoved = 0;
+    var totalFiles = files.length;
+
+    files.forEach(function (file) {
+      totalAdded += file.added;
+      totalRemoved += file.removed;
+    });
+
+    summaryEl.innerHTML =
+      totalFiles + " file" + (totalFiles !== 1 ? "s" : "") + " changed, " +
+      '<span class="dv-summary-added">+' + totalAdded + "</span> " +
+      '<span class="dv-summary-removed">-' + totalRemoved + "</span>";
+
+    files.forEach(function (file, idx) {
+      var section = document.createElement("div");
+      section.className = "dv-file-section";
+
+      // Header
+      var header = document.createElement("div");
+      header.className = "dv-file-header";
+      header.innerHTML =
+        '<span class="dv-file-chevron" id="chevron-' + idx + '">&#9660;</span>' +
+        '<span class="dv-file-name">' + escapeHtml(file.name || "(unknown)") + "</span>" +
+        '<span class="dv-file-stats">' +
+        '<span class="dv-file-stats-add">+' + file.added + "</span>" +
+        '<span class="dv-file-stats-del">-' + file.removed + "</span>" +
+        "</span>";
+
+      var body = document.createElement("div");
+      body.className = "dv-file-body";
+      body.id = "body-" + idx;
+
+      // Toggle collapse
+      header.addEventListener("click", (function (bodyEl, chevronId) {
+        return function () {
+          bodyEl.classList.toggle("collapsed");
+          var chev = document.getElementById(chevronId);
+          if (chev) chev.classList.toggle("collapsed");
+        };
+      })(body, "chevron-" + idx));
+
+      // Diff table
+      var table = document.createElement("table");
+      table.className = "dv-diff-table";
+
+      file.lines.forEach(function (ln) {
+        var tr = document.createElement("tr");
+        var cls = "";
+        if (ln.type === "add") cls = "dv-line-add";
+        else if (ln.type === "del") cls = "dv-line-del";
+        else if (ln.type === "hunk") cls = "dv-line-hunk";
+        else cls = "dv-line-ctx";
+        tr.className = cls;
+
+        if (ln.type === "hunk") {
+          var tdHunk = document.createElement("td");
+          tdHunk.className = "dv-ln";
+          tdHunk.textContent = "...";
+          var tdHunk2 = document.createElement("td");
+          tdHunk2.className = "dv-ln";
+          tdHunk2.textContent = "...";
+          var tdContent = document.createElement("td");
+          tdContent.className = "dv-content";
+          tdContent.textContent = ln.text;
+          tr.appendChild(tdHunk);
+          tr.appendChild(tdHunk2);
+          tr.appendChild(tdContent);
+        } else {
+          var tdOld = document.createElement("td");
+          tdOld.className = "dv-ln";
+          tdOld.textContent = ln.oldLn != null ? ln.oldLn : "";
+          var tdNew = document.createElement("td");
+          tdNew.className = "dv-ln";
+          tdNew.textContent = ln.newLn != null ? ln.newLn : "";
+          var tdCode = document.createElement("td");
+          tdCode.className = "dv-content";
+          tdCode.textContent = ln.text;
+          tr.appendChild(tdOld);
+          tr.appendChild(tdNew);
+          tr.appendChild(tdCode);
+
+          // Tap line number to copy line
+          (function (lineText, oldTd, newTd) {
+            var handler = function () {
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(lineText).then(function () {
+                  showToast("Line copied");
+                });
+              }
+            };
+            oldTd.addEventListener("click", handler);
+            newTd.addEventListener("click", handler);
+          })(ln.text, tdOld, tdNew);
+        }
+
+        table.appendChild(tr);
+      });
+
+      body.appendChild(table);
+      section.appendChild(header);
+      section.appendChild(body);
+      container.appendChild(section);
+    });
+  }
+
+  // ── Data Fetching ──
+
+  function loadUncommitted() {
+    container.innerHTML = '<div class="dv-loading">Loading uncommitted changes...</div>';
+    summaryEl.textContent = "";
+
+    // Get git diff (unstaged working tree changes)
+    var url = apiUrl("/api/git/diff");
+    xhrGet(url, function (err, data) {
+      if (err) {
+        container.innerHTML = '<div class="dv-error">' + escapeHtml(String(err)) + "</div>";
+        return;
+      }
+      var diffText = "";
+      if (typeof data === "string") {
+        diffText = data;
+      } else if (data && data.data && data.data.diff) {
+        diffText = data.data.diff;
+      } else if (data && data.diff) {
+        diffText = data.diff;
+      }
+      var files = parseDiffOutput(diffText);
+
+      // Also get untracked files from status
+      xhrGet(apiUrl("/api/git/status"), function (err2, status) {
+        if (!err2 && status && status.untracked) {
+          if (status.untracked.length > 0 && files.length === 0) {
+            container.innerHTML = '<div class="dv-empty">' +
+              "No modified file diffs. " + status.untracked.length + " untracked file(s) present." +
+              "</div>";
+            summaryEl.textContent = status.untracked.length + " untracked file(s)";
+            return;
+          }
+        }
+        renderFiles(files);
+      });
+    });
+  }
+
+  function loadStaged() {
+    container.innerHTML = '<div class="dv-loading">Loading staged changes...</div>';
+    summaryEl.textContent = "";
+
+    // git diff HEAD shows all uncommitted changes (staged + unstaged) vs HEAD
+    var url = apiUrl("/api/git/diff") + "&base=HEAD";
+    xhrGet(url, function (err, data) {
+      if (err) {
+        container.innerHTML = '<div class="dv-error">' + escapeHtml(String(err)) + "</div>";
+        return;
+      }
+      var diffText = "";
+      if (typeof data === "string") {
+        diffText = data;
+      } else if (data && data.data && data.data.diff) {
+        diffText = data.data.diff;
+      } else if (data && data.diff) {
+        diffText = data.diff;
+      }
+      var files = parseDiffOutput(diffText);
+      renderFiles(files);
+    });
+  }
+
+  function loadCompare() {
+    var a = compareA.value.trim();
+    var b = compareB.value.trim();
+
+    if (!a || !b) {
+      container.innerHTML = '<div class="dv-empty">Enter two file paths to compare</div>';
+      summaryEl.textContent = "";
+      return;
+    }
+
+    container.innerHTML = '<div class="dv-loading">Comparing files...</div>';
+    summaryEl.textContent = "";
+
+    var url = "/api/files/diff?path=" + encodeURIComponent(repoPath) +
+      "&a=" + encodeURIComponent(a) +
+      "&b=" + encodeURIComponent(b);
+
+    xhrGet(url, function (err, data) {
+      if (err) {
+        container.innerHTML = '<div class="dv-error">' + escapeHtml(String(err)) + "</div>";
+        return;
+      }
+      var diffText = data.diff || "";
+      if (!diffText) {
+        container.innerHTML = '<div class="dv-empty">Files are identical</div>';
+        return;
+      }
+      var files = parseDiffOutput(diffText);
+      renderFiles(files);
+    });
+  }
+
+  // ── Tab Switching ──
+
+  function setMode(mode) {
+    currentMode = mode;
+    tabUncommitted.className = "dv-tab" + (mode === "uncommitted" ? " dv-tab-active" : "");
+    tabStaged.className = "dv-tab" + (mode === "staged" ? " dv-tab-active" : "");
+    tabCompare.className = "dv-tab" + (mode === "compare" ? " dv-tab-active" : "");
+
+    if (mode === "compare") {
+      compareBar.classList.add("visible");
+    } else {
+      compareBar.classList.remove("visible");
+    }
+
+    if (mode === "uncommitted") loadUncommitted();
+    else if (mode === "staged") loadStaged();
+    else {
+      container.innerHTML = '<div class="dv-empty">Enter two file paths to compare</div>';
+      summaryEl.textContent = "";
+    }
+  }
+
+  // ── Event Bindings ──
+
+  tabUncommitted.addEventListener("click", function () { setMode("uncommitted"); });
+  tabStaged.addEventListener("click", function () { setMode("staged"); });
+  tabCompare.addEventListener("click", function () { setMode("compare"); });
+  compareBtn.addEventListener("click", function () { loadCompare(); });
+  refreshBtn.addEventListener("click", function () { setMode(currentMode); });
+
+  compareA.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") loadCompare();
+  });
+  compareB.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") loadCompare();
+  });
+
+  // ── Init ──
+  setMode("uncommitted");
+
+})();
+</script>
+</body>
+</html>
