@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notes</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --oil-black: #0D0F10;
+  --carbon: #252829;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header Bar ── */
+.np-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.np-title {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+}
+
+.np-header-spacer { flex: 1; }
+
+.np-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.np-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.np-btn-danger:hover {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border-color: var(--caution-red);
+}
+
+.np-btn-active {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Content area ── */
+.np-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+/* ── Note list ── */
+.np-note-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.np-note-item:hover {
+  border-color: var(--hazard-yellow);
+  background: var(--grime);
+}
+
+.np-note-title {
+  flex: 1;
+  font-family: var(--font-heading);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: var(--dirty-white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-note-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--steel-light);
+  white-space: nowrap;
+}
+
+.np-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--steel-light);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ── Editor ── */
+.np-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.np-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.np-editor-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--hazard-yellow);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-textarea {
+  flex: 1;
+  width: 100%;
+  background: var(--oil-black);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  tab-size: 2;
+}
+
+.np-textarea::placeholder {
+  color: var(--steel-mid);
+}
+
+/* ── Preview (markdown rendered) ── */
+.np-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* Industrial prose styles (scoped to .np-prose) */
+.np-prose {
+  font-family: 'Rajdhani', 'Arial', sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--dirty-white);
+}
+
+.np-prose h1 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 1.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--hazard-yellow);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.2;
+}
+
+.np-prose h2 {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dirty-white);
+  border-bottom: 4px solid var(--rust-mid);
+  padding-bottom: 0.5rem;
+  margin: 1.5rem 0 0.75rem 0;
+  position: relative;
+}
+
+.np-prose h2::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: var(--hazard-yellow);
+}
+
+.np-prose h3, .np-prose h4 {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dirty-white);
+  margin: 1.25rem 0 0.5rem 0;
+}
+
+.np-prose p { margin: 0 0 0.75rem 0; }
+
+.np-prose blockquote {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  padding: 1rem;
+  margin: 1rem 0;
+  background: var(--carbon);
+  color: var(--dirty-white);
+  border: 2px solid var(--steel-mid);
+  border-left: 4px solid var(--hazard-yellow);
+}
+
+.np-prose pre {
+  background: var(--oil-black);
+  border: 2px solid var(--steel-mid);
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.np-prose pre code {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--dirty-white);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+.np-prose :not(pre) > code {
+  background: var(--oil-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--hazard-yellow);
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.np-prose a {
+  color: var(--hazard-yellow);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--steel-mid);
+}
+
+.np-prose a:hover {
+  border-bottom-style: solid;
+}
+
+.np-prose ul, .np-prose ol {
+  color: var(--brushed-steel);
+  padding-left: 1.5rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.np-prose li { margin-bottom: 0.35rem; }
+.np-prose li::marker { color: var(--rust-light); }
+
+.np-prose strong { color: var(--dirty-white); font-weight: 700; }
+.np-prose em { color: var(--rust-accent); font-style: italic; }
+
+.np-prose hr {
+  border: none;
+  height: 4px;
+  background: var(--steel-dark);
+  margin: 1.5rem 0;
+}
+
+.np-prose table {
+  width: 100%;
+  background: var(--carbon);
+  border: 2px solid var(--steel-mid);
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+}
+
+.np-prose th {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--hazard-yellow);
+  border-bottom: 2px solid var(--rust-mid);
+  background: var(--steel-dark);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.np-prose td {
+  border-bottom: 1px solid var(--steel-mid);
+  padding: 0.5rem 0.75rem;
+}
+
+/* ── Toast ── */
+.np-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.np-toast.visible {
+  opacity: 1;
+}
+
+.np-toast.success {
+  background: color-mix(in srgb, var(--safety-green) 90%, black);
+  color: #4ade80;
+  border: 1px solid var(--safety-green);
+}
+
+.np-toast.error {
+  background: color-mix(in srgb, var(--caution-red) 90%, black);
+  color: #f87171;
+  border: 1px solid var(--caution-red);
+}
+
+/* ── Confirm dialog ── */
+.np-confirm-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.np-confirm-box {
+  background: var(--steel-dark);
+  border: 2px solid var(--hazard-yellow);
+  border-radius: 4px;
+  padding: 20px;
+  max-width: 320px;
+  width: 90%;
+  text-align: center;
+}
+
+.np-confirm-msg {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  margin-bottom: 16px;
+  color: var(--dirty-white);
+}
+
+.np-confirm-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* ── New note prompt ── */
+.np-prompt-input {
+  background: var(--oil-black);
+  border: 2px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  width: 100%;
+  margin-bottom: 12px;
+  outline: none;
+  border-radius: 3px;
+}
+
+.np-prompt-input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Saved indicator ── */
+.np-saved-indicator {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--safety-green);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.np-saved-indicator.visible {
+  opacity: 1;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <div class="np-header">
+    <span class="np-title" id="page-title">Notes</span>
+    <div class="np-header-spacer"></div>
+    <span class="np-saved-indicator" id="saved-indicator">SAVED</span>
+    <button class="np-btn" id="back-btn" style="display:none;">Back</button>
+    <button class="np-btn" id="toggle-btn" style="display:none;">View</button>
+    <button class="np-btn np-btn-danger" id="delete-btn" style="display:none;">Del</button>
+    <button class="np-btn" id="save-btn" style="display:none;">Save</button>
+    <button class="np-btn" id="new-btn">+ New</button>
+  </div>
+
+  <!-- Content -->
+  <div class="np-content" id="content-area">
+    <div class="np-empty" id="initial-loading">Loading...</div>
+  </div>
+</div>
+
+<div class="np-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var workPath = params.get("path") || "";
+  var currentNote = null; // {name, content}
+  var editMode = true; // true = edit, false = preview
+  var dirty = false;
+  var toastTimer = null;
+  var saveTimer = null;
+
+  // ── DOM refs ──
+  var pageTitle = document.getElementById("page-title");
+  var contentArea = document.getElementById("content-area");
+  var initialLoading = document.getElementById("initial-loading");
+  var backBtn = document.getElementById("back-btn");
+  var toggleBtn = document.getElementById("toggle-btn");
+  var deleteBtn = document.getElementById("delete-btn");
+  var saveBtn = document.getElementById("save-btn");
+  var newBtn = document.getElementById("new-btn");
+  var savedIndicator = document.getElementById("saved-indicator");
+  var toast = document.getElementById("toast");
+
+  // ── Helpers ──
+
+  function apiUrl(endpoint) {
+    return endpoint + (endpoint.indexOf("?") === -1 ? "?" : "&") + "path=" + encodeURIComponent(workPath);
+  }
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          cb(null, JSON.parse(xhr.responseText));
+        } catch (e) {
+          cb("Invalid JSON response");
+        }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) {
+          cb("HTTP " + xhr.status);
+        }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function xhrPost(url, body, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          cb(null, JSON.parse(xhr.responseText));
+        } catch (e) {
+          cb(null, {});
+        }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) {
+          cb("HTTP " + xhr.status);
+        }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send(body ? JSON.stringify(body) : null);
+  }
+
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = "np-toast visible " + (type || "success");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toast.className = "np-toast";
+    }, 2500);
+  }
+
+  function formatDate(unixSecs) {
+    if (!unixSecs) return "";
+    var d = new Date(unixSecs * 1000);
+    var now = new Date();
+    var diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (diff < 60) return "just now";
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+    if (diff < 604800) return Math.floor(diff / 86400) + "d ago";
+    var month = d.toLocaleString("en", { month: "short" });
+    return month + " " + d.getDate();
+  }
+
+  function flashSaved() {
+    savedIndicator.classList.add("visible");
+    setTimeout(function () {
+      savedIndicator.classList.remove("visible");
+    }, 1500);
+  }
+
+  // ── Simple markdown to HTML ──
+  function renderMarkdown(src) {
+    var html = src;
+
+    // Fenced code blocks
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (m, lang, code) {
+      return '<pre><code>' + escapeHtml(code.replace(/\n$/, '')) + '</code></pre>';
+    });
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Headings
+    html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+
+    // Horizontal rules
+    html = html.replace(/^---+$/gm, '<hr>');
+
+    // Bold / italic
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // Blockquotes
+    html = html.replace(/^>\s+(.+)$/gm, '<blockquote><p>$1</p></blockquote>');
+
+    // Unordered lists
+    html = html.replace(/^[\-\*]\s+(.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
+    // Collapse consecutive <ul> tags
+    html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+    // Paragraphs: wrap remaining standalone lines
+    html = html.replace(/^(?!<[a-z])((?!<\/)[^\n]+)$/gm, '<p>$1</p>');
+
+    return html;
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Confirm dialog ──
+  function showConfirm(msg, cb) {
+    var overlay = document.createElement("div");
+    overlay.className = "np-confirm-overlay";
+    overlay.innerHTML =
+      '<div class="np-confirm-box">' +
+        '<div class="np-confirm-msg">' + escapeHtml(msg) + '</div>' +
+        '<div class="np-confirm-buttons">' +
+          '<button class="np-btn np-btn-danger" id="confirm-yes">Delete</button>' +
+          '<button class="np-btn" id="confirm-no">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById("confirm-yes").addEventListener("click", function () {
+      document.body.removeChild(overlay);
+      cb(true);
+    });
+    document.getElementById("confirm-no").addEventListener("click", function () {
+      document.body.removeChild(overlay);
+      cb(false);
+    });
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+        cb(false);
+      }
+    });
+  }
+
+  // ── New note prompt ──
+  function showNewNotePrompt() {
+    var overlay = document.createElement("div");
+    overlay.className = "np-confirm-overlay";
+    overlay.innerHTML =
+      '<div class="np-confirm-box">' +
+        '<div class="np-confirm-msg">New Note</div>' +
+        '<input class="np-prompt-input" id="note-title-input" placeholder="Note title..." autofocus>' +
+        '<div class="np-confirm-buttons">' +
+          '<button class="np-btn np-btn-active" id="prompt-create">Create</button>' +
+          '<button class="np-btn" id="prompt-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var input = document.getElementById("note-title-input");
+    setTimeout(function () { input.focus(); }, 50);
+
+    function doCreate() {
+      var title = input.value.trim();
+      if (!title) return;
+      document.body.removeChild(overlay);
+      createNote(title);
+    }
+
+    document.getElementById("prompt-create").addEventListener("click", doCreate);
+    document.getElementById("prompt-cancel").addEventListener("click", function () {
+      document.body.removeChild(overlay);
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doCreate();
+      if (e.key === "Escape") document.body.removeChild(overlay);
+    });
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+  }
+
+  // ── Views ──
+
+  function showListView() {
+    currentNote = null;
+    dirty = false;
+    editMode = true;
+    backBtn.style.display = "none";
+    toggleBtn.style.display = "none";
+    deleteBtn.style.display = "none";
+    saveBtn.style.display = "none";
+    newBtn.style.display = "";
+    pageTitle.textContent = "Notes";
+    loadNotes();
+  }
+
+  function showEditorView(name, content) {
+    currentNote = { name: name, content: content };
+    dirty = false;
+    editMode = true;
+    backBtn.style.display = "";
+    toggleBtn.style.display = "";
+    deleteBtn.style.display = "";
+    saveBtn.style.display = "";
+    newBtn.style.display = "none";
+    toggleBtn.textContent = "View";
+
+    var displayName = name.replace(/\.md$/, "");
+    pageTitle.textContent = displayName;
+
+    renderEditor();
+  }
+
+  function renderEditor() {
+    if (editMode) {
+      contentArea.innerHTML =
+        '<div class="np-editor">' +
+          '<textarea class="np-textarea" id="note-textarea" placeholder="Write your note...">' +
+          escapeHtml(currentNote.content) +
+          '</textarea>' +
+        '</div>';
+
+      var textarea = document.getElementById("note-textarea");
+      textarea.addEventListener("input", function () {
+        currentNote.content = textarea.value;
+        dirty = true;
+        // Auto-save after 1.5s of inactivity
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () {
+          saveCurrentNote();
+        }, 1500);
+      });
+      textarea.addEventListener("blur", function () {
+        if (dirty) saveCurrentNote();
+      });
+      // Handle tab key for indentation
+      textarea.addEventListener("keydown", function (e) {
+        if (e.key === "Tab") {
+          e.preventDefault();
+          var start = textarea.selectionStart;
+          var end = textarea.selectionEnd;
+          textarea.value = textarea.value.substring(0, start) + "  " + textarea.value.substring(end);
+          textarea.selectionStart = textarea.selectionEnd = start + 2;
+          currentNote.content = textarea.value;
+          dirty = true;
+        }
+      });
+      textarea.focus();
+    } else {
+      var html = renderMarkdown(currentNote.content);
+      contentArea.innerHTML =
+        '<div class="np-preview">' +
+          '<div class="np-prose">' + html + '</div>' +
+        '</div>';
+    }
+  }
+
+  function toggleView() {
+    if (!currentNote) return;
+    if (editMode && dirty) {
+      saveCurrentNote();
+    }
+    editMode = !editMode;
+    toggleBtn.textContent = editMode ? "View" : "Edit";
+    renderEditor();
+  }
+
+  // ── API calls ──
+
+  function loadNotes() {
+    contentArea.innerHTML = '<div class="np-empty">Loading...</div>';
+    xhrGet(apiUrl("/api/notes/list"), function (err, data) {
+      if (err) {
+        contentArea.innerHTML = '<div class="np-empty" style="color:var(--caution-red)">Error: ' + escapeHtml(err) + '</div>';
+        return;
+      }
+      var notes = data.notes || [];
+      if (notes.length === 0) {
+        contentArea.innerHTML = '<div class="np-empty">No notes yet. Tap "+ New" to create one.</div>';
+        return;
+      }
+
+      var html = "";
+      notes.forEach(function (note) {
+        html +=
+          '<div class="np-note-item" data-name="' + escapeHtml(note.name) + '">' +
+            '<span class="np-note-title">' + escapeHtml(note.title) + '</span>' +
+            '<span class="np-note-date">' + formatDate(note.modified) + '</span>' +
+          '</div>';
+      });
+      contentArea.innerHTML = html;
+
+      // Click handlers
+      var items = contentArea.querySelectorAll(".np-note-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].addEventListener("click", function () {
+          var name = this.getAttribute("data-name");
+          openNote(name);
+        });
+      }
+    });
+  }
+
+  function openNote(name) {
+    contentArea.innerHTML = '<div class="np-empty">Loading...</div>';
+    xhrGet(apiUrl("/api/notes/read") + "&name=" + encodeURIComponent(name), function (err, data) {
+      if (err) {
+        showToast("Failed to open note: " + err, "error");
+        showListView();
+        return;
+      }
+      showEditorView(data.name, data.content);
+    });
+  }
+
+  function createNote(title) {
+    var content = "# " + title + "\n\n";
+    xhrPost(apiUrl("/api/notes/save"), { name: title, content: content }, function (err, data) {
+      if (err) {
+        showToast("Failed to create note: " + err, "error");
+        return;
+      }
+      showToast("Note created", "success");
+      openNote(data.name);
+    });
+  }
+
+  function saveCurrentNote() {
+    if (!currentNote || !dirty) return;
+    dirty = false;
+    xhrPost(apiUrl("/api/notes/save"), { name: currentNote.name, content: currentNote.content }, function (err) {
+      if (err) {
+        showToast("Save failed: " + err, "error");
+        dirty = true;
+        return;
+      }
+      flashSaved();
+    });
+  }
+
+  function deleteCurrentNote() {
+    if (!currentNote) return;
+    showConfirm("Delete \"" + currentNote.name.replace(/\.md$/, "") + "\"?", function (yes) {
+      if (!yes) return;
+      xhrPost(apiUrl("/api/notes/delete"), { name: currentNote.name }, function (err) {
+        if (err) {
+          showToast("Delete failed: " + err, "error");
+          return;
+        }
+        showToast("Note deleted", "success");
+        showListView();
+      });
+    });
+  }
+
+  // ── Event Bindings ──
+  backBtn.addEventListener("click", function () {
+    if (dirty) saveCurrentNote();
+    showListView();
+  });
+
+  toggleBtn.addEventListener("click", toggleView);
+  deleteBtn.addEventListener("click", deleteCurrentNote);
+  saveBtn.addEventListener("click", function () {
+    if (currentNote && dirty) {
+      saveCurrentNote();
+      showToast("Saved", "success");
+    }
+  });
+  newBtn.addEventListener("click", showNewNotePrompt);
+
+  // ── Init ──
+  if (!workPath) {
+    initialLoading.innerHTML = '<span style="color:var(--caution-red)">No path provided (use ?path=)</span>';
+  } else {
+    showListView();
+  }
+})();
+</script>
+</body>
+</html>

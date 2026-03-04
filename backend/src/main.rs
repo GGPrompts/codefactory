@@ -113,6 +113,11 @@ async fn main() {
         // Search endpoints
         .route("/api/search", get(search_query))
         .route("/api/search/replace", post(search_replace))
+        // Notes endpoints
+        .route("/api/notes/list", get(notes_list))
+        .route("/api/notes/read", get(notes_read))
+        .route("/api/notes/save", post(notes_save))
+        .route("/api/notes/delete", post(notes_delete))
         // Terminal capture endpoint
         .route("/api/terminal/{session}/capture", get(terminal_capture))
         // Termux API endpoints
@@ -2971,6 +2976,301 @@ async fn termux_tts(Json(body): Json<TtsBody>) -> impl IntoResponse {
                 )
             }
         }
+    }
+}
+
+// ── Notes API ────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct NotesQueryParams {
+    path: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct NotesSaveBody {
+    name: String,
+    content: String,
+}
+
+#[derive(Deserialize)]
+struct NotesDeleteBody {
+    name: String,
+}
+
+/// Derive a filesystem-safe slug from a working directory path.
+fn workdir_slug(path: &str) -> String {
+    let expanded = expand_path(path);
+    expanded
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string()
+}
+
+/// Resolve the notes directory for a given workdir path. Creates it if needed.
+fn notes_dir_for(path: &str) -> Result<std::path::PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+    let slug = workdir_slug(path);
+    if slug.is_empty() {
+        return Err("invalid path".to_string());
+    }
+    let dir = std::path::PathBuf::from(home)
+        .join(".codefactory")
+        .join("notes")
+        .join(&slug);
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("failed to create notes dir: {}", e))?;
+    }
+    Ok(dir)
+}
+
+/// Sanitize a note name to prevent path traversal. Returns the slug with .md extension.
+fn sanitize_note_name(name: &str) -> Result<String, String> {
+    let name = name.trim();
+    let base = name.strip_suffix(".md").unwrap_or(name);
+    if base.is_empty() {
+        return Err("note name is empty".to_string());
+    }
+    let slug: String = base
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<&str>>()
+        .join("-");
+    if slug.is_empty() {
+        return Err("note name is invalid".to_string());
+    }
+    Ok(format!("{}.md", slug))
+}
+
+/// GET /api/notes/list?path= — list notes for a workdir
+async fn notes_list(Query(params): Query<NotesQueryParams>) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            );
+        }
+    };
+
+    let dir = match notes_dir_for(&raw_path) {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e})),
+            );
+        }
+    };
+
+    let mut notes: Vec<serde_json::Value> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            let file_name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+            let content = std::fs::read_to_string(&path).unwrap_or_default();
+            let title = content
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim_start_matches('#')
+                .trim()
+                .to_string();
+            let modified = path
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+
+            notes.push(serde_json::json!({
+                "name": file_name,
+                "title": if title.is_empty() { file_name.trim_end_matches(".md").to_string() } else { title },
+                "modified": modified,
+            }));
+        }
+    }
+
+    notes.sort_by(|a, b| {
+        let am = a["modified"].as_u64().unwrap_or(0);
+        let bm = b["modified"].as_u64().unwrap_or(0);
+        bm.cmp(&am)
+    });
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"notes": notes})),
+    )
+}
+
+/// GET /api/notes/read?path=&name= — read a note's content
+async fn notes_read(Query(params): Query<NotesQueryParams>) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            );
+        }
+    };
+    let raw_name = match params.name {
+        Some(n) if !n.is_empty() => n,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "name parameter required"})),
+            );
+        }
+    };
+
+    let dir = match notes_dir_for(&raw_path) {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e})),
+            );
+        }
+    };
+
+    let safe_name = match sanitize_note_name(&raw_name) {
+        Ok(n) => n,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": e})),
+            );
+        }
+    };
+
+    let file_path = dir.join(&safe_name);
+    match std::fs::read_to_string(&file_path) {
+        Ok(content) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"name": safe_name, "content": content})),
+        ),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "note not found"})),
+        ),
+    }
+}
+
+/// POST /api/notes/save?path= — body: {name, content}
+async fn notes_save(
+    Query(params): Query<NotesQueryParams>,
+    Json(body): Json<NotesSaveBody>,
+) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            );
+        }
+    };
+
+    let dir = match notes_dir_for(&raw_path) {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e})),
+            );
+        }
+    };
+
+    let safe_name = match sanitize_note_name(&body.name) {
+        Ok(n) => n,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": e})),
+            );
+        }
+    };
+
+    let file_path = dir.join(&safe_name);
+    match std::fs::write(&file_path, &body.content) {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"status": "ok", "name": safe_name})),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to write note: {}", e)})),
+        ),
+    }
+}
+
+/// POST /api/notes/delete?path= — body: {name}
+async fn notes_delete(
+    Query(params): Query<NotesQueryParams>,
+    Json(body): Json<NotesDeleteBody>,
+) -> impl IntoResponse {
+    let raw_path = match params.path {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "path parameter required"})),
+            );
+        }
+    };
+
+    let dir = match notes_dir_for(&raw_path) {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e})),
+            );
+        }
+    };
+
+    let safe_name = match sanitize_note_name(&body.name) {
+        Ok(n) => n,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": e})),
+            );
+        }
+    };
+
+    let file_path = dir.join(&safe_name);
+    if !file_path.exists() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "note not found"})),
+        );
+    }
+
+    match std::fs::remove_file(&file_path) {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"status": "ok"})),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to delete note: {}", e)})),
+        ),
     }
 }
 
