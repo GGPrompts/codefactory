@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snippets</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sn-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px;
+}
+
+/* ── Header Bar ── */
+.sn-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.sn-title {
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  white-space: nowrap;
+}
+
+.sn-search {
+  flex: 1;
+  min-width: 120px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  outline: none;
+  min-height: 44px;
+}
+
+.sn-search:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.sn-search::placeholder {
+  color: var(--steel-light);
+}
+
+.sn-header-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Buttons ── */
+.sn-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.sn-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.sn-btn-primary {
+  background: var(--safety-green);
+  border-color: var(--safety-green);
+}
+
+.sn-btn-primary:hover {
+  background: #36a556;
+  border-color: #36a556;
+  color: var(--dirty-white);
+}
+
+.sn-btn-warn {
+  background: var(--rust-mid);
+  border-color: var(--rust-mid);
+}
+
+.sn-btn-warn:hover {
+  background: var(--rust-light);
+  border-color: var(--rust-light);
+  color: var(--dirty-white);
+}
+
+.sn-btn-small {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+/* ── Category Filter ── */
+.sn-categories {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sn-cat-btn {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  color: var(--brushed-steel);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sn-cat-btn:hover {
+  border-color: var(--hazard-yellow);
+  color: var(--dirty-white);
+}
+
+.sn-cat-btn.active {
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+  border-color: var(--hazard-yellow);
+  color: var(--hazard-yellow);
+}
+
+/* ── Target Floor Selector ── */
+.sn-target-bar {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--steel-dark);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.sn-target-label {
+  font-size: 11px;
+  color: var(--brushed-steel);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.sn-target-select {
+  flex: 1;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  outline: none;
+  min-height: 36px;
+}
+
+.sn-target-select:focus {
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Snippet Card ── */
+.sn-card {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.sn-card:hover {
+  border-color: var(--steel-light);
+}
+
+.sn-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.sn-card-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bright-steel);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sn-card-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+  color: var(--hazard-yellow);
+  border: 1px solid color-mix(in srgb, var(--hazard-yellow) 35%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.sn-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sn-card-preview {
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--brushed-steel);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 80px;
+  overflow: hidden;
+  background: var(--iron-black);
+  border-top: 1px solid color-mix(in srgb, var(--steel-mid) 50%, transparent);
+  cursor: pointer;
+}
+
+.sn-card-preview:hover {
+  color: var(--dirty-white);
+}
+
+/* ── Empty State ── */
+.sn-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--steel-light);
+  font-size: 14px;
+}
+
+.sn-empty-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--steel-mid);
+}
+
+/* ── Modal / Form Overlay ── */
+.sn-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.sn-overlay.hidden {
+  display: none;
+}
+
+.sn-form {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 4px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.sn-form-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+}
+
+.sn-form-header-spacer {
+  flex: 1;
+}
+
+.sn-form-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sn-form-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--brushed-steel);
+  margin-bottom: 4px;
+}
+
+.sn-form-input {
+  width: 100%;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  outline: none;
+  min-height: 44px;
+}
+
+.sn-form-input:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.sn-form-textarea {
+  width: 100%;
+  min-height: 120px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px;
+  border-radius: 3px;
+  outline: none;
+  resize: vertical;
+}
+
+.sn-form-textarea:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.sn-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+/* ── Toast ── */
+.sn-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.sn-toast.visible {
+  opacity: 1;
+}
+
+.sn-toast-success {
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  border: 1px solid #36a556;
+}
+
+.sn-toast-error {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border: 1px solid #e43c3c;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .sn-header {
+    padding: 6px 8px;
+  }
+
+  .sn-scroll {
+    padding: 8px;
+  }
+
+  .sn-card-header {
+    padding: 8px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="sn-header">
+    <span class="sn-title">Snippets</span>
+    <input type="text" class="sn-search" id="search-input" placeholder="Search snippets...">
+    <button class="sn-btn sn-btn-primary" id="add-btn">+ Add</button>
+  </div>
+
+  <div class="sn-categories" id="category-bar">
+    <span class="sn-target-label">Filter:</span>
+    <button class="sn-cat-btn active" data-cat="all">All</button>
+  </div>
+
+  <div class="sn-target-bar">
+    <span class="sn-target-label">Send to:</span>
+    <select class="sn-target-select" id="target-select">
+      <option value="">Clipboard only</option>
+    </select>
+  </div>
+
+  <div class="sn-scroll" id="snippet-list"></div>
+</div>
+
+<div class="sn-overlay hidden" id="form-overlay">
+  <div class="sn-form">
+    <div class="sn-form-header">
+      <span id="form-title">Add Snippet</span>
+      <span class="sn-form-header-spacer"></span>
+      <button class="sn-btn sn-btn-small" id="form-close-btn">X</button>
+    </div>
+    <div class="sn-form-body">
+      <div>
+        <div class="sn-form-label">Title</div>
+        <input type="text" class="sn-form-input" id="form-name" placeholder="Snippet name">
+      </div>
+      <div>
+        <div class="sn-form-label">Category</div>
+        <input type="text" class="sn-form-input" id="form-category" placeholder="e.g. git, cargo, misc">
+      </div>
+      <div>
+        <div class="sn-form-label">Content</div>
+        <textarea class="sn-form-textarea" id="form-content" placeholder="Command or text snippet..."></textarea>
+      </div>
+      <div class="sn-form-actions">
+        <button class="sn-btn" id="form-cancel-btn">Cancel</button>
+        <button class="sn-btn sn-btn-primary" id="form-save-btn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sn-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "cf-snippets";
+  var toastTimer = null;
+  var editingId = null;
+  var activeCategory = "all";
+  var wsConnections = {};
+
+  // ── DOM refs ──
+  var searchInput = document.getElementById("search-input");
+  var addBtn = document.getElementById("add-btn");
+  var categoryBar = document.getElementById("category-bar");
+  var targetSelect = document.getElementById("target-select");
+  var snippetList = document.getElementById("snippet-list");
+  var formOverlay = document.getElementById("form-overlay");
+  var formTitle = document.getElementById("form-title");
+  var formName = document.getElementById("form-name");
+  var formCategory = document.getElementById("form-category");
+  var formContent = document.getElementById("form-content");
+  var formSaveBtn = document.getElementById("form-save-btn");
+  var formCancelBtn = document.getElementById("form-cancel-btn");
+  var formCloseBtn = document.getElementById("form-close-btn");
+  var toast = document.getElementById("toast");
+
+  // ── Default snippets ──
+  var DEFAULT_SNIPPETS = [
+    { id: genId(), title: "cargo build", content: "cargo build", category: "cargo" },
+    { id: genId(), title: "cargo check workspace", content: "cargo check --workspace", category: "cargo" },
+    { id: genId(), title: "cargo run", content: "cargo run", category: "cargo" },
+    { id: genId(), title: "cargo test", content: "cargo test", category: "cargo" },
+    { id: genId(), title: "git status", content: "git status", category: "git" },
+    { id: genId(), title: "git diff", content: "git diff", category: "git" },
+    { id: genId(), title: "git log oneline", content: "git log --oneline -20", category: "git" },
+    { id: genId(), title: "git add all", content: "git add -A", category: "git" },
+    { id: genId(), title: "git stash", content: "git stash", category: "git" },
+    { id: genId(), title: "git stash pop", content: "git stash pop", category: "git" },
+    { id: genId(), title: "tail log", content: "tail -f /tmp/codefactory.log", category: "logs" },
+    { id: genId(), title: "tmux list sessions", content: "tmux list-sessions", category: "tmux" },
+    { id: genId(), title: "disk usage", content: "df -h", category: "system" },
+    { id: genId(), title: "process list", content: "ps aux | head -30", category: "system" }
+  ];
+
+  // ── Storage ──
+
+  function loadSnippets() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveSnippets(snippets) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snippets));
+    } catch (e) {
+      showToast("Failed to save snippets", "error");
+    }
+  }
+
+  function getSnippets() {
+    var s = loadSnippets();
+    if (s === null) {
+      s = DEFAULT_SNIPPETS.slice();
+      saveSnippets(s);
+    }
+    return s;
+  }
+
+  // ── Helpers ──
+
+  function genId() {
+    return "sn-" + Date.now().toString(36) + "-" + Math.random().toString(36).substr(2, 6);
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+  }
+
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = "sn-toast visible " + (type === "error" ? "sn-toast-error" : "sn-toast-success");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toast.className = "sn-toast";
+    }, 2500);
+  }
+
+  // ── Category Management ──
+
+  function getCategories(snippets) {
+    var cats = {};
+    for (var i = 0; i < snippets.length; i++) {
+      var c = (snippets[i].category || "").trim().toLowerCase();
+      if (c) cats[c] = true;
+    }
+    var list = Object.keys(cats);
+    list.sort();
+    return list;
+  }
+
+  function renderCategories() {
+    var snippets = getSnippets();
+    var cats = getCategories(snippets);
+    var html = '<span class="sn-target-label">Filter:</span>';
+    html += '<button class="sn-cat-btn' + (activeCategory === "all" ? " active" : "") + '" data-cat="all">All</button>';
+    for (var i = 0; i < cats.length; i++) {
+      html += '<button class="sn-cat-btn' + (activeCategory === cats[i] ? " active" : "") + '" data-cat="' + escapeHtml(cats[i]) + '">' + escapeHtml(cats[i]) + '</button>';
+    }
+    categoryBar.innerHTML = html;
+
+    var btns = categoryBar.querySelectorAll(".sn-cat-btn");
+    for (var j = 0; j < btns.length; j++) {
+      btns[j].addEventListener("click", function () {
+        activeCategory = this.getAttribute("data-cat");
+        renderCategories();
+        renderSnippets();
+      });
+    }
+  }
+
+  // ── Target Floor Loading ──
+
+  function loadTargetFloors() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/api/profiles", true);
+    xhr.onload = function () {
+      if (xhr.status < 200 || xhr.status >= 300) return;
+      try {
+        var data = JSON.parse(xhr.responseText);
+        var profiles = data.profiles || data;
+        if (!Array.isArray(profiles)) return;
+
+        // Also fetch active sessions
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open("GET", "/api/sessions", true);
+        xhr2.onload = function () {
+          var sessions = {};
+          try {
+            var sData = JSON.parse(xhr2.responseText);
+            if (sData && sData.sessions) {
+              for (var k = 0; k < sData.sessions.length; k++) {
+                sessions[sData.sessions[k].floor_id] = true;
+              }
+            }
+          } catch (e) { /* ignore */ }
+
+          // Build options: only terminal floors (no page field) that are enabled
+          var html = '<option value="">Clipboard only</option>';
+          for (var i = 0; i < profiles.length; i++) {
+            var p = profiles[i];
+            if (p.page) continue;
+            if (p.enabled === false) continue;
+            var floorId = slugify(p.name);
+            var active = sessions[floorId] ? " [ACTIVE]" : "";
+            html += '<option value="' + escapeHtml(floorId) + '">' + escapeHtml(p.name) + active + '</option>';
+          }
+          targetSelect.innerHTML = html;
+        };
+        xhr2.send();
+      } catch (e) { /* ignore */ }
+    };
+    xhr.send();
+  }
+
+  function slugify(name) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+
+  // ── WebSocket Send ──
+
+  function sendToTerminal(floorId, text) {
+    var wsBase = "ws://" + window.location.host + "/ws/";
+
+    // Reuse existing connection if open
+    if (wsConnections[floorId] && wsConnections[floorId].readyState === WebSocket.OPEN) {
+      doSend(wsConnections[floorId], text);
+      return;
+    }
+
+    var ws = new WebSocket(wsBase + floorId);
+    wsConnections[floorId] = ws;
+
+    ws.onopen = function () {
+      doSend(ws, text);
+      // Close after a short delay to avoid keeping connections open
+      setTimeout(function () {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+      }, 2000);
+    };
+
+    ws.onerror = function () {
+      showToast("Failed to connect to terminal", "error");
+    };
+  }
+
+  function doSend(ws, text) {
+    var encoded = btoa(unescape(encodeURIComponent(text)));
+    ws.send(JSON.stringify({ type: "terminal-input", data: encoded }));
+
+    // Send Enter after delay
+    setTimeout(function () {
+      if (ws.readyState === WebSocket.OPEN) {
+        var enterEncoded = btoa("\r");
+        ws.send(JSON.stringify({ type: "terminal-input", data: enterEncoded }));
+      }
+    }, 300);
+
+    showToast("Sent to terminal", "success");
+  }
+
+  // ── Snippet Actions ──
+
+  function executeSnippet(snippet) {
+    var floorId = targetSelect.value;
+
+    if (floorId) {
+      // Send directly to terminal via WebSocket
+      sendToTerminal(floorId, snippet.content);
+    } else {
+      // Copy to clipboard
+      copyToClipboard(snippet.content);
+    }
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("Copied to clipboard", "success");
+      }, function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("Copied to clipboard", "success");
+    } catch (e) {
+      showToast("Copy failed", "error");
+    }
+    document.body.removeChild(ta);
+  }
+
+  function deleteSnippet(id) {
+    var snippets = getSnippets();
+    var filtered = [];
+    for (var i = 0; i < snippets.length; i++) {
+      if (snippets[i].id !== id) filtered.push(snippets[i]);
+    }
+    saveSnippets(filtered);
+    renderCategories();
+    renderSnippets();
+    showToast("Snippet deleted", "success");
+  }
+
+  // ── Rendering ──
+
+  function renderSnippets() {
+    var snippets = getSnippets();
+    var query = (searchInput.value || "").trim().toLowerCase();
+
+    // Filter by category
+    var filtered = [];
+    for (var i = 0; i < snippets.length; i++) {
+      var s = snippets[i];
+      var cat = (s.category || "").trim().toLowerCase();
+
+      if (activeCategory !== "all" && cat !== activeCategory) continue;
+
+      if (query) {
+        var titleMatch = (s.title || "").toLowerCase().indexOf(query) !== -1;
+        var contentMatch = (s.content || "").toLowerCase().indexOf(query) !== -1;
+        var catMatch = cat.indexOf(query) !== -1;
+        if (!titleMatch && !contentMatch && !catMatch) continue;
+      }
+
+      filtered.push(s);
+    }
+
+    if (filtered.length === 0) {
+      snippetList.innerHTML =
+        '<div class="sn-empty">' +
+        (query ? "No snippets match your search." : "No snippets yet.") +
+        '<div class="sn-empty-hint">Tap + Add to create your first snippet.</div>' +
+        '</div>';
+      return;
+    }
+
+    var html = "";
+    for (var j = 0; j < filtered.length; j++) {
+      var sn = filtered[j];
+      var preview = (sn.content || "").length > 200 ? sn.content.substring(0, 200) + "..." : sn.content;
+      var tagHtml = sn.category ? '<span class="sn-card-tag">' + escapeHtml(sn.category) + '</span>' : '';
+
+      html +=
+        '<div class="sn-card" data-id="' + escapeHtml(sn.id) + '">' +
+          '<div class="sn-card-header">' +
+            '<span class="sn-card-title">' + escapeHtml(sn.title || "Untitled") + '</span>' +
+            tagHtml +
+            '<div class="sn-card-actions">' +
+              '<button class="sn-btn sn-btn-small sn-edit-btn" data-id="' + escapeHtml(sn.id) + '" title="Edit">E</button>' +
+              '<button class="sn-btn sn-btn-small sn-btn-warn sn-delete-btn" data-id="' + escapeHtml(sn.id) + '" title="Delete">X</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="sn-card-preview" data-id="' + escapeHtml(sn.id) + '">' + escapeHtml(preview) + '</div>' +
+        '</div>';
+    }
+
+    snippetList.innerHTML = html;
+
+    // Bind events
+    var cards = snippetList.querySelectorAll(".sn-card-header");
+    for (var k = 0; k < cards.length; k++) {
+      cards[k].addEventListener("click", function (e) {
+        if (e.target.classList.contains("sn-edit-btn") || e.target.classList.contains("sn-delete-btn")) return;
+        var id = this.parentNode.getAttribute("data-id");
+        var sn = findSnippet(id);
+        if (sn) executeSnippet(sn);
+      });
+    }
+
+    var previews = snippetList.querySelectorAll(".sn-card-preview");
+    for (var m = 0; m < previews.length; m++) {
+      previews[m].addEventListener("click", function () {
+        var id = this.getAttribute("data-id");
+        var sn = findSnippet(id);
+        if (sn) executeSnippet(sn);
+      });
+    }
+
+    var editBtns = snippetList.querySelectorAll(".sn-edit-btn");
+    for (var n = 0; n < editBtns.length; n++) {
+      editBtns[n].addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = this.getAttribute("data-id");
+        openEditForm(id);
+      });
+    }
+
+    var deleteBtns = snippetList.querySelectorAll(".sn-delete-btn");
+    for (var p = 0; p < deleteBtns.length; p++) {
+      deleteBtns[p].addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = this.getAttribute("data-id");
+        deleteSnippet(id);
+      });
+    }
+  }
+
+  function findSnippet(id) {
+    var snippets = getSnippets();
+    for (var i = 0; i < snippets.length; i++) {
+      if (snippets[i].id === id) return snippets[i];
+    }
+    return null;
+  }
+
+  // ── Form ──
+
+  function openAddForm() {
+    editingId = null;
+    formTitle.textContent = "Add Snippet";
+    formName.value = "";
+    formCategory.value = "";
+    formContent.value = "";
+    formOverlay.classList.remove("hidden");
+    formName.focus();
+  }
+
+  function openEditForm(id) {
+    var sn = findSnippet(id);
+    if (!sn) return;
+    editingId = id;
+    formTitle.textContent = "Edit Snippet";
+    formName.value = sn.title || "";
+    formCategory.value = sn.category || "";
+    formContent.value = sn.content || "";
+    formOverlay.classList.remove("hidden");
+    formName.focus();
+  }
+
+  function closeForm() {
+    formOverlay.classList.add("hidden");
+    editingId = null;
+  }
+
+  function saveForm() {
+    var title = formName.value.trim();
+    var category = formCategory.value.trim().toLowerCase();
+    var content = formContent.value;
+
+    if (!title) {
+      showToast("Title is required", "error");
+      formName.focus();
+      return;
+    }
+
+    if (!content) {
+      showToast("Content is required", "error");
+      formContent.focus();
+      return;
+    }
+
+    var snippets = getSnippets();
+
+    if (editingId) {
+      // Update existing
+      for (var i = 0; i < snippets.length; i++) {
+        if (snippets[i].id === editingId) {
+          snippets[i].title = title;
+          snippets[i].category = category;
+          snippets[i].content = content;
+          break;
+        }
+      }
+      showToast("Snippet updated", "success");
+    } else {
+      // Add new
+      snippets.unshift({
+        id: genId(),
+        title: title,
+        category: category,
+        content: content
+      });
+      showToast("Snippet added", "success");
+    }
+
+    saveSnippets(snippets);
+    closeForm();
+    renderCategories();
+    renderSnippets();
+  }
+
+  // ── Event Bindings ──
+
+  searchInput.addEventListener("input", renderSnippets);
+
+  addBtn.addEventListener("click", openAddForm);
+
+  formSaveBtn.addEventListener("click", saveForm);
+  formCancelBtn.addEventListener("click", closeForm);
+  formCloseBtn.addEventListener("click", closeForm);
+
+  formOverlay.addEventListener("click", function (e) {
+    if (e.target === formOverlay) closeForm();
+  });
+
+  // Save on Enter in form title field
+  formName.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      formContent.focus();
+    }
+  });
+
+  // Ctrl+Enter in textarea to save
+  formContent.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      saveForm();
+    }
+  });
+
+  // Escape to close form
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !formOverlay.classList.contains("hidden")) {
+      closeForm();
+    }
+  });
+
+  // ── Init ──
+  renderCategories();
+  renderSnippets();
+  loadTargetFloors();
+
+})();
+</script>
+</body>
+</html>
