@@ -2204,10 +2204,11 @@ section.floor.powered-on .profile-edit-form {
 
 .mobile-bar-nav-inner {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-content: center;
     height: 100%;
     gap: 2px;
-    padding: 0 4px;
+    padding: 1px 4px;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
@@ -2221,16 +2222,16 @@ section.floor.powered-on .profile-edit-form {
 
 .mobile-bar-btn {
     flex: 0 0 auto;
-    height: 36px;
-    min-width: 36px;
-    padding: 0 8px;
+    height: 19px;
+    min-width: 28px;
+    padding: 0 6px;
     font-family: var(--font-heading);
-    font-size: 1.1rem;
+    font-size: 0.7rem;
     font-weight: 500;
     color: var(--bright-steel);
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: 3px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: border-color 0.15s, color 0.15s;
@@ -2270,12 +2271,21 @@ section.floor.powered-on .profile-edit-form {
     color: var(--hazard-yellow);
 }
 
-/* Taller nav buttons in chat/nav panels */
-.mobile-bar-chat .mobile-bar-panel-nav,
-.mobile-bar-nav .mobile-bar-panel-nav {
+/* Taller nav buttons in chat panel */
+.mobile-bar-chat .mobile-bar-panel-nav {
     height: 32px;
     min-width: 28px;
     font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Nav panel panel-nav button matches floor button size */
+.mobile-bar-nav .mobile-bar-panel-nav {
+    height: 19px;
+    min-width: 22px;
+    font-size: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
