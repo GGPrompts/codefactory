@@ -87,6 +87,7 @@
             </p>
             <div class="lobby-actions">
                 <button class="lobby-action-btn" id="lobby-refresh-btn">[&#x21BB; REFRESH]</button>
+                <button class="lobby-action-btn" id="lobby-hard-refresh-btn">[&#x21BB;&#x21BB; HARD REFRESH]</button>
                 <button class="lobby-action-btn" id="lobby-shutdown-btn" style="color:var(--caution-red);border-color:var(--caution-red)">[&#x23FB; SHUTDOWN]</button>
             </div>
             <div class="lobby-ascend">
@@ -98,6 +99,7 @@
 
 </main>
 
+<script>var _v='?v='+Date.now();</script>
 <script src="js/console-forwarder.js"></script>
 <script src="js/livereload.js"></script>
 <script src="https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js"></script>
@@ -107,11 +109,11 @@
 <script src="https://unpkg.com/@xterm/addon-unicode11@0.9.0/lib/addon-unicode11.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
-<script src="js/terminal.js"></script>
-<script src="js/markdown-panel.js"></script>
-<script src="js/swipe-panels.js"></script>
-<script src="js/extra-keys.js"></script>
-<script src="js/app.js"></script>
+<script>
+['js/terminal.js','js/markdown-panel.js','js/swipe-panels.js','js/extra-keys.js','js/app.js'].forEach(function(s){
+    document.write('<script src="'+s+_v+'"><\/script>');
+});
+</script>
 <script>
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/service-worker.js');

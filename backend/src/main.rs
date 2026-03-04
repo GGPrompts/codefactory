@@ -16,6 +16,7 @@ use axum::{
 use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
+    set_header::SetResponseHeaderLayer,
 };
 use tracing::{info, warn};
 
@@ -65,8 +66,13 @@ async fn main() {
         .allow_headers(Any);
 
     // Static file serving from frontend/ directory with SPA fallback
+    // no-cache ensures the browser revalidates on every request (critical for PWA)
     let frontend_dir = ServeDir::new("frontend").fallback(
         tower_http::services::ServeFile::new("frontend/index.html"),
+    );
+    let no_cache_layer = SetResponseHeaderLayer::overriding(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-cache"),
     );
 
     // Build router
@@ -107,7 +113,7 @@ async fn main() {
         .route("/api/logs", get(get_logs))
         .route("/ws/logs", get(ws_logs_handler))
         .route("/ws/livereload", get(ws_livereload_handler))
-        .fallback_service(frontend_dir)
+        .fallback_service(tower::ServiceBuilder::new().layer(no_cache_layer).service(frontend_dir))
         .layer(cors)
         .with_state(app_state.clone());
 

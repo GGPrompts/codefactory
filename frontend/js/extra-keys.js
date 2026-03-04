@@ -19,6 +19,7 @@ var ExtraKeys = (function () {
         { label: '\u2192', type: 'sequence', value: '\x1b[C' },
         { label: 'PGUP', type: 'sequence', value: '\x1b[5~' },
         { label: 'C-B',  type: 'sequence', value: '\x02' },
+        { label: '\u2328', type: 'action', action: 'toggle-keyboard' },
     ];
 
     var ROW2 = [
@@ -99,6 +100,21 @@ var ExtraKeys = (function () {
     function handleKeyTap(keyDef) {
         if (keyDef.type === 'modifier') {
             cycleModifier(keyDef.name);
+            return;
+        }
+
+        if (keyDef.type === 'action') {
+            if (keyDef.action === 'toggle-keyboard') {
+                var termArea = currentFloorId && typeof CodeFactoryTerminals !== 'undefined'
+                    ? CodeFactoryTerminals.getTerminal(currentFloorId) : null;
+                var xtermTextarea = termArea && termArea.xterm
+                    ? termArea.xterm.textarea : null;
+                if (xtermTextarea && document.activeElement === xtermTextarea) {
+                    xtermTextarea.blur();
+                } else if (currentFloorId) {
+                    CodeFactoryTerminals.focus(currentFloorId);
+                }
+            }
             return;
         }
 

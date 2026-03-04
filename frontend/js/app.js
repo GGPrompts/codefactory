@@ -1571,6 +1571,31 @@
             playClick();
             window.location.reload();
         });
+
+        var hardBtn = document.getElementById('lobby-hard-refresh-btn');
+        if (!hardBtn) return;
+        hardBtn.addEventListener('click', function() {
+            playClick();
+            // Unregister service workers, clear caches, then reload
+            var tasks = [];
+            if ('serviceWorker' in navigator) {
+                tasks.push(
+                    navigator.serviceWorker.getRegistrations().then(function(regs) {
+                        return Promise.all(regs.map(function(r) { return r.unregister(); }));
+                    })
+                );
+            }
+            if ('caches' in window) {
+                tasks.push(
+                    caches.keys().then(function(names) {
+                        return Promise.all(names.map(function(n) { return caches.delete(n); }));
+                    })
+                );
+            }
+            Promise.all(tasks).then(function() {
+                window.location.reload();
+            });
+        });
     }
 
     function initLobbyShutdown() {
