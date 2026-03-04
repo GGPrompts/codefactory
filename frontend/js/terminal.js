@@ -247,6 +247,19 @@ var CodeFactoryTerminals = (function() {
             container.addEventListener('touchend', function(e) {
                 if (pinching && e.touches.length < 2) {
                     pinching = false;
+                    // Final fit + resize after pinch settles — the mid-gesture
+                    // fits during touchmove may not fully reflow.
+                    if (fitAddon) fitAddon.fit();
+                    if (entry.ws && entry.ws.readyState === WebSocket.OPEN &&
+                        (xterm.cols !== entry.lastSentCols || xterm.rows !== entry.lastSentRows)) {
+                        entry.lastSentCols = xterm.cols;
+                        entry.lastSentRows = xterm.rows;
+                        entry.ws.send(JSON.stringify({
+                            type: 'terminal-resize',
+                            cols: xterm.cols,
+                            rows: xterm.rows
+                        }));
+                    }
                 }
             }, { passive: true });
         })();
