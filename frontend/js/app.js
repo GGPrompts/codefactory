@@ -2175,12 +2175,17 @@
             // Panel-nav button handler (shared by touch and click)
             function handlePanelNav(target) {
                 if (!target.classList.contains('mobile-bar-panel-nav') || !target.dataset.barPanel) return false;
+                var panelIndex = parseInt(target.dataset.barPanel, 10);
                 mobileBarUserOverride = true;
-                setBarPanel(parseInt(target.dataset.barPanel, 10));
-                // Re-focus terminal to keep soft keyboard open
-                var floorId = currentFloor ? currentFloor.replace('floor-', '') : null;
-                if (floorId && floorId !== 'lobby' && typeof ExtraKeys !== 'undefined' && ExtraKeys.isTerminalFloor(currentFloor)) {
-                    CodeFactoryTerminals.focus(floorId);
+                setBarPanel(panelIndex);
+                // Re-focus terminal only when switching to extra keys panel (0)
+                // so the soft keyboard stays up for key input. Other panels
+                // don't need terminal focus and forcing it causes keyboard flicker.
+                if (panelIndex === 0) {
+                    var floorId = currentFloor ? currentFloor.replace('floor-', '') : null;
+                    if (floorId && floorId !== 'lobby' && typeof ExtraKeys !== 'undefined' && ExtraKeys.isTerminalFloor(currentFloor)) {
+                        CodeFactoryTerminals.focus(floorId);
+                    }
                 }
                 return true;
             }
