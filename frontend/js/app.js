@@ -2216,7 +2216,7 @@
                             jumpTarget = null;
                             syncMobileBar();
                             var floorNum = targetId.replace('floor-', '');
-                            if (floorNum !== 'lobby') {
+                            if (floorNum !== 'lobby' && floorNum !== 'pages-hub') {
                                 CodeFactoryTerminals.focus(floorNum);
                             }
                         }
@@ -2306,7 +2306,7 @@
         removePagesHub(); // clean up any existing hub
 
         pagesHubEl = document.createElement('section');
-        pagesHubEl.className = 'floor powered-on pages-hub-floor';
+        pagesHubEl.className = 'floor powered-on pages-hub-floor in-view';
         pagesHubEl.id = 'floor-pages-hub';
 
         var html = '' +
@@ -2683,7 +2683,7 @@
                 // Focus terminal only on explicit jump (button/keyboard), not manual scroll
                 if (wasJump) {
                     var floorNum = bestFloor.replace('floor-', '');
-                    if (floorNum !== 'lobby') {
+                    if (floorNum !== 'lobby' && floorNum !== 'pages-hub') {
                         CodeFactoryTerminals.focus(floorNum);
                     }
                 }

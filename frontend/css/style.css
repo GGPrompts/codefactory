@@ -2704,9 +2704,12 @@ section.floor.powered-on .profile-edit-form {
     .pages-hub-floor .floor-frame {
         display: flex;
         flex-direction: column;
+        align-items: stretch;
         height: calc(var(--vvh) - 48px); /* subtract mobile bar height */
         max-width: 100%;
         margin: 0;
+        opacity: 1;
+        transform: none;
     }
 }
 
