@@ -1,55 +1,48 @@
 # Claude Code Hooks for CodeFactory
 
-## state-tracker.sh
+## state-tracker.sh (Desktop)
 
-Writes Claude's current state (status, tool, context %, working dir) to `/tmp/claude-code-state/{session}.json` on every hook event. CodeFactory reads these files to show Claude session status on elevator buttons and the terminals dashboard.
+Full-featured state tracker for desktop/laptop with tmux pane management, audio announcements, and debug logging.
+
+## state-tracker-termux.sh (Termux/Android)
+
+Lightweight version for Termux — no tmux pane cleanup, no audio announcer, no debug file dumps. Uses `$TMPDIR` (required on Termux since `/tmp` is inaccessible).
 
 ### Dependencies
 
-- `bash`, `jq`, `timeout` (all available on Termux via `pkg install jq coreutils`)
+- `bash`, `jq`, `coreutils` (for `timeout`)
+- On Termux: `pkg install jq coreutils`
 
 ### Setup
 
-1. Copy the script to the Claude hooks directory:
-
-```bash
-mkdir -p ~/.claude/hooks/scripts
-cp hooks/state-tracker.sh ~/.claude/hooks/scripts/state-tracker.sh
-chmod +x ~/.claude/hooks/scripts/state-tracker.sh
-```
-
-2. Add hooks to `~/.claude/settings.json` (merge into existing `hooks` object):
+Add hooks to `~/.claude/settings.json`:
 
 ```json
 {
   "hooks": {
-    "SessionStart": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh session-start", "timeout": 2 }] }
-    ],
-    "UserPromptSubmit": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh user-prompt", "timeout": 1 }] }
-    ],
     "PreToolUse": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh pre-tool", "timeout": 1 }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "~/projects/codefactory/hooks/state-tracker-termux.sh pre-tool", "timeout": 1 }] }
     ],
     "PostToolUse": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh post-tool", "timeout": 1 }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "~/projects/codefactory/hooks/state-tracker-termux.sh post-tool", "timeout": 1 }] }
     ],
     "Stop": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh stop", "timeout": 1 }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "~/projects/codefactory/hooks/state-tracker-termux.sh stop", "timeout": 1 }] }
     ],
     "SubagentStart": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh subagent-start", "timeout": 1 }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "~/projects/codefactory/hooks/state-tracker-termux.sh subagent-start", "timeout": 1 }] }
     ],
     "SubagentStop": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh subagent-stop", "timeout": 1 }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "~/projects/codefactory/hooks/state-tracker-termux.sh subagent-stop", "timeout": 1 }] }
     ],
     "Notification": [
-      { "matcher": "idle_prompt", "hooks": [{ "type": "command", "command": "~/.claude/hooks/scripts/state-tracker.sh notification", "timeout": 1 }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "~/projects/codefactory/hooks/state-tracker-termux.sh notification", "timeout": 1 }] }
     ]
   }
 }
 ```
+
+For the desktop version, replace `state-tracker-termux.sh` with `state-tracker.sh` and add `SessionStart` and `UserPromptSubmit` hooks as well.
 
 ### What it tracks
 
