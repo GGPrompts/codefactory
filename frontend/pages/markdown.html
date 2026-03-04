@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown Viewer</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --oil-black: #0D0F10;
+  --carbon: #252829;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header Bar ── */
+.md-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.md-title {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  white-space: nowrap;
+}
+
+.md-header-spacer { flex: 1; }
+
+.md-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.md-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── File picker ── */
+.md-picker {
+  background: var(--oil-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  min-height: 44px;
+  max-width: 300px;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237A8489'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.md-picker:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.md-picker option {
+  background: var(--oil-black);
+  color: var(--dirty-white);
+}
+
+/* ── Breadcrumb ── */
+.md-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.md-breadcrumb-part {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--steel-light);
+}
+
+.md-breadcrumb-sep {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--steel-mid);
+  margin: 0 2px;
+}
+
+.md-breadcrumb-current {
+  color: var(--hazard-yellow);
+}
+
+/* ── Content area ── */
+.md-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.md-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--steel-light);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ── Loading spinner ── */
+.md-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--steel-light);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ── Prose styles (markdown rendered) ── */
+.md-prose {
+  font-family: 'Rajdhani', 'Arial', sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--dirty-white);
+  max-width: 860px;
+}
+
+.md-prose h1 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 1.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--hazard-yellow);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.2;
+}
+
+.md-prose h2 {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dirty-white);
+  border-bottom: 4px solid var(--rust-mid);
+  padding-bottom: 0.5rem;
+  margin: 1.5rem 0 0.75rem 0;
+  position: relative;
+}
+
+.md-prose h2::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: var(--hazard-yellow);
+}
+
+.md-prose h3, .md-prose h4 {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dirty-white);
+  margin: 1.25rem 0 0.5rem 0;
+}
+
+.md-prose h5, .md-prose h6 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rust-light);
+  margin: 1rem 0 0.5rem 0;
+}
+
+.md-prose p { margin: 0 0 0.75rem 0; }
+
+.md-prose blockquote {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  padding: 1rem;
+  margin: 1rem 0;
+  background: var(--carbon);
+  color: var(--dirty-white);
+  border: 2px solid var(--steel-mid);
+  border-left: 4px solid var(--hazard-yellow);
+}
+
+.md-prose blockquote p { margin: 0; }
+
+.md-prose pre {
+  background: var(--oil-black);
+  border: 2px solid var(--steel-mid);
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  position: relative;
+}
+
+.md-prose pre code {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--dirty-white);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+.md-prose :not(pre) > code {
+  background: var(--oil-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--hazard-yellow);
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.md-prose a {
+  color: var(--hazard-yellow);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--steel-mid);
+}
+
+.md-prose a:hover {
+  border-bottom-style: solid;
+}
+
+.md-prose ul, .md-prose ol {
+  color: var(--brushed-steel);
+  padding-left: 1.5rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.md-prose li { margin-bottom: 0.35rem; }
+.md-prose li::marker { color: var(--rust-light); }
+
+.md-prose strong { color: var(--dirty-white); font-weight: 700; }
+.md-prose em { color: var(--rust-accent); font-style: italic; }
+
+.md-prose hr {
+  border: none;
+  height: 4px;
+  background: var(--steel-dark);
+  margin: 1.5rem 0;
+}
+
+.md-prose table {
+  width: 100%;
+  background: var(--carbon);
+  border: 2px solid var(--steel-mid);
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+}
+
+.md-prose th {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--hazard-yellow);
+  border-bottom: 2px solid var(--rust-mid);
+  background: var(--steel-dark);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.md-prose td {
+  border-bottom: 1px solid var(--steel-mid);
+  padding: 0.5rem 0.75rem;
+}
+
+.md-prose tr:hover {
+  background: rgba(255, 184, 0, 0.05);
+}
+
+.md-prose img {
+  max-width: 100%;
+  border: 3px solid var(--steel-dark);
+}
+
+/* ── Toast ── */
+.md-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.md-toast.visible { opacity: 1; }
+
+.md-toast.success {
+  background: color-mix(in srgb, var(--safety-green) 90%, black);
+  color: #4ade80;
+  border: 1px solid var(--safety-green);
+}
+
+.md-toast.error {
+  background: color-mix(in srgb, var(--caution-red) 90%, black);
+  color: #f87171;
+  border: 1px solid var(--caution-red);
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <div class="md-header">
+    <span class="md-title">Markdown</span>
+    <select class="md-picker" id="file-picker">
+      <option value="">-- select file --</option>
+    </select>
+    <div class="md-header-spacer"></div>
+    <button class="md-btn" id="refresh-btn">Refresh</button>
+  </div>
+
+  <!-- Breadcrumb -->
+  <div class="md-breadcrumb" id="breadcrumb" style="display:none;"></div>
+
+  <!-- Content -->
+  <div class="md-content" id="content-area">
+    <div class="md-empty" id="initial-msg">Select a markdown file to view</div>
+  </div>
+</div>
+
+<div class="md-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var workPath = params.get("path") || "";
+  var currentFile = null;
+  var mdFiles = [];
+  var toastTimer = null;
+
+  // ── DOM refs ──
+  var filePicker = document.getElementById("file-picker");
+  var refreshBtn = document.getElementById("refresh-btn");
+  var breadcrumb = document.getElementById("breadcrumb");
+  var contentArea = document.getElementById("content-area");
+  var initialMsg = document.getElementById("initial-msg");
+  var toast = document.getElementById("toast");
+
+  // ── Helpers ──
+
+  function apiUrl(endpoint) {
+    return endpoint + (endpoint.indexOf("?") === -1 ? "?" : "&") + "path=" + encodeURIComponent(workPath);
+  }
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          cb(null, JSON.parse(xhr.responseText));
+        } catch (e) {
+          cb("Invalid JSON response");
+        }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) {
+          cb("HTTP " + xhr.status);
+        }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = "md-toast visible " + (type || "success");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toast.className = "md-toast";
+    }, 2500);
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Markdown renderer ──
+
+  function renderMarkdown(src) {
+    var html = src;
+
+    // Fenced code blocks — extract first to protect from other transforms
+    var codeBlocks = [];
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (m, lang, code) {
+      var idx = codeBlocks.length;
+      codeBlocks.push('<pre><code>' + escapeHtml(code.replace(/\n$/, '')) + '</code></pre>');
+      return '\x00CODEBLOCK' + idx + '\x00';
+    });
+
+    // Tables — process before paragraphs
+    html = html.replace(/^(\|.+\|)\r?\n(\|[\s\-:|]+\|)\r?\n((?:\|.+\|\r?\n?)*)/gm, function (m, headerLine, sepLine, bodyLines) {
+      var headers = headerLine.split('|').slice(1, -1);
+      var aligns = sepLine.split('|').slice(1, -1);
+      var alignArr = [];
+      var i;
+      for (i = 0; i < aligns.length; i++) {
+        var a = aligns[i].trim();
+        if (a.charAt(0) === ':' && a.charAt(a.length - 1) === ':') {
+          alignArr.push('center');
+        } else if (a.charAt(a.length - 1) === ':') {
+          alignArr.push('right');
+        } else {
+          alignArr.push('left');
+        }
+      }
+      var out = '<table><thead><tr>';
+      for (i = 0; i < headers.length; i++) {
+        out += '<th style="text-align:' + alignArr[i] + '">' + headers[i].trim() + '</th>';
+      }
+      out += '</tr></thead><tbody>';
+      var rows = bodyLines.trim().split('\n');
+      for (var r = 0; r < rows.length; r++) {
+        if (!rows[r].trim()) continue;
+        var cells = rows[r].split('|').slice(1, -1);
+        out += '<tr>';
+        for (i = 0; i < cells.length; i++) {
+          var align = alignArr[i] || 'left';
+          out += '<td style="text-align:' + align + '">' + cells[i].trim() + '</td>';
+        }
+        out += '</tr>';
+      }
+      out += '</tbody></table>';
+      return out;
+    });
+
+    // Inline code (before bold/italic to protect backtick content)
+    html = html.replace(/`([^`]+)`/g, function (m, code) {
+      return '<code>' + escapeHtml(code) + '</code>';
+    });
+
+    // Headings
+    html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+
+    // Horizontal rules
+    html = html.replace(/^---+$/gm, '<hr>');
+    html = html.replace(/^\*\*\*+$/gm, '<hr>');
+
+    // Bold / italic
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+    // Blockquotes (multi-line aware)
+    var bqLines = html.split('\n');
+    var inBq = false;
+    var bqBuf = [];
+    var outLines = [];
+    for (var bi = 0; bi < bqLines.length; bi++) {
+      var bqMatch = bqLines[bi].match(/^>\s?(.*)/);
+      if (bqMatch) {
+        if (!inBq) { inBq = true; bqBuf = []; }
+        bqBuf.push(bqMatch[1]);
+      } else {
+        if (inBq) {
+          outLines.push('<blockquote><p>' + bqBuf.join('<br>') + '</p></blockquote>');
+          inBq = false;
+          bqBuf = [];
+        }
+        outLines.push(bqLines[bi]);
+      }
+    }
+    if (inBq) {
+      outLines.push('<blockquote><p>' + bqBuf.join('<br>') + '</p></blockquote>');
+    }
+    html = outLines.join('\n');
+
+    // Ordered lists
+    html = html.replace(/^(\d+)\.\s+(.+)$/gm, '<oli>$2</oli>');
+    html = html.replace(/(<oli>[\s\S]*?<\/oli>)/g, function (block) {
+      var items = block.replace(/<\/?oli>/g, function (tag) {
+        return tag === '<oli>' ? '<li>' : '</li>';
+      });
+      return '<ol>' + items + '</ol>';
+    });
+    html = html.replace(/<\/ol>\s*<ol>/g, '');
+
+    // Unordered lists
+    html = html.replace(/^[\-\*]\s+(.+)$/gm, '<uli>$1</uli>');
+    html = html.replace(/(<uli>[\s\S]*?<\/uli>)/g, function (block) {
+      var items = block.replace(/<\/?uli>/g, function (tag) {
+        return tag === '<uli>' ? '<li>' : '</li>';
+      });
+      return '<ul>' + items + '</ul>';
+    });
+    html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+    // Paragraphs: wrap remaining standalone non-empty lines that aren't already HTML
+    html = html.replace(/^(?!<[a-zA-Z/\x00])((?!<\/)[^\n]+)$/gm, '<p>$1</p>');
+
+    // Restore code blocks
+    html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, function (m, idx) {
+      return codeBlocks[parseInt(idx, 10)];
+    });
+
+    return html;
+  }
+
+  // ── Breadcrumb ──
+
+  function renderBreadcrumb(filePath) {
+    if (!filePath) {
+      breadcrumb.style.display = "none";
+      return;
+    }
+    breadcrumb.style.display = "";
+    var parts = filePath.split("/");
+    var html = "";
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) {
+        html += '<span class="md-breadcrumb-sep">/</span>';
+      }
+      var cls = (i === parts.length - 1) ? "md-breadcrumb-part md-breadcrumb-current" : "md-breadcrumb-part";
+      html += '<span class="' + cls + '">' + escapeHtml(parts[i]) + '</span>';
+    }
+    breadcrumb.innerHTML = html;
+  }
+
+  // ── Scan for .md files ──
+
+  function scanMdFiles(cb) {
+    var found = [];
+    var pending = 1;
+    var skipDirs = { node_modules: 1, ".git": 1, target: 1, ".claude": 1, dist: 1, build: 1, vendor: 1 };
+
+    function scanDir(dir) {
+      var url = apiUrl("/api/files/list") + "&dir=" + encodeURIComponent(dir);
+      xhrGet(url, function (err, data) {
+        if (err || !data || !data.entries) {
+          pending--;
+          if (pending === 0) cb(found);
+          return;
+        }
+        var entries = data.entries;
+        for (var i = 0; i < entries.length; i++) {
+          var e = entries[i];
+          var childPath = dir ? (dir + "/" + e.name) : e.name;
+          if (e.is_dir) {
+            if (!skipDirs[e.name] && e.name.charAt(0) !== '.') {
+              pending++;
+              scanDir(childPath);
+            }
+          } else if (e.name.match(/\.md$/i)) {
+            found.push(childPath);
+          }
+        }
+        pending--;
+        if (pending === 0) cb(found);
+      });
+    }
+
+    scanDir("");
+  }
+
+  // ── Populate file picker ──
+
+  function populatePicker(files) {
+    mdFiles = files.sort();
+    // Clear existing options beyond the placeholder
+    while (filePicker.options.length > 1) {
+      filePicker.remove(1);
+    }
+    for (var i = 0; i < mdFiles.length; i++) {
+      var opt = document.createElement("option");
+      opt.value = mdFiles[i];
+      opt.textContent = mdFiles[i];
+      filePicker.appendChild(opt);
+    }
+  }
+
+  // ── Load and render a file ──
+
+  function loadFile(filePath) {
+    if (!filePath) {
+      currentFile = null;
+      renderBreadcrumb(null);
+      contentArea.innerHTML = '<div class="md-empty">Select a markdown file to view</div>';
+      return;
+    }
+
+    currentFile = filePath;
+    renderBreadcrumb(filePath);
+    contentArea.innerHTML = '<div class="md-loading">Loading...</div>';
+
+    xhrGet(apiUrl("/api/files/read") + "&file=" + encodeURIComponent(filePath), function (err, data) {
+      if (err) {
+        contentArea.innerHTML = '<div class="md-empty" style="color:var(--caution-red)">Error: ' + escapeHtml(err) + '</div>';
+        return;
+      }
+      if (data.is_binary) {
+        contentArea.innerHTML = '<div class="md-empty">Binary file cannot be rendered</div>';
+        return;
+      }
+      var html = renderMarkdown(data.content || "");
+      contentArea.innerHTML = '<div class="md-prose">' + html + '</div>';
+    });
+
+    // Sync picker selection
+    filePicker.value = filePath;
+  }
+
+  // ── Auto-detect default file ──
+
+  function autoDetect(files) {
+    var priorities = ["CLAUDE.md", "README.md", "readme.md", "Readme.md"];
+    for (var p = 0; p < priorities.length; p++) {
+      for (var f = 0; f < files.length; f++) {
+        if (files[f] === priorities[p]) {
+          return files[f];
+        }
+      }
+    }
+    // Try case-insensitive fallback
+    for (var p2 = 0; p2 < priorities.length; p2++) {
+      var lower = priorities[p2].toLowerCase();
+      for (var f2 = 0; f2 < files.length; f2++) {
+        if (files[f2].toLowerCase() === lower) {
+          return files[f2];
+        }
+      }
+    }
+    return null;
+  }
+
+  // ── Event Bindings ──
+
+  filePicker.addEventListener("change", function () {
+    loadFile(filePicker.value);
+  });
+
+  refreshBtn.addEventListener("click", function () {
+    if (currentFile) {
+      loadFile(currentFile);
+      showToast("Refreshed", "success");
+    } else {
+      // Re-scan files
+      init();
+    }
+  });
+
+  // ── Init ──
+
+  function init() {
+    if (!workPath) {
+      contentArea.innerHTML = '<div class="md-empty" style="color:var(--caution-red)">No path provided (use ?path=)</div>';
+      return;
+    }
+
+    contentArea.innerHTML = '<div class="md-loading">Scanning for .md files...</div>';
+
+    scanMdFiles(function (files) {
+      populatePicker(files);
+
+      if (files.length === 0) {
+        contentArea.innerHTML = '<div class="md-empty">No .md files found in project</div>';
+        return;
+      }
+
+      var defaultFile = autoDetect(files);
+      if (defaultFile) {
+        loadFile(defaultFile);
+      } else {
+        contentArea.innerHTML = '<div class="md-empty">Select a markdown file to view (' + files.length + ' found)</div>';
+      }
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
