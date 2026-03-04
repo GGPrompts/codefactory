@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Processes</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header Bar ── */
+.pm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.pm-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  white-space: nowrap;
+}
+
+.pm-count-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent);
+  color: var(--hazard-yellow);
+  border: 1px solid color-mix(in srgb, var(--hazard-yellow) 35%, transparent);
+}
+
+.pm-header-spacer {
+  flex: 1;
+}
+
+.pm-search {
+  width: 180px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--iron-black);
+  border: 1px solid var(--steel-mid);
+  color: var(--dirty-white);
+  border-radius: 3px;
+  outline: none;
+  min-height: 40px;
+}
+
+.pm-search:focus {
+  border-color: var(--hazard-yellow);
+}
+
+.pm-search::placeholder {
+  color: var(--steel-light);
+}
+
+.pm-header-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  min-height: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pm-header-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Sort Controls ── */
+.pm-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.pm-sort-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--brushed-steel);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  min-height: 32px;
+}
+
+.pm-sort-btn:hover {
+  color: var(--dirty-white);
+  border-color: var(--steel-mid);
+}
+
+.pm-sort-btn.pm-sort-active {
+  color: var(--hazard-yellow);
+  border-color: var(--hazard-yellow);
+}
+
+/* ── Scroll Area ── */
+.pm-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Process Item ── */
+.pm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--steel-dark);
+  cursor: pointer;
+  transition: background 0.1s;
+  min-height: 48px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pm-item:last-child {
+  border-bottom: none;
+}
+
+.pm-item:hover, .pm-item:active {
+  background: var(--steel-dark);
+}
+
+.pm-item.pm-selected {
+  background: color-mix(in srgb, var(--hazard-yellow) 12%, transparent);
+}
+
+.pm-item-pid {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--steel-light);
+  flex-shrink: 0;
+  width: 52px;
+  text-align: right;
+}
+
+.pm-item-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--dirty-white);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.pm-item-stat {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  flex-shrink: 0;
+  text-align: right;
+  width: 48px;
+}
+
+.pm-stat-cpu {
+  color: var(--bright-steel);
+}
+
+.pm-stat-mem {
+  color: var(--brushed-steel);
+}
+
+/* Warning thresholds */
+.pm-warn {
+  color: var(--hazard-yellow);
+  font-weight: 600;
+}
+
+.pm-danger {
+  color: var(--caution-red);
+  font-weight: 600;
+}
+
+/* ── Detail Panel ── */
+.pm-detail-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 9999;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.pm-detail-overlay.pm-visible {
+  display: flex;
+}
+
+.pm-detail-sheet {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 8px 8px 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.pm-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--grime);
+  border-bottom: 1px solid var(--steel-mid);
+  border-radius: 8px 8px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.pm-detail-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-detail-close {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.pm-detail-close:hover {
+  background: var(--caution-red);
+  border-color: var(--caution-red);
+}
+
+.pm-detail-body {
+  padding: 16px;
+}
+
+.pm-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--steel-mid) 50%, transparent);
+}
+
+.pm-detail-row:last-child {
+  border-bottom: none;
+}
+
+.pm-detail-label {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--steel-light);
+  flex-shrink: 0;
+  width: 72px;
+}
+
+.pm-detail-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--dirty-white);
+  flex: 1;
+  word-break: break-all;
+  min-width: 0;
+}
+
+.pm-detail-actions {
+  display: flex;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid var(--steel-mid);
+}
+
+.pm-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 48px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.pm-btn:hover {
+  background: var(--hazard-yellow);
+  color: var(--iron-black);
+  border-color: var(--hazard-yellow);
+}
+
+.pm-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.pm-btn-warn {
+  background: var(--rust-mid);
+  border-color: var(--rust-mid);
+}
+
+.pm-btn-warn:hover {
+  background: var(--rust-light);
+  border-color: var(--rust-light);
+  color: var(--dirty-white);
+}
+
+.pm-btn-danger {
+  background: var(--caution-red);
+  border-color: var(--caution-red);
+}
+
+.pm-btn-danger:hover {
+  background: #e43c3c;
+  border-color: #e43c3c;
+  color: var(--dirty-white);
+}
+
+/* ── Confirm Dialog ── */
+.pm-confirm-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.pm-confirm-overlay.pm-visible {
+  display: flex;
+}
+
+.pm-confirm-box {
+  background: var(--steel-dark);
+  border: 1px solid var(--steel-mid);
+  border-radius: 6px;
+  padding: 20px;
+  min-width: 280px;
+  max-width: 90vw;
+}
+
+.pm-confirm-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  margin-bottom: 12px;
+}
+
+.pm-confirm-msg {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--bright-steel);
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+.pm-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── Toast ── */
+.pm-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10002;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.pm-toast.pm-toast-visible {
+  opacity: 1;
+}
+
+.pm-toast-success {
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  border: 1px solid #36a556;
+}
+
+.pm-toast-error {
+  background: var(--caution-red);
+  color: var(--dirty-white);
+  border: 1px solid #e43c3c;
+}
+
+/* ── Loading ── */
+.pm-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 12px;
+  color: var(--brushed-steel);
+}
+
+.pm-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: pm-spin 0.6s linear infinite;
+}
+
+.pm-spinner-inline {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--steel-mid);
+  border-top-color: var(--hazard-yellow);
+  border-radius: 50%;
+  animation: pm-spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+@keyframes pm-spin {
+  to { transform: rotate(360deg); }
+}
+
+.pm-empty {
+  padding: 20px;
+  color: var(--steel-light);
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .pm-header {
+    padding: 6px 8px;
+  }
+  .pm-search {
+    width: 100%;
+    order: 10;
+  }
+  .pm-item {
+    padding: 8px 10px;
+  }
+  .pm-item-pid {
+    width: 44px;
+  }
+  .pm-item-stat {
+    width: 40px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="pm-header">
+    <span class="pm-title">Processes</span>
+    <span class="pm-count-badge" id="count-badge">--</span>
+    <span class="pm-header-spacer"></span>
+    <input class="pm-search" id="search-input" type="text" placeholder="Filter..." />
+    <button class="pm-header-btn" id="refresh-btn" title="Refresh">Refresh</button>
+  </div>
+
+  <div class="pm-sort-bar">
+    <button class="pm-sort-btn pm-sort-active" id="sort-cpu" data-sort="cpu">CPU %</button>
+    <button class="pm-sort-btn" id="sort-mem" data-sort="mem">MEM %</button>
+    <button class="pm-sort-btn" id="sort-pid" data-sort="pid">PID</button>
+    <button class="pm-sort-btn" id="sort-name" data-sort="name">Name</button>
+  </div>
+
+  <div class="pm-scroll" id="main-scroll">
+    <div class="pm-loading" id="initial-loading">
+      <div class="pm-spinner"></div>
+      <span>Loading processes...</span>
+    </div>
+    <div id="process-list"></div>
+  </div>
+</div>
+
+<!-- Detail Sheet -->
+<div class="pm-detail-overlay" id="detail-overlay">
+  <div class="pm-detail-sheet" id="detail-sheet">
+    <div class="pm-detail-header">
+      <span class="pm-detail-title" id="detail-title">--</span>
+      <button class="pm-detail-close" id="detail-close" title="Close">&times;</button>
+    </div>
+    <div class="pm-detail-body" id="detail-body"></div>
+    <div class="pm-detail-actions" id="detail-actions"></div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="pm-confirm-overlay" id="confirm-overlay">
+  <div class="pm-confirm-box">
+    <div class="pm-confirm-title" id="confirm-title">Confirm</div>
+    <div class="pm-confirm-msg" id="confirm-msg"></div>
+    <div class="pm-confirm-actions" id="confirm-actions"></div>
+  </div>
+</div>
+
+<div class="pm-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var pathParam = params.get("path") || "";
+  var processes = [];
+  var filteredProcesses = [];
+  var sortField = "cpu";
+  var sortAsc = false;
+  var refreshTimer = null;
+  var toastTimer = null;
+  var selectedProcess = null;
+  var operating = false;
+
+  // CPU/MEM thresholds
+  var WARN_CPU = 10;
+  var DANGER_CPU = 50;
+  var WARN_MEM = 5;
+  var DANGER_MEM = 20;
+
+  // ── DOM refs ──
+  var countBadge = document.getElementById("count-badge");
+  var searchInput = document.getElementById("search-input");
+  var refreshBtn = document.getElementById("refresh-btn");
+  var initialLoading = document.getElementById("initial-loading");
+  var processList = document.getElementById("process-list");
+  var detailOverlay = document.getElementById("detail-overlay");
+  var detailTitle = document.getElementById("detail-title");
+  var detailBody = document.getElementById("detail-body");
+  var detailActions = document.getElementById("detail-actions");
+  var detailClose = document.getElementById("detail-close");
+  var confirmOverlay = document.getElementById("confirm-overlay");
+  var confirmTitle = document.getElementById("confirm-title");
+  var confirmMsg = document.getElementById("confirm-msg");
+  var confirmActions = document.getElementById("confirm-actions");
+  var toastEl = document.getElementById("toast");
+
+  var sortBtns = {
+    cpu: document.getElementById("sort-cpu"),
+    mem: document.getElementById("sort-mem"),
+    pid: document.getElementById("sort-pid"),
+    name: document.getElementById("sort-name")
+  };
+
+  // ── Helpers ──
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb("Invalid JSON"); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send();
+  }
+
+  function xhrPost(url, body, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); }
+        catch (e) { cb(null, { success: true }); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(err.error || ("HTTP " + xhr.status));
+        } catch (e2) { cb("HTTP " + xhr.status); }
+      }
+    };
+    xhr.onerror = function () { cb("Network error"); };
+    xhr.send(body ? JSON.stringify(body) : "");
+  }
+
+  function showToast(msg, type) {
+    toastEl.textContent = msg;
+    toastEl.className = "pm-toast pm-toast-visible " + (type === "error" ? "pm-toast-error" : "pm-toast-success");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.className = "pm-toast";
+    }, 3000);
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+  }
+
+  function statClass(value, warnThresh, dangerThresh) {
+    if (value >= dangerThresh) return "pm-danger";
+    if (value >= warnThresh) return "pm-warn";
+    return "";
+  }
+
+  // ── Sorting ──
+
+  function sortProcesses(list) {
+    var field = sortField;
+    var asc = sortAsc;
+    var sorted = list.slice();
+    sorted.sort(function (a, b) {
+      var va, vb;
+      if (field === "name") {
+        va = a.name.toLowerCase();
+        vb = b.name.toLowerCase();
+        if (va < vb) return asc ? -1 : 1;
+        if (va > vb) return asc ? 1 : -1;
+        return 0;
+      }
+      va = a[field];
+      vb = b[field];
+      if (field === "pid") {
+        return asc ? (va - vb) : (vb - va);
+      }
+      // cpu, mem: default descending (highest first)
+      return asc ? (va - vb) : (vb - va);
+    });
+    return sorted;
+  }
+
+  function setSort(field) {
+    if (sortField === field) {
+      sortAsc = !sortAsc;
+    } else {
+      sortField = field;
+      // Default: descending for cpu/mem, ascending for name/pid
+      sortAsc = (field === "name" || field === "pid");
+    }
+    // Update button states
+    var keys = ["cpu", "mem", "pid", "name"];
+    for (var i = 0; i < keys.length; i++) {
+      sortBtns[keys[i]].className = "pm-sort-btn" + (keys[i] === sortField ? " pm-sort-active" : "");
+      var arrow = "";
+      if (keys[i] === sortField) {
+        arrow = sortAsc ? " \u2191" : " \u2193";
+      }
+      sortBtns[keys[i]].textContent = keys[i].toUpperCase() + (keys[i] === "cpu" || keys[i] === "mem" ? " %" : "") + arrow;
+    }
+    applyFilterAndRender();
+  }
+
+  // ── Filtering ──
+
+  function applyFilterAndRender() {
+    var query = searchInput.value.trim().toLowerCase();
+    if (query) {
+      filteredProcesses = processes.filter(function (p) {
+        return p.name.toLowerCase().indexOf(query) !== -1 ||
+               p.command.toLowerCase().indexOf(query) !== -1 ||
+               String(p.pid).indexOf(query) !== -1 ||
+               p.user.toLowerCase().indexOf(query) !== -1;
+      });
+    } else {
+      filteredProcesses = processes.slice();
+    }
+    filteredProcesses = sortProcesses(filteredProcesses);
+    renderList();
+  }
+
+  // ── Rendering ──
+
+  function renderList() {
+    processList.innerHTML = "";
+    countBadge.textContent = filteredProcesses.length + " / " + processes.length;
+
+    if (filteredProcesses.length === 0) {
+      processList.innerHTML = '<div class="pm-empty">' +
+        (processes.length === 0 ? "No processes found" : "No matches for filter") +
+        '</div>';
+      return;
+    }
+
+    for (var i = 0; i < filteredProcesses.length; i++) {
+      processList.appendChild(buildProcessItem(filteredProcesses[i]));
+    }
+  }
+
+  function buildProcessItem(proc) {
+    var div = document.createElement("div");
+    div.className = "pm-item";
+    if (selectedProcess && selectedProcess.pid === proc.pid) {
+      div.classList.add("pm-selected");
+    }
+
+    var cpuClass = "pm-item-stat pm-stat-cpu " + statClass(proc.cpu, WARN_CPU, DANGER_CPU);
+    var memClass = "pm-item-stat pm-stat-mem " + statClass(proc.mem, WARN_MEM, DANGER_MEM);
+
+    div.innerHTML =
+      '<span class="pm-item-pid">' + proc.pid + '</span>' +
+      '<span class="pm-item-name">' + escapeHtml(proc.name) + '</span>' +
+      '<span class="' + cpuClass + '">' + proc.cpu.toFixed(1) + '%</span>' +
+      '<span class="' + memClass + '">' + proc.mem.toFixed(1) + '%</span>';
+
+    // Tap to open detail
+    div.addEventListener("click", function () {
+      openDetail(proc);
+    });
+
+    // Long-press to kill directly
+    var longPressTimer = null;
+    div.addEventListener("touchstart", function () {
+      longPressTimer = setTimeout(function () {
+        longPressTimer = null;
+        showKillConfirm(proc, "TERM");
+      }, 600);
+    }, { passive: true });
+    div.addEventListener("touchend", function () {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    });
+    div.addEventListener("touchmove", function () {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    });
+
+    return div;
+  }
+
+  // ── Detail Panel ──
+
+  function openDetail(proc) {
+    selectedProcess = proc;
+    detailTitle.textContent = proc.name + " [" + proc.pid + "]";
+
+    detailBody.innerHTML =
+      '<div class="pm-detail-row">' +
+        '<span class="pm-detail-label">PID</span>' +
+        '<span class="pm-detail-value">' + proc.pid + '</span>' +
+      '</div>' +
+      '<div class="pm-detail-row">' +
+        '<span class="pm-detail-label">User</span>' +
+        '<span class="pm-detail-value">' + escapeHtml(proc.user) + '</span>' +
+      '</div>' +
+      '<div class="pm-detail-row">' +
+        '<span class="pm-detail-label">CPU</span>' +
+        '<span class="pm-detail-value ' + statClass(proc.cpu, WARN_CPU, DANGER_CPU) + '">' + proc.cpu.toFixed(1) + '%</span>' +
+      '</div>' +
+      '<div class="pm-detail-row">' +
+        '<span class="pm-detail-label">Memory</span>' +
+        '<span class="pm-detail-value ' + statClass(proc.mem, WARN_MEM, DANGER_MEM) + '">' + proc.mem.toFixed(1) + '%</span>' +
+      '</div>' +
+      '<div class="pm-detail-row">' +
+        '<span class="pm-detail-label">Command</span>' +
+        '<span class="pm-detail-value">' + escapeHtml(proc.command) + '</span>' +
+      '</div>';
+
+    detailActions.innerHTML = "";
+
+    var termBtn = document.createElement("button");
+    termBtn.className = "pm-btn pm-btn-warn";
+    termBtn.textContent = "SIGTERM";
+    termBtn.addEventListener("click", function () {
+      showKillConfirm(proc, "TERM");
+    });
+
+    var killBtn = document.createElement("button");
+    killBtn.className = "pm-btn pm-btn-danger";
+    killBtn.textContent = "SIGKILL";
+    killBtn.addEventListener("click", function () {
+      showKillConfirm(proc, "KILL");
+    });
+
+    detailActions.appendChild(termBtn);
+    detailActions.appendChild(killBtn);
+
+    detailOverlay.classList.add("pm-visible");
+    applyFilterAndRender();
+  }
+
+  function closeDetail() {
+    selectedProcess = null;
+    detailOverlay.classList.remove("pm-visible");
+    applyFilterAndRender();
+  }
+
+  // ── Kill Confirmation ──
+
+  function showKillConfirm(proc, signal) {
+    confirmTitle.textContent = "Kill Process";
+    confirmMsg.textContent = "Send " + signal + " to " + proc.name + " (PID " + proc.pid + ")?";
+    confirmActions.innerHTML = "";
+
+    var cancelBtn = document.createElement("button");
+    cancelBtn.className = "pm-btn";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", function () {
+      closeConfirm();
+    });
+
+    var okBtn = document.createElement("button");
+    okBtn.className = "pm-btn " + (signal === "KILL" ? "pm-btn-danger" : "pm-btn-warn");
+    okBtn.textContent = signal;
+    okBtn.addEventListener("click", function () {
+      closeConfirm();
+      doKill(proc, signal);
+    });
+
+    confirmActions.appendChild(cancelBtn);
+    confirmActions.appendChild(okBtn);
+    confirmOverlay.classList.add("pm-visible");
+  }
+
+  function closeConfirm() {
+    confirmOverlay.classList.remove("pm-visible");
+  }
+
+  // ── Kill Action ──
+
+  function doKill(proc, signal) {
+    if (operating) return;
+    operating = true;
+    xhrPost("/api/processes/kill", { pid: proc.pid, signal: signal }, function (err) {
+      operating = false;
+      if (err) {
+        showToast("Kill failed: " + err, "error");
+      } else {
+        showToast("Sent " + signal + " to " + proc.name + " (" + proc.pid + ")", "success");
+        closeDetail();
+        // Refresh after a short delay so the process has time to exit
+        setTimeout(function () { loadProcesses(); }, 500);
+      }
+    });
+  }
+
+  // ── Load Processes ──
+
+  function loadProcesses() {
+    xhrGet("/api/processes", function (err, data) {
+      initialLoading.style.display = "none";
+
+      if (err) {
+        showToast("Load failed: " + err, "error");
+        return;
+      }
+
+      processes = data.processes || [];
+      applyFilterAndRender();
+    });
+  }
+
+  // ── Auto Refresh ──
+
+  function startAutoRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(function () {
+      if (!operating) loadProcesses();
+    }, 4000);
+  }
+
+  function stopAutoRefresh() {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+  }
+
+  // ── Event Bindings ──
+
+  refreshBtn.addEventListener("click", function () {
+    if (!operating) loadProcesses();
+  });
+
+  searchInput.addEventListener("input", function () {
+    applyFilterAndRender();
+  });
+
+  // Sort buttons
+  var sortKeys = ["cpu", "mem", "pid", "name"];
+  for (var i = 0; i < sortKeys.length; i++) {
+    (function (key) {
+      sortBtns[key].addEventListener("click", function () {
+        setSort(key);
+      });
+    })(sortKeys[i]);
+  }
+
+  detailClose.addEventListener("click", closeDetail);
+
+  detailOverlay.addEventListener("click", function (e) {
+    if (e.target === detailOverlay) closeDetail();
+  });
+
+  confirmOverlay.addEventListener("click", function (e) {
+    if (e.target === confirmOverlay) closeConfirm();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      if (confirmOverlay.classList.contains("pm-visible")) {
+        closeConfirm();
+      } else if (detailOverlay.classList.contains("pm-visible")) {
+        closeDetail();
+      }
+    }
+  });
+
+  // Pause auto-refresh when page hidden, resume when visible
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      loadProcesses();
+      startAutoRefresh();
+    }
+  });
+
+  // ── Init ──
+  loadProcesses();
+  startAutoRefresh();
+
+})();
+</script>
+</body>
+</html>
