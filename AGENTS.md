@@ -1,23 +1,23 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **ggbd** (beads) for issue tracking. Run `ggbd onboard` to get started.
 
 ## Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+ggbd ready              # Find available work
+ggbd show <id>          # View issue details
+ggbd update <id> --status in_progress  # Claim work
+ggbd close <id>         # Complete work
+# Supabase auto-syncs (no manual sync needed)
 ```
 
 <!-- BEGIN BEADS INTEGRATION -->
-## Issue Tracking with bd (beads)
+## Issue Tracking with ggbd (beads)
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+**IMPORTANT**: This project uses **ggbd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
 
-### Why bd?
+### Why ggbd?
 
 - Dependency-aware: Track blockers and relationships between issues
 - Git-friendly: Auto-syncs to JSONL for version control
@@ -29,27 +29,27 @@ bd sync               # Sync with git
 **Check for ready work:**
 
 ```bash
-bd ready --json
+ggbd ready --json
 ```
 
 **Create new issues:**
 
 ```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
+ggbd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
+ggbd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
 ```
 
 **Claim and update:**
 
 ```bash
-bd update bd-42 --status in_progress --json
-bd update bd-42 --priority 1 --json
+ggbd update bd-42 --status in_progress --json
+ggbd update bd-42 --priority 1 --json
 ```
 
 **Complete work:**
 
 ```bash
-bd close bd-42 --reason "Completed" --json
+ggbd close bd-42 --reason "Completed" --json
 ```
 
 ### Issue Types
@@ -70,16 +70,16 @@ bd close bd-42 --reason "Completed" --json
 
 ### Workflow for AI Agents
 
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task**: `bd update <id> --status in_progress`
+1. **Check ready work**: `ggbd ready` shows unblocked issues
+2. **Claim your task**: `ggbd update <id> --status in_progress`
 3. **Work on it**: Implement, test, document
 4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
+   - `ggbd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
+5. **Complete**: `ggbd close <id> --reason "Done"`
 
 ### Auto-Sync
 
-bd automatically syncs with git:
+ggbd automatically syncs with git:
 
 - Exports to `.beads/issues.jsonl` after changes (5s debounce)
 - Imports from JSONL when newer (e.g., after `git pull`)
@@ -87,10 +87,10 @@ bd automatically syncs with git:
 
 ### Important Rules
 
-- ✅ Use bd for ALL task tracking
+- ✅ Use ggbd for ALL task tracking
 - ✅ Always use `--json` flag for programmatic use
 - ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
+- ✅ Check `ggbd ready` before asking "what should I work on?"
 - ❌ Do NOT create markdown TODO lists
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
@@ -111,7 +111,7 @@ For more details, see README.md and docs/QUICKSTART.md.
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
+   # Supabase auto-syncs (no manual sync needed)
    git push
    git status  # MUST show "up to date with origin"
    ```

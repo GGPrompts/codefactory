@@ -88,7 +88,7 @@ Frontend JS console output and backend tracing events are merged into a single l
 
 ## Beads (Issue Tracking)
 
-- Issues are tracked with beads (`bd`)
+- Issues are tracked with beads (`ggbd`)
 - On desktop/laptop: backed by Dolt SQL server on port 3307, data dir `~/beads-dolt/`
 - On Termux: uses local SQLite backend (no Dolt) — issues stay local
 - Dolt sync (desktop/laptop only, skip if `dolt` not available):
