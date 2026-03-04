@@ -18,4 +18,12 @@ fi
 echo "Log cleared: /tmp/codefactory.log"
 echo "Starting CodeFactory backend on :3001..."
 
-RUST_LOG=codefactory_backend=info,warn exec cargo run
+echo "Building release binary..."
+cargo build --release --package codefactory-backend 2>&1
+if [ $? -ne 0 ]; then
+    echo "Build failed, falling back to debug mode..."
+    RUST_LOG=codefactory_backend=info,warn exec cargo run
+else
+    echo "Starting release build..."
+    RUST_LOG=codefactory_backend=info,warn exec ./target/release/codefactory-backend
+fi
