@@ -119,6 +119,11 @@ async fn main() {
         .route("/api/notes/read", get(notes_read))
         .route("/api/notes/save", post(notes_save))
         .route("/api/notes/delete", post(notes_delete))
+        // Config editor endpoints
+        .route("/api/config/list", get(config_list))
+        .route("/api/config/read", get(config_read))
+        .route("/api/config/write", post(config_write))
+        .route("/api/config/env", get(config_env))
         // Terminal capture endpoint
         .route("/api/terminal/{session}/capture", get(terminal_capture))
         // Termux API endpoints
@@ -3686,6 +3691,219 @@ fn extract_pid_process_netstat(s: &str) -> (Option<u32>, Option<String>) {
     let pid = parts.first().and_then(|p| p.parse::<u32>().ok());
     let process = parts.get(1).map(|p| p.to_string());
     (pid, process)
+}
+
+// ── Config Editor API ──────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ConfigListParams {
+    path: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ConfigReadParams {
+    file: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ConfigWriteParams {
+    file: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ConfigWriteBody {
+    content: String,
+}
+
+/// Build the list of known config files for a given project path.
+fn known_config_files(project_path: &str) -> Vec<(String, String, String)> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
+    let expanded = expand_path(project_path);
+    vec![
+        ("profiles.json".to_string(), format!("{}/.config/codefactory/profiles.json", home), "json".to_string()),
+        ("CLAUDE.md".to_string(), format!("{}/CLAUDE.md", expanded), "markdown".to_string()),
+        ("backend/CLAUDE.md".to_string(), format!("{}/backend/CLAUDE.md", expanded), "markdown".to_string()),
+        ("frontend/CLAUDE.md".to_string(), format!("{}/frontend/CLAUDE.md", expanded), "markdown".to_string()),
+        ("claude settings".to_string(), format!("{}/.claude/settings.json", home), "json".to_string()),
+        (".claude/settings.json".to_string(), format!("{}/.claude/settings.json", expanded), "json".to_string()),
+        (".env".to_string(), format!("{}/.env", expanded), "env".to_string()),
+        ("package.json".to_string(), format!("{}/package.json", expanded), "json".to_string()),
+        ("Cargo.toml".to_string(), format!("{}/Cargo.toml", expanded), "toml".to_string()),
+        (".gitignore".to_string(), format!("{}/.gitignore", expanded), "gitignore".to_string()),
+    ]
+}
+
+/// Collect all absolute paths that config/list would return (used for write validation).
+fn allowed_config_paths(project_path: &str) -> Vec<String> {
+    known_config_files(project_path)
+        .into_iter()
+        .map(|(_, abs, _)| {
+            // Canonicalize if it exists, otherwise keep as-is
+            std::fs::canonicalize(&abs)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or(abs)
+        })
+        .collect()
+}
+
+/// GET /api/config/list?path= — returns known config file paths and their existence status.
+async fn config_list(Query(params): Query<ConfigListParams>) -> impl IntoResponse {
+    let project_path = params.path.unwrap_or_else(|| ".".to_string());
+    let files = known_config_files(&project_path);
+
+    let mut results: Vec<serde_json::Value> = Vec::new();
+    for (label, abs_path, syntax) in files {
+        let exists = std::path::Path::new(&abs_path).exists();
+        let size = if exists {
+            std::fs::metadata(&abs_path).map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        };
+        results.push(serde_json::json!({
+            "label": label,
+            "path": abs_path,
+            "syntax": syntax,
+            "exists": exists,
+            "size": size,
+        }));
+    }
+
+    (StatusCode::OK, Json(serde_json::json!({"files": results})))
+}
+
+/// GET /api/config/read?file= — read a config file by absolute path.
+async fn config_read(Query(params): Query<ConfigReadParams>) -> impl IntoResponse {
+    let file_path = match params.file {
+        Some(ref f) if !f.is_empty() => f.clone(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "file parameter required"})),
+            );
+        }
+    };
+
+    let expanded = expand_path(&file_path);
+    let path = std::path::Path::new(&expanded);
+
+    if !path.exists() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "File not found"})),
+        );
+    }
+
+    match tokio::fs::read_to_string(&expanded).await {
+        Ok(content) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"content": content, "path": expanded})),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to read file: {}", e)})),
+        ),
+    }
+}
+
+/// POST /api/config/write?file= — write config file (body: {content}).
+/// Only allows writing to files that are in the known config list.
+async fn config_write(
+    Query(params): Query<ConfigWriteParams>,
+    Json(body): Json<ConfigWriteBody>,
+) -> impl IntoResponse {
+    let file_path = match params.file {
+        Some(ref f) if !f.is_empty() => f.clone(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "file parameter required"})),
+            );
+        }
+    };
+
+    let expanded = expand_path(&file_path);
+
+    // Security: check that this file is in the known config files list.
+    // We check against all possible project paths by using the file's own parent directories.
+    // Also try current directory as project path.
+    let canonical_target = std::fs::canonicalize(&expanded)
+        .unwrap_or_else(|_| std::path::PathBuf::from(&expanded));
+    let canonical_str = canonical_target.to_string_lossy().to_string();
+
+    // Check against common project paths: ".", cwd, and the parent of the file itself
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+
+    let mut allowed = false;
+    for project_path in &[cwd.as_str(), "."] {
+        let valid_paths = allowed_config_paths(project_path);
+        if valid_paths.iter().any(|p| p == &canonical_str || p == &expanded) {
+            allowed = true;
+            break;
+        }
+    }
+
+    if !allowed {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "Writing to this file is not allowed. Only known config files can be modified."})),
+        );
+    }
+
+    // Ensure parent directory exists
+    if let Some(parent) = std::path::Path::new(&expanded).parent() {
+        if !parent.exists() {
+            if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Failed to create directory: {}", e)})),
+                );
+            }
+        }
+    }
+
+    match tokio::fs::write(&expanded, &body.content).await {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"ok": true, "path": expanded})),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to write file: {}", e)})),
+        ),
+    }
+}
+
+/// Sensitive env var prefixes/names to filter out.
+fn is_sensitive_env(key: &str) -> bool {
+    let upper = key.to_uppercase();
+    let sensitive_patterns = [
+        "API_KEY", "SECRET", "TOKEN", "PASSWORD", "PASSWD", "CREDENTIAL",
+        "PRIVATE_KEY", "AUTH", "AWS_ACCESS", "AWS_SECRET",
+    ];
+    for pat in &sensitive_patterns {
+        if upper.contains(pat) {
+            return true;
+        }
+    }
+    false
+}
+
+/// GET /api/config/env — returns filtered environment variables.
+async fn config_env() -> impl IntoResponse {
+    let mut vars: Vec<serde_json::Value> = std::env::vars()
+        .filter(|(k, _)| !is_sensitive_env(k))
+        .map(|(k, v)| serde_json::json!({"key": k, "value": v}))
+        .collect();
+
+    vars.sort_by(|a, b| {
+        let ak = a["key"].as_str().unwrap_or("");
+        let bk = b["key"].as_str().unwrap_or("");
+        ak.cmp(bk)
+    });
+
+    (StatusCode::OK, Json(serde_json::json!({"vars": vars, "count": vars.len()})))
 }
 
 /// Wait for Ctrl+C to trigger graceful shutdown.

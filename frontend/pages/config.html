@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Config</title>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --iron-black: #1A1D1F;
+  --steel-dark: #2C3033;
+  --steel-mid: #4A5459;
+  --steel-light: #7A8489;
+  --brushed-steel: #9BA3A9;
+  --bright-steel: #C5CED4;
+  --rust-deep: #8B3A1D;
+  --rust-mid: #B54A24;
+  --rust-light: #D4652F;
+  --rust-accent: #E8823A;
+  --hazard-yellow: #FFB800;
+  --hazard-orange: #FF6B00;
+  --caution-red: #D42C2C;
+  --safety-green: #2D8B47;
+  --concrete: #B5AFA7;
+  --dirty-white: #E8E4DC;
+  --grime: #3D3832;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-heading: 'Oswald', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 14px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--iron-black); }
+::-webkit-scrollbar-thumb { background: var(--steel-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--steel-light); }
+
+/* ── Layout ── */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.cfg-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--hazard-yellow);
+  flex-shrink: 0;
+}
+
+.cfg-header-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hazard-yellow);
+  flex: 1;
+}
+
+.cfg-tab {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+}
+
+.cfg-tab:hover { background: var(--hazard-yellow); color: var(--iron-black); border-color: var(--hazard-yellow); }
+.cfg-tab.active { background: var(--hazard-yellow); color: var(--iron-black); border-color: var(--hazard-yellow); }
+
+/* ── Body ── */
+.cfg-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── File List Panel ── */
+.cfg-list {
+  width: 260px;
+  min-width: 180px;
+  overflow-y: auto;
+  border-right: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .cfg-list { width: 100%; border-right: none; }
+  .cfg-body { flex-direction: column; }
+  .cfg-body.has-selection .cfg-list { display: none; }
+  .cfg-content { width: 100% !important; }
+}
+
+.cfg-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid color-mix(in srgb, var(--steel-mid) 50%, transparent);
+  transition: background 0.15s;
+}
+
+.cfg-file-item:hover { background: color-mix(in srgb, var(--hazard-yellow) 8%, transparent); }
+.cfg-file-item.active { background: color-mix(in srgb, var(--hazard-yellow) 15%, transparent); border-left: 3px solid var(--hazard-yellow); }
+.cfg-file-item.missing { opacity: 0.4; }
+
+.cfg-file-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.cfg-file-info { flex: 1; min-width: 0; }
+
+.cfg-file-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--bright-steel);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cfg-file-path {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--steel-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.cfg-file-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.cfg-badge-exists { background: color-mix(in srgb, var(--safety-green) 25%, transparent); color: var(--safety-green); }
+.cfg-badge-missing { background: color-mix(in srgb, var(--caution-red) 25%, transparent); color: var(--caution-red); }
+
+/* ── Content Panel ── */
+.cfg-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.cfg-content-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--steel-dark) 80%, var(--iron-black));
+  border-bottom: 1px solid var(--steel-mid);
+  flex-shrink: 0;
+}
+
+.cfg-content-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--bright-steel);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cfg-btn {
+  background: var(--steel-mid);
+  border: 1px solid var(--steel-light);
+  color: var(--dirty-white);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.cfg-btn:hover { background: var(--hazard-yellow); color: var(--iron-black); border-color: var(--hazard-yellow); }
+.cfg-btn-save { background: var(--safety-green); border-color: var(--safety-green); }
+.cfg-btn-save:hover { background: #3aad5c; }
+.cfg-btn-cancel { background: var(--steel-mid); }
+.cfg-btn-back { display: none; }
+
+@media (max-width: 600px) {
+  .cfg-btn-back { display: inline-block; }
+}
+
+.cfg-content-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+/* ── Syntax Highlighted View ── */
+.cfg-code-view {
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 2;
+}
+
+.cfg-line-num {
+  display: inline-block;
+  width: 3.5em;
+  text-align: right;
+  padding-right: 1em;
+  color: var(--steel-light);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Syntax colors */
+.syn-key { color: #7ec8e3; }
+.syn-str { color: #ce9178; }
+.syn-num { color: #b5cea8; }
+.syn-bool { color: #569cd6; }
+.syn-null { color: #808080; font-style: italic; }
+.syn-punct { color: var(--steel-light); }
+.syn-comment { color: #6a9955; font-style: italic; }
+.syn-heading { color: var(--hazard-yellow); font-weight: bold; }
+.syn-toml-key { color: #7ec8e3; }
+.syn-toml-section { color: var(--hazard-yellow); font-weight: bold; }
+.syn-env-key { color: #7ec8e3; }
+.syn-env-val { color: #ce9178; }
+
+/* ── Collapsible JSON ── */
+.json-toggle {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.json-toggle::before {
+  content: "\25BC";
+  display: inline-block;
+  width: 1.2em;
+  font-size: 10px;
+  color: var(--steel-light);
+  transition: transform 0.15s;
+}
+
+.json-toggle.collapsed::before { transform: rotate(-90deg); }
+
+.json-children { padding-left: 1.5em; }
+.json-children.hidden { display: none; }
+
+.json-bracket { color: var(--steel-light); }
+.json-ellipsis { color: var(--steel-light); font-style: italic; display: none; }
+.json-toggle.collapsed + .json-children + .json-ellipsis { display: inline; }
+
+/* ── Edit Mode ── */
+.cfg-editor {
+  width: 100%;
+  height: 100%;
+  background: var(--iron-black);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  border: none;
+  outline: none;
+  padding: 12px;
+  resize: none;
+  tab-size: 2;
+}
+
+/* ── Env Vars ── */
+.cfg-env-filter {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--steel-dark);
+  color: var(--dirty-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  border: 1px solid var(--steel-mid);
+  border-radius: 3px;
+  outline: none;
+  margin: 8px 12px;
+  box-sizing: border-box;
+  width: calc(100% - 24px);
+}
+
+.cfg-env-filter:focus { border-color: var(--hazard-yellow); }
+
+.cfg-env-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cfg-env-table th {
+  background: var(--steel-dark);
+  color: var(--hazard-yellow);
+  text-align: left;
+  padding: 6px 12px;
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.cfg-env-table td {
+  padding: 4px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--steel-mid) 40%, transparent);
+  vertical-align: top;
+}
+
+.cfg-env-table tr:hover td { background: color-mix(in srgb, var(--hazard-yellow) 5%, transparent); }
+
+.cfg-env-key { color: #7ec8e3; white-space: nowrap; }
+.cfg-env-value {
+  color: var(--bright-steel);
+  word-break: break-all;
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Toast ── */
+.cfg-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--safety-green);
+  color: var(--dirty-white);
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.cfg-toast.visible { opacity: 1; }
+.cfg-toast.error { background: var(--caution-red); }
+
+/* ── Empty State ── */
+.cfg-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--steel-light);
+  font-family: var(--font-heading);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Loading ── */
+.cfg-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--steel-light);
+  font-family: var(--font-mono);
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="cfg-header">
+    <span class="cfg-header-title">Config Editor</span>
+    <button class="cfg-tab active" id="tabFiles">Files</button>
+    <button class="cfg-tab" id="tabEnv">Env</button>
+  </div>
+  <div class="cfg-body" id="cfgBody">
+    <!-- Files tab -->
+    <div class="cfg-list" id="cfgList"></div>
+    <div class="cfg-content" id="cfgContent">
+      <div class="cfg-empty" id="cfgEmpty">Select a config file</div>
+    </div>
+    <!-- Env tab (hidden by default) -->
+    <div id="cfgEnv" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+      <input type="text" class="cfg-env-filter" id="envFilter" placeholder="Filter variables...">
+      <div style="flex:1; overflow:auto;" id="envTableWrap"></div>
+    </div>
+  </div>
+</div>
+<div class="cfg-toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──
+  var params = new URLSearchParams(window.location.search);
+  var projectPath = params.get("path") || "";
+  var files = [];
+  var activeFile = null;
+  var editMode = false;
+  var originalContent = "";
+  var toastTimer = null;
+
+  // ── DOM refs ──
+  var elList = document.getElementById("cfgList");
+  var elContent = document.getElementById("cfgContent");
+  var elEmpty = document.getElementById("cfgEmpty");
+  var elBody = document.getElementById("cfgBody");
+  var elEnv = document.getElementById("cfgEnv");
+  var elEnvFilter = document.getElementById("envFilter");
+  var elEnvWrap = document.getElementById("envTableWrap");
+  var elTabFiles = document.getElementById("tabFiles");
+  var elTabEnv = document.getElementById("tabEnv");
+  var elToast = document.getElementById("toast");
+
+  // ── Helpers ──
+  function apiUrl(endpoint) {
+    return endpoint + (endpoint.indexOf("?") === -1 ? "?" : "&") + "path=" + encodeURIComponent(projectPath);
+  }
+
+  function xhrGet(url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); } catch (e) { cb(e, null); }
+      } else {
+        cb(new Error("HTTP " + xhr.status), null);
+      }
+    };
+    xhr.onerror = function () { cb(new Error("Network error"), null); };
+    xhr.send();
+  }
+
+  function xhrPost(url, data, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { cb(null, JSON.parse(xhr.responseText)); } catch (e) { cb(e, null); }
+      } else {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          cb(new Error(err.error || "HTTP " + xhr.status), null);
+        } catch (e) {
+          cb(new Error("HTTP " + xhr.status), null);
+        }
+      }
+    };
+    xhr.onerror = function () { cb(new Error("Network error"), null); };
+    xhr.send(JSON.stringify(data));
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function showToast(msg, isError) {
+    elToast.textContent = msg;
+    elToast.className = "cfg-toast visible" + (isError ? " error" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { elToast.className = "cfg-toast"; }, 2500);
+  }
+
+  function syntaxIcon(syntax) {
+    var icons = {
+      json: "\uD83D\uDCC4",
+      markdown: "\uD83D\uDCDD",
+      toml: "\u2699\uFE0F",
+      env: "\uD83D\uDD12",
+      gitignore: "\uD83D\uDEAB"
+    };
+    return icons[syntax] || "\uD83D\uDCC4";
+  }
+
+  // ── Tab Switching ──
+  elTabFiles.addEventListener("click", function () {
+    elTabFiles.className = "cfg-tab active";
+    elTabEnv.className = "cfg-tab";
+    elList.style.display = "";
+    elContent.style.display = "";
+    elEnv.style.display = "none";
+  });
+
+  elTabEnv.addEventListener("click", function () {
+    elTabFiles.className = "cfg-tab";
+    elTabEnv.className = "cfg-tab active";
+    elList.style.display = "none";
+    elContent.style.display = "none";
+    elEnv.style.display = "flex";
+    loadEnvVars();
+  });
+
+  // ── File List ──
+  function loadFileList() {
+    xhrGet(apiUrl("/api/config/list"), function (err, data) {
+      if (err || !data || !data.files) {
+        elList.innerHTML = '<div class="cfg-empty">Failed to load config files</div>';
+        return;
+      }
+      files = data.files;
+      renderFileList();
+    });
+  }
+
+  function renderFileList() {
+    var html = "";
+    files.forEach(function (f) {
+      var cls = "cfg-file-item" + (!f.exists ? " missing" : "") + (activeFile && activeFile.path === f.path ? " active" : "");
+      var badge = f.exists
+        ? '<span class="cfg-file-badge cfg-badge-exists">' + formatSize(f.size) + '</span>'
+        : '<span class="cfg-file-badge cfg-badge-missing">missing</span>';
+      html += '<div class="' + cls + '" data-path="' + escHtml(f.path) + '">'
+        + '<span class="cfg-file-icon">' + syntaxIcon(f.syntax) + '</span>'
+        + '<div class="cfg-file-info">'
+        + '<div class="cfg-file-name">' + escHtml(f.label) + '</div>'
+        + '<div class="cfg-file-path">' + escHtml(f.path) + '</div>'
+        + '</div>'
+        + badge
+        + '</div>';
+    });
+    elList.innerHTML = html;
+
+    // Click handlers
+    var items = elList.querySelectorAll(".cfg-file-item");
+    for (var i = 0; i < items.length; i++) {
+      items[i].addEventListener("click", function () {
+        var path = this.getAttribute("data-path");
+        var file = null;
+        for (var j = 0; j < files.length; j++) {
+          if (files[j].path === path) { file = files[j]; break; }
+        }
+        if (file && file.exists) {
+          selectFile(file);
+        } else if (file && !file.exists) {
+          showToast("File does not exist", true);
+        }
+      });
+    }
+  }
+
+  function formatSize(bytes) {
+    if (bytes === 0) return "0B";
+    if (bytes < 1024) return bytes + "B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + "K";
+    return (bytes / (1024 * 1024)).toFixed(1) + "M";
+  }
+
+  // ── Select & View File ──
+  function selectFile(file) {
+    activeFile = file;
+    editMode = false;
+    elBody.classList.add("has-selection");
+    renderFileList();
+    loadFileContent(file);
+  }
+
+  function loadFileContent(file) {
+    elContent.innerHTML = '<div class="cfg-loading">Loading...</div>';
+    xhrGet("/api/config/read?file=" + encodeURIComponent(file.path), function (err, data) {
+      if (err || !data || data.error) {
+        elContent.innerHTML = '<div class="cfg-empty">Failed to load: ' + escHtml((data && data.error) || "Unknown error") + '</div>';
+        return;
+      }
+      originalContent = data.content;
+      renderViewMode(file, data.content);
+    });
+  }
+
+  function renderViewMode(file, content) {
+    editMode = false;
+    var html = '<div class="cfg-content-header">'
+      + '<button class="cfg-btn cfg-btn-back" id="btnBack">Back</button>'
+      + '<span class="cfg-content-title">' + escHtml(file.label) + ' — ' + escHtml(file.path) + '</span>'
+      + '<button class="cfg-btn" id="btnEdit">Edit</button>'
+      + '<button class="cfg-btn" id="btnCopy">Copy</button>'
+      + '</div>'
+      + '<div class="cfg-content-body">'
+      + '<div class="cfg-code-view" id="codeView">' + highlightContent(content, file.syntax) + '</div>'
+      + '</div>';
+    elContent.innerHTML = html;
+
+    document.getElementById("btnEdit").addEventListener("click", function () {
+      renderEditMode(file, originalContent);
+    });
+    document.getElementById("btnCopy").addEventListener("click", function () {
+      copyToClipboard(originalContent);
+    });
+    document.getElementById("btnBack").addEventListener("click", function () {
+      goBack();
+    });
+
+    // Set up collapsible toggles for JSON
+    if (file.syntax === "json") {
+      setupJsonToggles();
+    }
+  }
+
+  function renderEditMode(file, content) {
+    editMode = true;
+    var html = '<div class="cfg-content-header">'
+      + '<button class="cfg-btn cfg-btn-back" id="btnBack">Back</button>'
+      + '<span class="cfg-content-title">Editing: ' + escHtml(file.label) + '</span>'
+      + '<button class="cfg-btn cfg-btn-save" id="btnSave">Save</button>'
+      + '<button class="cfg-btn cfg-btn-cancel" id="btnCancel">Cancel</button>'
+      + '</div>'
+      + '<div class="cfg-content-body">'
+      + '<textarea class="cfg-editor" id="cfgEditor">' + escHtml(content) + '</textarea>'
+      + '</div>';
+    elContent.innerHTML = html;
+
+    var editor = document.getElementById("cfgEditor");
+    editor.focus();
+
+    // Tab key inserts spaces
+    editor.addEventListener("keydown", function (e) {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        var start = this.selectionStart;
+        var end = this.selectionEnd;
+        this.value = this.value.substring(0, start) + "  " + this.value.substring(end);
+        this.selectionStart = this.selectionEnd = start + 2;
+      }
+      // Ctrl+S to save
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        saveFile();
+      }
+      // Escape to cancel
+      if (e.key === "Escape") {
+        e.preventDefault();
+        renderViewMode(file, originalContent);
+      }
+    });
+
+    document.getElementById("btnSave").addEventListener("click", function () { saveFile(); });
+    document.getElementById("btnCancel").addEventListener("click", function () {
+      renderViewMode(file, originalContent);
+    });
+    document.getElementById("btnBack").addEventListener("click", function () { goBack(); });
+  }
+
+  function saveFile() {
+    var editor = document.getElementById("cfgEditor");
+    if (!editor || !activeFile) return;
+    var content = editor.value;
+
+    xhrPost("/api/config/write?file=" + encodeURIComponent(activeFile.path), { content: content }, function (err, data) {
+      if (err) {
+        showToast("Save failed: " + err.message, true);
+        return;
+      }
+      originalContent = content;
+      showToast("Saved successfully");
+      // Update size in file list
+      for (var i = 0; i < files.length; i++) {
+        if (files[i].path === activeFile.path) {
+          files[i].size = content.length;
+          break;
+        }
+      }
+      renderFileList();
+      renderViewMode(activeFile, content);
+    });
+  }
+
+  function goBack() {
+    activeFile = null;
+    editMode = false;
+    elBody.classList.remove("has-selection");
+    elContent.innerHTML = '<div class="cfg-empty">Select a config file</div>';
+    renderFileList();
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("Copied to clipboard");
+      }).catch(function () {
+        showToast("Copy failed", true);
+      });
+    } else {
+      // Fallback
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        showToast("Copied to clipboard");
+      } catch (e) {
+        showToast("Copy failed", true);
+      }
+      document.body.removeChild(ta);
+    }
+  }
+
+  // ── Syntax Highlighting ──
+  function highlightContent(content, syntax) {
+    if (syntax === "json") return highlightJson(content);
+    if (syntax === "markdown") return highlightMarkdown(content);
+    if (syntax === "toml") return highlightToml(content);
+    if (syntax === "env") return highlightEnv(content);
+    return highlightPlain(content);
+  }
+
+  function highlightPlain(content) {
+    var lines = content.split("\n");
+    var html = "";
+    for (var i = 0; i < lines.length; i++) {
+      html += '<span class="cfg-line-num">' + (i + 1) + '</span>' + escHtml(lines[i]) + "\n";
+    }
+    return html;
+  }
+
+  // ── JSON Highlighting with Collapsible Sections ──
+  function highlightJson(content) {
+    try {
+      var parsed = JSON.parse(content);
+      return renderJsonTree(parsed, 0, true);
+    } catch (e) {
+      // Fallback to line-by-line highlighting
+      return highlightJsonLines(content);
+    }
+  }
+
+  function renderJsonTree(value, depth, isRoot) {
+    var indent = repeatStr("  ", depth);
+    var indentInner = repeatStr("  ", depth + 1);
+
+    if (value === null) return '<span class="syn-null">null</span>';
+    if (typeof value === "boolean") return '<span class="syn-bool">' + value + '</span>';
+    if (typeof value === "number") return '<span class="syn-num">' + value + '</span>';
+    if (typeof value === "string") return '<span class="syn-str">"' + escHtml(value) + '"</span>';
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '<span class="json-bracket">[]</span>';
+      var isSmall = value.length <= 3 && value.every(function (v) { return typeof v !== "object" || v === null; });
+      if (isSmall) {
+        var items = [];
+        for (var i = 0; i < value.length; i++) {
+          items.push(renderJsonTree(value[i], depth + 1, false));
+        }
+        return '<span class="json-bracket">[</span>' + items.join('<span class="syn-punct">, </span>') + '<span class="json-bracket">]</span>';
+      }
+      var html = '<span class="json-toggle" data-depth="' + depth + '"></span>';
+      html += '<span class="json-bracket">[</span>';
+      html += '<div class="json-children">';
+      for (var j = 0; j < value.length; j++) {
+        html += indentInner + renderJsonTree(value[j], depth + 1, false);
+        if (j < value.length - 1) html += '<span class="syn-punct">,</span>';
+        html += "\n";
+      }
+      html += indent + '<span class="json-bracket">]</span>';
+      html += '</div>';
+      html += '<span class="json-ellipsis"> ...' + value.length + ' items ]</span>';
+      return html;
+    }
+
+    if (typeof value === "object") {
+      var keys = Object.keys(value);
+      if (keys.length === 0) return '<span class="json-bracket">{}</span>';
+
+      var isComplex = keys.length > 2 || keys.some(function (k) {
+        return typeof value[k] === "object" && value[k] !== null;
+      });
+
+      if (!isComplex) {
+        var pairs = [];
+        for (var m = 0; m < keys.length; m++) {
+          pairs.push('<span class="syn-key">"' + escHtml(keys[m]) + '"</span><span class="syn-punct">: </span>' + renderJsonTree(value[keys[m]], depth + 1, false));
+        }
+        return '<span class="json-bracket">{</span> ' + pairs.join('<span class="syn-punct">, </span>') + ' <span class="json-bracket">}</span>';
+      }
+
+      var objHtml = '<span class="json-toggle" data-depth="' + depth + '"></span>';
+      objHtml += '<span class="json-bracket">{</span>';
+      objHtml += '<div class="json-children">';
+      for (var n = 0; n < keys.length; n++) {
+        objHtml += indentInner + '<span class="syn-key">"' + escHtml(keys[n]) + '"</span><span class="syn-punct">: </span>' + renderJsonTree(value[keys[n]], depth + 1, false);
+        if (n < keys.length - 1) objHtml += '<span class="syn-punct">,</span>';
+        objHtml += "\n";
+      }
+      objHtml += indent + '<span class="json-bracket">}</span>';
+      objHtml += '</div>';
+      objHtml += '<span class="json-ellipsis"> ...' + keys.length + ' keys }</span>';
+      return objHtml;
+    }
+
+    return escHtml(String(value));
+  }
+
+  function highlightJsonLines(content) {
+    var lines = content.split("\n");
+    var html = "";
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var highlighted = escHtml(line)
+        .replace(/"([^"\\]|\\.)*"\s*:/g, function (m) {
+          return '<span class="syn-key">' + m.replace(/:$/, '') + '</span><span class="syn-punct">:</span>';
+        })
+        .replace(/:\s*"([^"\\]|\\.)*"/g, function (m) {
+          var colonPart = m.match(/^:\s*/)[0];
+          return '<span class="syn-punct">' + colonPart + '</span><span class="syn-str">' + m.substring(colonPart.length) + '</span>';
+        })
+        .replace(/:\s*(\d+\.?\d*)/g, function (m, n) {
+          var colonPart = m.match(/^:\s*/)[0];
+          return '<span class="syn-punct">' + colonPart + '</span><span class="syn-num">' + n + '</span>';
+        })
+        .replace(/:\s*(true|false)/g, function (m, b) {
+          var colonPart = m.match(/^:\s*/)[0];
+          return '<span class="syn-punct">' + colonPart + '</span><span class="syn-bool">' + b + '</span>';
+        })
+        .replace(/:\s*null/g, function (m) {
+          var colonPart = m.match(/^:\s*/)[0];
+          return '<span class="syn-punct">' + colonPart + '</span><span class="syn-null">null</span>';
+        });
+      html += '<span class="cfg-line-num">' + (i + 1) + '</span>' + highlighted + "\n";
+    }
+    return html;
+  }
+
+  function setupJsonToggles() {
+    var toggles = document.querySelectorAll(".json-toggle");
+    for (var i = 0; i < toggles.length; i++) {
+      toggles[i].addEventListener("click", function () {
+        this.classList.toggle("collapsed");
+        var children = this.parentNode.querySelector(".json-children");
+        if (children) children.classList.toggle("hidden");
+      });
+    }
+  }
+
+  // ── Markdown Highlighting ──
+  function highlightMarkdown(content) {
+    var lines = content.split("\n");
+    var html = "";
+    for (var i = 0; i < lines.length; i++) {
+      var line = escHtml(lines[i]);
+      if (/^#{1,6}\s/.test(lines[i])) {
+        line = '<span class="syn-heading">' + line + '</span>';
+      } else if (/^```/.test(lines[i])) {
+        line = '<span class="syn-comment">' + line + '</span>';
+      } else if (/^\s*[-*]\s/.test(lines[i])) {
+        line = '<span class="syn-punct">' + line.substring(0, line.indexOf(lines[i].trim().charAt(0)) + 1) + '</span>' + line.substring(line.indexOf(lines[i].trim().charAt(0)) + 1);
+      }
+      html += '<span class="cfg-line-num">' + (i + 1) + '</span>' + line + "\n";
+    }
+    return html;
+  }
+
+  // ── TOML Highlighting ──
+  function highlightToml(content) {
+    var lines = content.split("\n");
+    var html = "";
+    for (var i = 0; i < lines.length; i++) {
+      var line = escHtml(lines[i]);
+      if (/^\s*#/.test(lines[i])) {
+        line = '<span class="syn-comment">' + line + '</span>';
+      } else if (/^\s*\[/.test(lines[i])) {
+        line = '<span class="syn-toml-section">' + line + '</span>';
+      } else if (/^\s*\w[\w-]*\s*=/.test(lines[i])) {
+        line = line.replace(/^(\s*)([\w][\w-]*)(\s*=\s*)(.*)$/, function (m, sp, key, eq, val) {
+          var valHtml = val;
+          if (/^"/.test(val)) valHtml = '<span class="syn-str">' + val + '</span>';
+          else if (/^\d/.test(val)) valHtml = '<span class="syn-num">' + val + '</span>';
+          else if (/^(true|false)/.test(val)) valHtml = '<span class="syn-bool">' + val + '</span>';
+          return sp + '<span class="syn-toml-key">' + key + '</span><span class="syn-punct">' + eq + '</span>' + valHtml;
+        });
+      }
+      html += '<span class="cfg-line-num">' + (i + 1) + '</span>' + line + "\n";
+    }
+    return html;
+  }
+
+  // ── Env Highlighting ──
+  function highlightEnv(content) {
+    var lines = content.split("\n");
+    var html = "";
+    for (var i = 0; i < lines.length; i++) {
+      var line = escHtml(lines[i]);
+      if (/^\s*#/.test(lines[i])) {
+        line = '<span class="syn-comment">' + line + '</span>';
+      } else if (/^\s*\w+=/.test(lines[i])) {
+        line = line.replace(/^(\s*)(\w+)(=)(.*)$/, function (m, sp, key, eq, val) {
+          return sp + '<span class="syn-env-key">' + key + '</span><span class="syn-punct">' + eq + '</span><span class="syn-env-val">' + val + '</span>';
+        });
+      }
+      html += '<span class="cfg-line-num">' + (i + 1) + '</span>' + line + "\n";
+    }
+    return html;
+  }
+
+  function repeatStr(str, n) {
+    var result = "";
+    for (var i = 0; i < n; i++) result += str;
+    return result;
+  }
+
+  // ── Environment Variables ──
+  var envData = null;
+
+  function loadEnvVars() {
+    if (envData) {
+      renderEnvTable(envData);
+      return;
+    }
+    elEnvWrap.innerHTML = '<div class="cfg-loading">Loading environment variables...</div>';
+    xhrGet("/api/config/env", function (err, data) {
+      if (err || !data || !data.vars) {
+        elEnvWrap.innerHTML = '<div class="cfg-empty">Failed to load env vars</div>';
+        return;
+      }
+      envData = data.vars;
+      renderEnvTable(envData);
+    });
+  }
+
+  function renderEnvTable(vars) {
+    var filter = (elEnvFilter.value || "").toLowerCase();
+    var filtered = vars.filter(function (v) {
+      if (!filter) return true;
+      return v.key.toLowerCase().indexOf(filter) !== -1 || v.value.toLowerCase().indexOf(filter) !== -1;
+    });
+
+    var html = '<table class="cfg-env-table"><thead><tr><th>Variable</th><th>Value</th></tr></thead><tbody>';
+    for (var i = 0; i < filtered.length; i++) {
+      html += '<tr><td class="cfg-env-key">' + escHtml(filtered[i].key) + '</td>'
+        + '<td class="cfg-env-value">' + escHtml(filtered[i].value) + '</td></tr>';
+    }
+    if (filtered.length === 0) {
+      html += '<tr><td colspan="2" style="text-align:center; color:var(--steel-light); padding:20px;">No matching variables</td></tr>';
+    }
+    html += '</tbody></table>';
+    elEnvWrap.innerHTML = html;
+  }
+
+  elEnvFilter.addEventListener("input", function () {
+    if (envData) renderEnvTable(envData);
+  });
+
+  // ── Init ──
+  loadFileList();
+
+})();
+</script>
+</body>
+</html>
