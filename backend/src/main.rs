@@ -1868,219 +1868,69 @@ async fn git_generate_message(Query(params): Query<GitActionParams>) -> impl Int
 
 #[derive(Deserialize)]
 struct BeadsIssuesParams {
-    #[allow(dead_code)]
-    path: Option<String>,
+    /// Filter issues by ID prefix (e.g. "cf" returns only cf-* issues)
+    prefix: Option<String>,
 }
 
-/// GET /api/beads/issues?path=
-/// Queries Supabase Postgres directly (beads schema) and returns
-/// `{ "issues": [...] }` matching the bd CLI JSON format.
+/// GET /api/beads/issues?prefix=cf
+/// Shells out to ggbd CLI which handles Supabase TLS natively via Go's pgx.
+/// Returns `{ "issues": [...] }` wrapping the CLI's JSON array output.
 async fn beads_issues(
-    State(state): State<Arc<AppState>>,
-    Query(_params): Query<BeadsIssuesParams>,
+    Query(params): Query<BeadsIssuesParams>,
 ) -> impl IntoResponse {
-    let pool = match &state.beads_pool {
-        Some(p) => p,
-        None => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "BD_POSTGRES_URL not configured"})),
-            );
-        }
+    // Find ggbd binary: alias target first, then PATH
+    let ggbd = std::path::PathBuf::from(
+        std::env::var("HOME").unwrap_or_default()
+    ).join("projects/ggbeads/ggbd");
+    let bin = if ggbd.exists() {
+        ggbd
+    } else {
+        std::path::PathBuf::from("bd")
     };
 
-    let client = match pool.get().await {
-        Ok(c) => c,
+    // Build command: ggbd list --all --json [--prefix X]
+    let mut cmd = tokio::process::Command::new(&bin);
+    cmd.arg("list").arg("--all").arg("--json");
+    if let Some(ref prefix) = params.prefix {
+        cmd.arg("--prefix").arg(prefix);
+    }
+    // Run from a directory that has .beads/ so ggbd finds its config
+    let beads_dir = std::path::PathBuf::from(
+        std::env::var("HOME").unwrap_or_default()
+    ).join("projects/codefactory");
+    cmd.current_dir(&beads_dir);
+    cmd.env("BD_POSTGRES_URL", std::env::var("BD_POSTGRES_URL").unwrap_or_default());
+
+    let output = match cmd.output().await {
+        Ok(o) => o,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": format!("db connection failed: {}", e)})),
+                Json(serde_json::json!({"error": format!("failed to run ggbd: {}", e)})),
             );
         }
     };
 
-    // Fetch all issues
-    let issue_rows = match client
-        .query(
-            "SELECT id, title, description, design, notes, status, priority, issue_type, \
-             owner, created_at, created_by, updated_at, closed_at, close_reason \
-             FROM beads.issues ORDER BY created_at DESC",
-            &[],
-        )
-        .await
-    {
-        Ok(rows) => rows,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": format!("query failed: {}", e)})),
-            );
-        }
-    };
-
-    // Fetch all labels
-    let label_rows = match client
-        .query("SELECT issue_id, label FROM beads.labels", &[])
-        .await
-    {
-        Ok(rows) => rows,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": format!("labels query failed: {}", e)})),
-            );
-        }
-    };
-
-    // Fetch all dependencies
-    let dep_rows = match client
-        .query(
-            "SELECT issue_id, depends_on_id, type, created_at, created_by, metadata \
-             FROM beads.dependencies",
-            &[],
-        )
-        .await
-    {
-        Ok(rows) => rows,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": format!("dependencies query failed: {}", e)})),
-            );
-        }
-    };
-
-    // Fetch comment counts per issue
-    let comment_rows = match client
-        .query(
-            "SELECT issue_id, COUNT(*) as cnt FROM beads.comments GROUP BY issue_id",
-            &[],
-        )
-        .await
-    {
-        Ok(rows) => rows,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": format!("comments query failed: {}", e)})),
-            );
-        }
-    };
-
-    // Build labels map: issue_id -> Vec<label>
-    let mut labels_map: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
-    for row in &label_rows {
-        let issue_id: String = row.get("issue_id");
-        let label: String = row.get("label");
-        labels_map.entry(issue_id).or_default().push(label);
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("ggbd failed: {}", stderr.trim())})),
+        );
     }
 
-    // Build dependencies map: issue_id -> Vec<dep object>
-    let mut deps_map: std::collections::HashMap<String, Vec<serde_json::Value>> =
-        std::collections::HashMap::new();
-    // Also count: dependency_count (where issue_id = X) and dependent_count (where depends_on_id = X)
-    let mut dep_count: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
-    let mut dependent_count: std::collections::HashMap<String, i64> =
-        std::collections::HashMap::new();
-
-    for row in &dep_rows {
-        let issue_id: String = row.get("issue_id");
-        let depends_on_id: String = row.get("depends_on_id");
-        let dep_type: String = row.get("type");
-        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
-        let created_by: String = row.get("created_by");
-        let metadata: serde_json::Value = row.get("metadata");
-
-        *dep_count.entry(issue_id.clone()).or_insert(0) += 1;
-        *dependent_count.entry(depends_on_id.clone()).or_insert(0) += 1;
-
-        let dep_obj = serde_json::json!({
-            "issue_id": issue_id,
-            "depends_on_id": depends_on_id,
-            "type": dep_type,
-            "created_at": created_at.to_rfc3339_opts(chrono::SecondsFormat::Micros, true),
-            "created_by": created_by,
-            "metadata": metadata.to_string(),
-        });
-        deps_map.entry(issue_id).or_default().push(dep_obj);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // ggbd may print warnings to stderr; stdout is the JSON array
+    match serde_json::from_str::<serde_json::Value>(&stdout) {
+        Ok(issues) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "issues": issues })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to parse ggbd output: {}", e)})),
+        ),
     }
-
-    // Build comment count map
-    let mut comment_count_map: std::collections::HashMap<String, i64> =
-        std::collections::HashMap::new();
-    for row in &comment_rows {
-        let issue_id: String = row.get("issue_id");
-        let cnt: i64 = row.get("cnt");
-        comment_count_map.insert(issue_id, cnt);
-    }
-
-    // Build the response
-    let mut issues = Vec::new();
-    for row in &issue_rows {
-        let id: String = row.get("id");
-        let title: String = row.get("title");
-        let description: String = row.get("description");
-        let design: String = row.get("design");
-        let notes: String = row.get("notes");
-        let status: String = row.get("status");
-        let priority: i32 = row.get("priority");
-        let issue_type: String = row.get("issue_type");
-        let owner: Option<String> = row.get("owner");
-        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
-        let created_by: Option<String> = row.get("created_by");
-        let updated_at: chrono::DateTime<chrono::Utc> = row.get("updated_at");
-        let closed_at: Option<chrono::DateTime<chrono::Utc>> = row.get("closed_at");
-        let close_reason: Option<String> = row.get("close_reason");
-
-        let labels = labels_map.get(&id).cloned().unwrap_or_default();
-        let deps = deps_map.get(&id).cloned().unwrap_or_default();
-        let d_count = dep_count.get(&id).copied().unwrap_or(0);
-        let dt_count = dependent_count.get(&id).copied().unwrap_or(0);
-        let c_count = comment_count_map.get(&id).copied().unwrap_or(0);
-
-        let fmt = |dt: chrono::DateTime<chrono::Utc>| -> String {
-            dt.to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
-        };
-
-        let mut issue = serde_json::json!({
-            "id": id,
-            "title": title,
-            "description": description,
-            "design": design,
-            "notes": notes,
-            "status": status,
-            "priority": priority,
-            "issue_type": issue_type,
-            "owner": owner.unwrap_or_default(),
-            "created_at": fmt(created_at),
-            "created_by": created_by.unwrap_or_default(),
-            "updated_at": fmt(updated_at),
-            "labels": labels,
-            "dependency_count": d_count,
-            "dependent_count": dt_count,
-            "comment_count": c_count,
-        });
-
-        if let Some(ca) = closed_at {
-            issue["closed_at"] = serde_json::json!(fmt(ca));
-        }
-        if let Some(ref cr) = close_reason {
-            if !cr.is_empty() {
-                issue["close_reason"] = serde_json::json!(cr);
-            }
-        }
-        if !deps.is_empty() {
-            issue["dependencies"] = serde_json::json!(deps);
-        }
-
-        issues.push(issue);
-    }
-
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({ "issues": issues })),
-    )
 }
 
 // ── File Browser API Endpoints ────────────────────────────────────────────

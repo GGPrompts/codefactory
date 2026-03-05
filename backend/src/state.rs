@@ -21,8 +21,6 @@ pub struct AppState {
     pub logs: RwLock<VecDeque<ServerMessage>>,
     /// Broadcast channel for live-reload file change notifications
     pub reload_tx: broadcast::Sender<ServerMessage>,
-    /// Postgres connection pool for beads (Supabase)
-    pub beads_pool: Option<deadpool_postgres::Pool>,
 }
 
 impl AppState {
@@ -40,9 +38,6 @@ impl AppState {
         let (status_tx, _) = broadcast::channel(64);
         let (reload_tx, _) = broadcast::channel(16);
 
-        // Build beads Postgres pool from BD_POSTGRES_URL if set
-        let beads_pool = Self::build_beads_pool();
-
         Self {
             profile_config: RwLock::new(config),
             terminal_manager: TerminalManager::new(),
@@ -50,31 +45,7 @@ impl AppState {
             log_tx,
             logs: RwLock::new(VecDeque::with_capacity(500)),
             reload_tx,
-            beads_pool,
         }
-    }
-
-    fn build_beads_pool() -> Option<deadpool_postgres::Pool> {
-        let url = std::env::var("BD_POSTGRES_URL").ok()?;
-        let pg_config: tokio_postgres::Config = url.parse().ok()?;
-
-        // Supabase pooler (port 6543) uses an internal CA cert not in public
-        // root stores, so NoTls is used here (same as the Go pgx backend).
-        let mgr_config = deadpool_postgres::ManagerConfig {
-            recycling_method: deadpool_postgres::RecyclingMethod::Fast,
-        };
-        let mgr = deadpool_postgres::Manager::from_config(
-            pg_config,
-            tokio_postgres::NoTls,
-            mgr_config,
-        );
-        let pool = deadpool_postgres::Pool::builder(mgr)
-            .max_size(4)
-            .build()
-            .ok()?;
-
-        tracing::info!("beads: Postgres pool initialized from BD_POSTGRES_URL");
-        Some(pool)
     }
 }
 

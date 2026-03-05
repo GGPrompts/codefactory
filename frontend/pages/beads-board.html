@@ -515,46 +515,45 @@ html, body {
 <body>
 <div id="app">
   <div class="bb-path-bar">
-    <label for="repo-path">Path:</label>
-    <input type="text" id="repo-path" placeholder="/path/to/project">
+    <label for="prefix-input">Prefix:</label>
+    <input type="text" id="prefix-input" placeholder="cf" style="max-width: 120px;">
     <button id="load-btn">Load</button>
+    <button id="load-all-btn" style="margin-left: 2px;">All</button>
   </div>
   <div id="beads-board-container"></div>
 </div>
 
-<script src="/js/beads-board.js"></script>
+<script src="/js/beads-board.js?v=2"></script>
 <script>
 (function () {
-  var pathInput = document.getElementById("repo-path");
+  var prefixInput = document.getElementById("prefix-input");
   var loadBtn = document.getElementById("load-btn");
+  var loadAllBtn = document.getElementById("load-all-btn");
   var container = document.getElementById("beads-board-container");
 
-  // Read path from query param
+  // Read prefix from query param, default to "cf"
   var params = new URLSearchParams(window.location.search);
-  var initialPath = params.get("path") || params.get("repo") || "";
-  if (initialPath) {
-    pathInput.value = initialPath;
-  }
+  var initialPrefix = params.get("prefix") || "cf";
+  prefixInput.value = initialPrefix;
 
-  function loadBoard() {
-    var repoPath = pathInput.value.trim();
-    if (!repoPath) {
-      container.innerHTML = '<div class="bb-empty">Enter a project path above</div>';
-      return;
-    }
+  function loadBoard(prefix) {
     container.innerHTML = "";
-    BeadsBoard.init(container, repoPath);
+    BeadsBoard.init(container, prefix || "");
   }
 
-  loadBtn.addEventListener("click", loadBoard);
-  pathInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") loadBoard();
+  loadBtn.addEventListener("click", function () {
+    loadBoard(prefixInput.value.trim());
+  });
+  loadAllBtn.addEventListener("click", function () {
+    prefixInput.value = "";
+    loadBoard("");
+  });
+  prefixInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") loadBoard(prefixInput.value.trim());
   });
 
-  // Auto-load if path is provided
-  if (initialPath) {
-    loadBoard();
-  }
+  // Auto-load on open
+  loadBoard(initialPrefix);
 })();
 </script>
 </body>

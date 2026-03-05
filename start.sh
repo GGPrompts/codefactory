@@ -2,6 +2,9 @@
 # CodeFactory start script
 # Clears stale log file and launches the backend
 
+# Source bashrc for env vars (BD_POSTGRES_URL, etc.) when run outside a login shell
+[ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
+
 cd "$(dirname "$0")" || exit 1
 
 # Kill existing backend if running

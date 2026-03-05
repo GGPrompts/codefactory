@@ -51,7 +51,7 @@ var BeadsBoard = (function () {
   // ── State ──────────────────────────────────────────────────────────────
 
   var _container = null;
-  var _repoPath = "";
+  var _prefix = "";
   var _issues = [];
   var _loading = false;
   var _error = null;
@@ -60,20 +60,16 @@ var BeadsBoard = (function () {
 
   // ── Public API ─────────────────────────────────────────────────────────
 
-  function init(container, repoPath) {
+  function init(container, prefix) {
     _container = container;
-    _repoPath = repoPath || "";
+    _prefix = prefix || "";
 
     // Initialize collapsed state from column defaults
     COLUMNS.forEach(function (col) {
       _collapsed[col.key] = !col.defaultExpanded;
     });
 
-    if (_repoPath) {
-      loadIssues();
-    } else {
-      render();
-    }
+    loadIssues();
   }
 
   function refresh() {
@@ -83,12 +79,12 @@ var BeadsBoard = (function () {
   // ── Data Loading ───────────────────────────────────────────────────────
 
   function loadIssues() {
-    if (!_repoPath) return;
     _loading = true;
     _error = null;
     render();
 
-    var params = new URLSearchParams({ path: _repoPath });
+    var params = new URLSearchParams();
+    if (_prefix) params.set("prefix", _prefix);
     fetch("/api/beads/issues?" + params)
       .then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
@@ -208,8 +204,8 @@ var BeadsBoard = (function () {
     if (!_loading && !_error && _issues.length === 0) {
       html += '<div class="bb-empty">';
       html += '<div class="bb-empty-icon">&#x1f4e5;</div>';
-      html += '<p>No .beads/ directory found</p>';
-      html += '<p class="bb-empty-hint">Run <code>bd create --title="..."</code> to get started</p>';
+      html += '<p>No issues found' + (_prefix ? ' for prefix "' + escapeHtml(_prefix) + '"' : '') + '</p>';
+      html += '<p class="bb-empty-hint">Run <code>ggbd create --title="..."</code> to get started</p>';
       html += '</div>';
       _container.innerHTML = html;
       bindTopbarEvents();
