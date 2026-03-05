@@ -88,12 +88,12 @@ Frontend JS console output and backend tracing events are merged into a single l
 
 ## Beads (Issue Tracking)
 
-- Issues are tracked with beads (`ggbd`)
-- On desktop/laptop: backed by Dolt SQL server on port 3307, data dir `~/beads-dolt/`
-- On Termux: uses local SQLite backend (no Dolt) — issues stay local
-- Dolt sync (desktop/laptop only, skip if `dolt` not available):
-  - Session start: `cd ~/beads-dolt/beads_codefactory && dolt pull origin main`
-  - Session end: `cd ~/beads-dolt/beads_codefactory && dolt push origin main && cd ~/ObsidianVault && git add -A && git commit -m "beads sync" && git push`
-- See `BEADS_SETUP.md` for full setup details
+- Issues are tracked with ggbeads (`ggbd`) — forked beads with Supabase/Postgres backend
+- All devices share one cloud Supabase database (no local server or sync needed)
+- Issue prefix for this project: `cf` (e.g., `cf-xxxx`)
+- CLI: `ggbd list --prefix cf`, `ggbd create`, `ggbd close cf-xxxx`
+- MCP server configured globally in `~/.claude/.mcp.json`
+- On Termux: uses local SQLite backend — issues stay local
+- See `BEADS_SETUP.md` for setup details
 
 See `backend/CLAUDE.md` and `frontend/CLAUDE.md` for crate/directory-specific details.
