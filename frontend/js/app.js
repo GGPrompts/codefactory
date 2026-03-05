@@ -317,7 +317,10 @@
                 '</div>' +
                 '<div class="edit-field">' +
                     '<label>CWD <span class="label-hint">(blank = inherit global)</span></label>' +
-                    '<input type="text" class="edit-input" id="edit-cwd-' + floorId + '" value="' + escapeAttr(cwd) + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
+                    '<div class="edit-field-row">' +
+                        '<input type="text" class="edit-input" id="edit-cwd-' + floorId + '" value="' + escapeAttr(cwd) + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
+                        '<button type="button" class="browse-btn" data-browse="cwd" data-floor="' + floorId + '">BROWSE</button>' +
+                    '</div>' +
                 '</div>' +
                 '<div class="edit-field">' +
                     '<label>ICON</label>' +
@@ -325,11 +328,17 @@
                 '</div>' +
                 '<div class="edit-field">' +
                     '<label>PANEL <span class="label-hint">(markdown filename, e.g. claude.md)</span></label>' +
-                    '<input type="text" class="edit-input" id="edit-panel-' + floorId + '" value="' + escapeAttr(profile.panel || '') + '" placeholder="(optional)">' +
+                    '<div class="edit-field-row">' +
+                        '<input type="text" class="edit-input" id="edit-panel-' + floorId + '" value="' + escapeAttr(profile.panel || '') + '" placeholder="(optional)">' +
+                        '<button type="button" class="browse-btn" data-browse="panel" data-floor="' + floorId + '">BROWSE</button>' +
+                    '</div>' +
                 '</div>' +
                 '<div class="edit-field">' +
                     '<label>PAGE <span class="label-hint">(HTML file path — sets floor as page type)</span></label>' +
-                    '<input type="text" class="edit-input" id="edit-page-' + floorId + '" value="' + escapeAttr(profile.page || '') + '" placeholder="(optional)">' +
+                    '<div class="edit-field-row">' +
+                        '<input type="text" class="edit-input" id="edit-page-' + floorId + '" value="' + escapeAttr(profile.page || '') + '" placeholder="(optional)">' +
+                        '<button type="button" class="browse-btn" data-browse="page" data-floor="' + floorId + '">BROWSE</button>' +
+                    '</div>' +
                 '</div>' +
                 '<div class="edit-actions">' +
                     '<button class="power-btn save-btn" data-floor="' + floorId + '">[SAVE]</button>' +
@@ -511,6 +520,26 @@
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
                 exitEditMode(floorId);
+            });
+        });
+
+        // Browse buttons (file picker for cwd, panel, page fields)
+        document.querySelectorAll('.browse-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var field = btn.dataset.browse;
+                var floorId = btn.dataset.floor;
+                var inputId = 'edit-' + field + '-' + floorId;
+                var input = document.getElementById(inputId);
+                var mode = (field === 'cwd') ? 'dir' : 'file';
+                var startPath = (input && input.value) ? input.value : (defaultCwd || '~');
+                FilePicker.open({
+                    mode: mode,
+                    startPath: startPath,
+                    onSelect: function(path) {
+                        if (input) input.value = path;
+                    }
+                });
             });
         });
 
