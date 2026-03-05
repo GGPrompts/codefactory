@@ -2156,6 +2156,14 @@
             navNavLeft.textContent = '\u2039'; // ‹
             navInner.appendChild(navNavLeft);
 
+            // Floor buttons (lowest first) — skip built-in pages on mobile
+            var builtinPages = getBuiltinPageProfiles();
+            var builtinFloorIds = {};
+            builtinPages.forEach(function(p) {
+                builtinFloorIds['floor-' + p.id] = true;
+            });
+            var hasHub = builtinPages.length > 0;
+
             // Lobby button
             var lobbyBtn = document.createElement('button');
             lobbyBtn.className = 'mobile-bar-btn';
@@ -2165,13 +2173,16 @@
             if (currentFloor === 'lobby') lobbyBtn.classList.add('active');
             navInner.appendChild(lobbyBtn);
 
-            // Floor buttons (lowest first) — skip built-in pages on mobile
-            var builtinPages = getBuiltinPageProfiles();
-            var builtinFloorIds = {};
-            builtinPages.forEach(function(p) {
-                builtinFloorIds['floor-' + p.id] = true;
-            });
-            var hasHub = builtinPages.length > 0;
+            // Pages hub button right after lobby (matches DOM order)
+            if (hasHub) {
+                var hubBtn = document.createElement('button');
+                hubBtn.className = 'mobile-bar-btn mobile-bar-btn-hub';
+                hubBtn.setAttribute('data-target', 'floor-pages-hub');
+                hubBtn.setAttribute('data-label', 'Pages');
+                hubBtn.textContent = '\uD83D\uDCC4'; // 📄
+                if (currentFloor === 'floor-pages-hub') hubBtn.classList.add('active');
+                navInner.appendChild(hubBtn);
+            }
 
             var desktopBtns = elevatorButtons.querySelectorAll('.floor-btn');
             for (var i = desktopBtns.length - 1; i >= 0; i--) {
@@ -2185,17 +2196,6 @@
                 btn.innerHTML = srcBtn.innerHTML;
                 if (srcBtn.dataset.target === currentFloor) btn.classList.add('active');
                 navInner.appendChild(btn);
-            }
-
-            // Pages hub button (consolidates all built-in page floors)
-            if (hasHub) {
-                var hubBtn = document.createElement('button');
-                hubBtn.className = 'mobile-bar-btn mobile-bar-btn-hub';
-                hubBtn.setAttribute('data-target', 'floor-pages-hub');
-                hubBtn.setAttribute('data-label', 'Pages');
-                hubBtn.textContent = '\uD83D\uDCC4'; // 📄
-                if (currentFloor === 'floor-pages-hub') hubBtn.classList.add('active');
-                navInner.appendChild(hubBtn);
             }
 
             navPanel.appendChild(navInner);
@@ -2213,8 +2213,10 @@
                             jumpTarget = targetId;
                             target.scrollIntoView({ behavior: 'instant', block: 'start' });
                             currentFloor = targetId;
-                            jumpTarget = null;
                             syncMobileBar();
+                            // Clear jumpTarget after observer settles so it doesn't
+                            // immediately override currentFloor with a neighboring floor
+                            setTimeout(function() { jumpTarget = null; }, 200);
                             var floorNum = targetId.replace('floor-', '');
                             if (floorNum !== 'lobby' && floorNum !== 'pages-hub') {
                                 CodeFactoryTerminals.focus(floorNum);

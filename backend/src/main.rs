@@ -3513,7 +3513,7 @@ struct PortEntry {
 }
 
 /// GET /api/ports — list listening ports with process info.
-/// Tries `ss -tlnp` first, falls back to `netstat -tlnp`.
+/// Tries `ss -tlnp` first, falls back to `netstat -tlnp`, then port-scan fallback for Termux.
 async fn ports_list() -> impl IntoResponse {
     // Try ss first
     let ss_result = tokio::process::Command::new("ss")
@@ -3521,126 +3521,157 @@ async fn ports_list() -> impl IntoResponse {
         .output()
         .await;
 
-    let (stdout, used_ss) = match ss_result {
-        Ok(o) if o.status.success() => (String::from_utf8_lossy(&o.stdout).to_string(), true),
+    let parsed_from_tools = match ss_result {
+        Ok(o) if o.status.success() => {
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+            Some(parse_ss_output(&stdout))
+        }
         _ => {
-            // Fallback to netstat
+            // Fallback to netstat variants
             let netstat_result = tokio::process::Command::new("netstat")
                 .args(["-tlnp"])
                 .output()
                 .await;
-            match netstat_result {
-                Ok(o) if o.status.success() => {
-                    (String::from_utf8_lossy(&o.stdout).to_string(), false)
-                }
+            match &netstat_result {
                 Ok(o) => {
-                    // netstat without -p (Termux may not support it)
-                    let netstat_nop = tokio::process::Command::new("netstat")
-                        .args(["-tln"])
-                        .output()
-                        .await;
-                    match netstat_nop {
-                        Ok(o2) if o2.status.success() => {
-                            (String::from_utf8_lossy(&o2.stdout).to_string(), false)
-                        }
-                        _ => {
-                            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
-                            return (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                Json(serde_json::json!({"error": format!("ss and netstat failed: {}", stderr)})),
-                            );
+                    let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+                    let entries = parse_netstat_output(&stdout);
+                    if !entries.is_empty() {
+                        Some(entries)
+                    } else {
+                        // Try without -p flag
+                        let netstat_nop = tokio::process::Command::new("netstat")
+                            .args(["-tln"])
+                            .output()
+                            .await;
+                        match netstat_nop {
+                            Ok(o2) => {
+                                let stdout2 = String::from_utf8_lossy(&o2.stdout).to_string();
+                                let entries2 = parse_netstat_output(&stdout2);
+                                if !entries2.is_empty() { Some(entries2) } else { None }
+                            }
+                            Err(_) => None,
                         }
                     }
                 }
-                Err(e) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": format!("failed to run ss/netstat: {}", e)})),
-                    );
-                }
+                Err(_) => None,
             }
         }
     };
 
-    let mut ports = Vec::new();
-
-    for line in stdout.lines().skip(1) {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
+    let ports = match parsed_from_tools {
+        Some(mut entries) if !entries.is_empty() => {
+            entries.sort_by_key(|p| p.port);
+            entries
         }
-
-        if used_ss {
-            // ss output: State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 5 {
-                continue;
-            }
-            let state = parts[0].to_string();
-            let local_addr = parts[3];
-
-            // Extract port from address (e.g., "0.0.0.0:3001" or "[::]:3001" or "*:3001")
-            let port = match extract_port(local_addr) {
-                Some(p) => p,
-                None => continue,
-            };
-
-            // Extract PID/process from "users:(("process",pid=123,fd=4))" if present
-            let (pid, process) = if parts.len() > 5 {
-                let process_info = parts[5..].join(" ");
-                extract_pid_process_ss(&process_info)
-            } else {
-                (None, None)
-            };
-
-            ports.push(PortEntry {
-                port,
-                protocol: "tcp".to_string(),
-                pid,
-                process,
-                state,
-            });
-        } else {
-            // netstat output: Proto Recv-Q Send-Q Local Address Foreign Address State PID/Program
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 6 {
-                continue;
-            }
-            let proto = parts[0].to_lowercase();
-            if !proto.starts_with("tcp") {
-                continue;
-            }
-            let local_addr = parts[3];
-            let state = parts[5].to_string();
-
-            let port = match extract_port(local_addr) {
-                Some(p) => p,
-                None => continue,
-            };
-
-            let (pid, process) = if parts.len() > 6 {
-                extract_pid_process_netstat(parts[6])
-            } else {
-                (None, None)
-            };
-
-            ports.push(PortEntry {
-                port,
-                protocol: proto,
-                pid,
-                process,
-                state,
-            });
+        _ => {
+            // Fallback: scan common ports by trying to connect (works on Termux)
+            scan_common_ports().await
         }
-    }
-
-    // Sort by port number
-    ports.sort_by_key(|p| p.port);
+    };
 
     (
         StatusCode::OK,
         Json(serde_json::json!({"ports": ports})),
     )
+}
+
+fn parse_ss_output(stdout: &str) -> Vec<PortEntry> {
+    let mut ports = Vec::new();
+    for line in stdout.lines().skip(1) {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 5 { continue; }
+        let state = parts[0].to_string();
+        let local_addr = parts[3];
+        let port = match extract_port(local_addr) {
+            Some(p) => p,
+            None => continue,
+        };
+        let (pid, process) = if parts.len() > 5 {
+            let process_info = parts[5..].join(" ");
+            extract_pid_process_ss(&process_info)
+        } else {
+            (None, None)
+        };
+        ports.push(PortEntry { port, protocol: "tcp".to_string(), pid, process, state });
+    }
+    ports
+}
+
+fn parse_netstat_output(stdout: &str) -> Vec<PortEntry> {
+    let mut ports = Vec::new();
+    for line in stdout.lines().skip(1) {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 6 { continue; }
+        let proto = parts[0].to_lowercase();
+        if !proto.starts_with("tcp") { continue; }
+        let local_addr = parts[3];
+        let state = parts[5].to_string();
+        let port = match extract_port(local_addr) {
+            Some(p) => p,
+            None => continue,
+        };
+        let (pid, process) = if parts.len() > 6 {
+            extract_pid_process_netstat(parts[6])
+        } else {
+            (None, None)
+        };
+        ports.push(PortEntry { port, protocol: proto, pid, process, state });
+    }
+    ports
+}
+
+/// Scan common ports by attempting TCP connections (Termux fallback).
+async fn scan_common_ports() -> Vec<PortEntry> {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use tokio::net::TcpStream;
+
+    let scan_ports: Vec<u16> = vec![
+        22, 80, 443, 1080, 2222,
+        3000, 3001, 3002, 3003, 3333,
+        4000, 4200, 4321,
+        5000, 5173, 5432, 5500, 5555,
+        6006, 6379, 6969,
+        7000, 7070, 7777,
+        8000, 8001, 8008, 8080, 8081, 8082, 8088, 8443, 8787, 8888, 8899,
+        9000, 9090, 9222, 9229, 9292, 9999,
+        10000, 19006, 24678, 27017,
+    ];
+
+    let addr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+    let mut handles = Vec::new();
+
+    for port in scan_ports {
+        let sock = SocketAddr::new(addr, port);
+        handles.push(tokio::spawn(async move {
+            match tokio::time::timeout(
+                std::time::Duration::from_millis(100),
+                TcpStream::connect(sock),
+            ).await {
+                Ok(Ok(_)) => Some(port),
+                _ => None,
+            }
+        }));
+    }
+
+    let mut ports = Vec::new();
+    for handle in handles {
+        if let Ok(Some(port)) = handle.await {
+            ports.push(PortEntry {
+                port,
+                protocol: "tcp".to_string(),
+                pid: None,
+                process: None,
+                state: "LISTEN".to_string(),
+            });
+        }
+    }
+    ports.sort_by_key(|p| p.port);
+    ports
 }
 
 /// Extract port number from address like "0.0.0.0:3001", "[::]:80", "*:443", ":::8080"
