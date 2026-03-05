@@ -104,6 +104,7 @@ async fn main() {
         .route("/api/git/commit", post(git_commit_action))
         .route("/api/git/generate-message", post(git_generate_message))
         .route("/api/beads/issues", get(beads_issues))
+        .route("/api/beads/projects", get(beads_projects))
         // File browser endpoints
         .route("/api/files/list", get(files_list))
         .route("/api/files/read", get(files_read))
@@ -1925,6 +1926,57 @@ async fn beads_issues(
         Ok(issues) => (
             StatusCode::OK,
             Json(serde_json::json!({ "issues": issues })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("failed to parse ggbd output: {}", e)})),
+        ),
+    }
+}
+
+/// GET /api/beads/projects
+/// Returns the list of registered beads projects from ggbd.
+async fn beads_projects() -> impl IntoResponse {
+    let ggbd = std::path::PathBuf::from(
+        std::env::var("HOME").unwrap_or_default()
+    ).join("projects/ggbeads/ggbd");
+    let bin = if ggbd.exists() {
+        ggbd
+    } else {
+        std::path::PathBuf::from("bd")
+    };
+
+    let mut cmd = tokio::process::Command::new(&bin);
+    cmd.arg("project").arg("list").arg("--json");
+    let beads_dir = std::path::PathBuf::from(
+        std::env::var("HOME").unwrap_or_default()
+    ).join("projects/codefactory");
+    cmd.current_dir(&beads_dir);
+    cmd.env("BD_POSTGRES_URL", std::env::var("BD_POSTGRES_URL").unwrap_or_default());
+
+    let output = match cmd.output().await {
+        Ok(o) => o,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("failed to run ggbd: {}", e)})),
+            );
+        }
+    };
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("ggbd failed: {}", stderr.trim())})),
+        );
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    match serde_json::from_str::<serde_json::Value>(&stdout) {
+        Ok(projects) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "projects": projects })),
         ),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

@@ -80,8 +80,7 @@ html, body {
   white-space: nowrap;
 }
 
-.bb-path-bar input {
-  flex: 1;
+.bb-path-bar select {
   background: var(--iron-black);
   border: 1px solid var(--steel-mid);
   color: var(--dirty-white);
@@ -90,26 +89,10 @@ html, body {
   padding: 4px 8px;
   border-radius: 3px;
   outline: none;
-}
-
-.bb-path-bar input:focus {
-  border-color: var(--hazard-yellow);
-}
-
-.bb-path-bar button {
-  background: var(--steel-mid);
-  border: 1px solid var(--steel-light);
-  color: var(--dirty-white);
-  font-family: var(--font-heading);
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 3px;
   cursor: pointer;
 }
 
-.bb-path-bar button:hover {
-  background: var(--hazard-yellow);
-  color: var(--iron-black);
+.bb-path-bar select:focus {
   border-color: var(--hazard-yellow);
 }
 
@@ -515,10 +498,13 @@ html, body {
 <body>
 <div id="app">
   <div class="bb-path-bar">
-    <label for="prefix-input">Prefix:</label>
-    <input type="text" id="prefix-input" placeholder="cf" style="max-width: 120px;">
-    <button id="load-btn">Load</button>
-    <button id="load-all-btn" style="margin-left: 2px;">All</button>
+    <label for="prefix-select">Project:</label>
+    <select id="prefix-select" style="max-width: 200px; flex: 0 1 auto;
+      background: var(--iron-black); border: 1px solid var(--steel-mid);
+      color: var(--dirty-white); font-family: var(--font-mono); font-size: 13px;
+      padding: 4px 8px; border-radius: 3px; outline: none;">
+      <option value="">All Projects</option>
+    </select>
   </div>
   <div id="beads-board-container"></div>
 </div>
@@ -526,33 +512,49 @@ html, body {
 <script src="/js/beads-board.js?v=2"></script>
 <script>
 (function () {
-  var prefixInput = document.getElementById("prefix-input");
-  var loadBtn = document.getElementById("load-btn");
-  var loadAllBtn = document.getElementById("load-all-btn");
+  var STORAGE_KEY = "cf-beads-board-prefix";
+  var prefixSelect = document.getElementById("prefix-select");
   var container = document.getElementById("beads-board-container");
 
-  // Read prefix from query param, default to "cf"
+  // Determine initial prefix: query param > localStorage > "cf"
   var params = new URLSearchParams(window.location.search);
-  var initialPrefix = params.get("prefix") || "cf";
-  prefixInput.value = initialPrefix;
+  var initialPrefix = params.get("prefix") || localStorage.getItem(STORAGE_KEY) || "cf";
 
   function loadBoard(prefix) {
     container.innerHTML = "";
     BeadsBoard.init(container, prefix || "");
   }
 
-  loadBtn.addEventListener("click", function () {
-    loadBoard(prefixInput.value.trim());
-  });
-  loadAllBtn.addEventListener("click", function () {
-    prefixInput.value = "";
-    loadBoard("");
-  });
-  prefixInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") loadBoard(prefixInput.value.trim());
+  function populateProjects(projects) {
+    projects.forEach(function (p) {
+      var opt = document.createElement("option");
+      opt.value = p.prefix;
+      opt.textContent = p.prefix + " — " + p.name;
+      prefixSelect.appendChild(opt);
+    });
+    // Set saved selection
+    prefixSelect.value = initialPrefix;
+    // If the saved value wasn't in the list, fall back to "" (All)
+    if (prefixSelect.value !== initialPrefix) {
+      prefixSelect.value = "";
+    }
+  }
+
+  prefixSelect.addEventListener("change", function () {
+    var prefix = prefixSelect.value;
+    localStorage.setItem(STORAGE_KEY, prefix);
+    loadBoard(prefix);
   });
 
-  // Auto-load on open
+  // Fetch projects then load board
+  fetch("/api/beads/projects")
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (data.projects) populateProjects(data.projects);
+    })
+    .catch(function () { /* dropdown stays with just "All" */ });
+
+  // Load board immediately with initial prefix
   loadBoard(initialPrefix);
 })();
 </script>
