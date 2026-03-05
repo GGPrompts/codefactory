@@ -759,6 +759,7 @@ html, body {
 
 <div id="app">
   <div class="fb-header">
+    <button class="fb-header-btn" id="up-level-btn" title="Go up one level">&#x2B06;</button>
     <div class="fb-breadcrumb" id="breadcrumb"></div>
     <button class="fb-toggle-hidden" id="toggle-hidden-btn" title="Show hidden files">.*</button>
     <button class="fb-header-btn" id="new-btn" title="New file or directory">+</button>
@@ -825,6 +826,7 @@ html, body {
   var previewRawContent = null;   // cached raw text for toggle
 
   // ── DOM refs ──
+  var upLevelBtn = document.getElementById("up-level-btn");
   var breadcrumb = document.getElementById("breadcrumb");
   var toggleHiddenBtn = document.getElementById("toggle-hidden-btn");
   var newBtn = document.getElementById("new-btn");
@@ -1084,15 +1086,38 @@ html, body {
 
   function renderBreadcrumb() {
     breadcrumb.innerHTML = "";
+
+    // Split basePath into clickable segments
+    var baseDisplay = basePath.replace(/\/+$/, "") || "/";
+    var baseSegments = [];
+    if (baseDisplay === "/") {
+      baseSegments.push({ label: "/", path: "/" });
+    } else {
+      var bParts = baseDisplay.split("/");
+      var bAccum = "";
+      for (var b = 0; b < bParts.length; b++) {
+        if (b === 0 && bParts[b] === "") {
+          // Leading slash — root
+          bAccum = "";
+          baseSegments.push({ label: "/", path: "/" });
+        } else {
+          bAccum = bAccum ? (bAccum + "/" + bParts[b]) : bParts[b];
+          baseSegments.push({ label: bParts[b], path: bAccum.charAt(0) === "/" || bAccum.charAt(0) === "~" ? bAccum : "/" + bAccum });
+        }
+      }
+    }
+
+    // Build full parts list: base segments + currentDir segments
     var parts = [];
-    // Root crumb
-    parts.push({ label: basePath.replace(/^~\//, "~/"), dir: "" });
+    for (var s = 0; s < baseSegments.length; s++) {
+      parts.push({ label: baseSegments[s].label, basePath: baseSegments[s].path, dir: "" });
+    }
     if (currentDir) {
       var segments = currentDir.split("/");
       var accum = "";
       for (var i = 0; i < segments.length; i++) {
         accum = accum ? (accum + "/" + segments[i]) : segments[i];
-        parts.push({ label: segments[i], dir: accum });
+        parts.push({ label: segments[i], basePath: basePath, dir: accum });
       }
     }
 
@@ -1109,9 +1134,15 @@ html, body {
       if (j === parts.length - 1) {
         btn.classList.add("fb-crumb-current");
       }
+      btn.setAttribute("data-base", parts[j].basePath);
       btn.setAttribute("data-dir", parts[j].dir);
       btn.addEventListener("click", function () {
-        navigateTo(this.getAttribute("data-dir"));
+        var newBase = this.getAttribute("data-base");
+        var newDir = this.getAttribute("data-dir");
+        basePath = newBase;
+        currentDir = newDir;
+        closePreview();
+        loadDirectory();
       });
       breadcrumb.appendChild(btn);
     }
@@ -1123,6 +1154,38 @@ html, body {
 
   function navigateTo(dir) {
     currentDir = dir || "";
+    closePreview();
+    loadDirectory();
+  }
+
+  function navigateUpLevel() {
+    // If we have a currentDir, go up within it first
+    if (currentDir) {
+      var parts = currentDir.split("/");
+      parts.pop();
+      navigateTo(parts.join("/"));
+      return;
+    }
+    // Already at filesystem root
+    if (basePath === "/") return;
+    // If basePath uses ~ notation, resolve via server first
+    if (basePath.charAt(0) === "~") {
+      xhrGet("/api/files/list?path=" + encodeURIComponent(basePath), function (err, data) {
+        if (!err && data.path) {
+          var parent = data.path.replace(/\/[^\/]+\/?$/, "") || "/";
+          basePath = parent;
+          currentDir = "";
+          closePreview();
+          loadDirectory();
+        }
+      });
+      return;
+    }
+    // Strip trailing slash and go to parent
+    var clean = basePath.replace(/\/+$/, "");
+    var parent = clean.replace(/\/[^\/]+$/, "") || "/";
+    basePath = parent;
+    currentDir = "";
     closePreview();
     loadDirectory();
   }
@@ -1556,6 +1619,10 @@ html, body {
   });
 
   // ── Event Bindings ──
+
+  upLevelBtn.addEventListener("click", function () {
+    navigateUpLevel();
+  });
 
   refreshBtn.addEventListener("click", function () {
     loadDirectory();
