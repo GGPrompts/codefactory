@@ -88,6 +88,7 @@ Frontend JS console output and backend tracing events are merged into a single l
 
 ## Beads (Issue Tracking)
 
+- At session start, call beads MCP `context(workspace_root='/home/marci/projects/codefactory')` to scope issues to this project's `cf` prefix
 - Issues are tracked with ggbeads (`ggbd`) — forked beads with Supabase/Postgres backend
 - All devices share one cloud Supabase database (no local server or sync needed)
 - Issue prefix for this project: `cf` (e.g., `cf-xxxx`)
