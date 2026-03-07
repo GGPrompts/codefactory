@@ -1653,6 +1653,29 @@ section.floor.powered-on .profile-edit-form {
     box-shadow: 0 0 12px rgba(212, 44, 44, 0.3);
 }
 
+.dupe-btn {
+    border-color: var(--steel-mid);
+    color: var(--brushed-steel);
+    font-size: 0.75rem;
+    padding: 6px 14px;
+}
+
+.dupe-btn:hover {
+    border-color: var(--safety-green);
+    color: var(--safety-green);
+    background: rgba(45, 139, 71, 0.15);
+    box-shadow: 0 0 12px rgba(45, 139, 71, 0.3);
+}
+
+/* Transient (temp) floor indicators */
+.temp-floor .floor-label {
+    color: var(--hazard-orange);
+}
+
+.floor-btn-temp {
+    border-style: dashed;
+}
+
 .edit-btn {
     border-color: var(--steel-mid);
     color: var(--brushed-steel);

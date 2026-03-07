@@ -202,15 +202,17 @@
                 '<div class="panel-content" id="panel-content-' + floorId + '"></div>' +
             '</div>';
 
+        var tempClass = profile._temp ? ' temp-floor' : '';
+
         return '' +
-            '<section class="floor powered-off" id="floor-' + floorId + '">' +
+            '<section class="floor powered-off' + tempClass + '" id="floor-' + floorId + '">' +
                 '<div class="elevator-doors">' +
                     '<div class="door door-left"></div>' +
                     '<div class="door door-right"></div>' +
                 '</div>' +
                 '<div class="floor-frame">' +
                     '<div class="floor-header">' +
-                        '<span class="floor-label">' + (icon ? escapeHtml(icon) + ' ' : '') + 'Floor ' + floorId + '</span>' +
+                        '<span class="floor-label">' + (icon ? escapeHtml(icon) + ' ' : '') + 'Floor ' + floorId + (profile._temp ? ' [TEMP]' : '') + '</span>' +
                         '<span class="floor-title">' + escapeHtml(name) + '</span>' +
                         panelToggleBtn +
                         eyeBtn +
@@ -240,10 +242,11 @@
                         '<div class="terminal-container" id="terminal-' + floorId + '"></div>' +
                         sidePanelHTML +
                     '</div>' +
-                    '<!-- Detach / Kill buttons (shown when powered on) -->' +
+                    '<!-- Detach / Kill / Duplicate buttons (shown when powered on) -->' +
                     '<div class="power-off-bar" id="power-off-bar-' + floorId + '">' +
                         '<button class="power-btn detach-btn" data-floor="' + floorId + '">[DETACH]</button>' +
                         '<button class="power-btn kill-btn" data-floor="' + floorId + '">[KILL]</button>' +
+                        (profile._temp ? '' : '<button class="power-btn dupe-btn" data-floor="' + floorId + '" title="Duplicate as transient floor">[DUPE]</button>') +
                     '</div>' +
                 '</div>' +
             '</section>';
@@ -367,7 +370,8 @@
             var btnContent = profile.icon ? escapeHtml(profile.icon) : floorId;
             var iconClass = profile.icon ? ' has-icon' : '';
             var pageClass = profile.page ? ' floor-btn-page' : '';
-            html += '<button class="floor-btn' + iconClass + pageClass + '" data-target="floor-' + floorId +
+            var tempClass = profile._temp ? ' floor-btn-temp' : '';
+            html += '<button class="floor-btn' + iconClass + pageClass + tempClass + '" data-target="floor-' + floorId +
                     '" data-label="' + escapeAttr(name) + '">' + btnContent + '</button>';
         }
         elevatorButtons.innerHTML = html;
@@ -451,6 +455,12 @@
                     powerOffPage(floorId);
                 } else {
                     CodeFactoryTerminals.kill(floorId);
+                    // If this was a temp floor, remove it from profiles and DOM
+                    if (profile && profile._temp) {
+                        setTimeout(function() {
+                            removeTempFloor(floorId);
+                        }, 100);
+                    }
                 }
                 syncMobileBar();
             });
@@ -493,6 +503,15 @@
                         // Cross-origin: cannot access history
                     }
                 }
+            });
+        });
+
+        // Duplicate buttons (spawn transient clone)
+        document.querySelectorAll('.dupe-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var floorId = btn.dataset.floor;
+                duplicateFloor(floorId);
             });
         });
 
@@ -1238,6 +1257,12 @@
         var idx = findProfileIndex(floorId);
         if (idx === -1) return;
 
+        // Temp floors cannot be saved to disk
+        if (profiles[idx]._temp) {
+            exitEditMode(floorId);
+            return;
+        }
+
         var nameInput = document.getElementById('edit-name-' + floorId);
         var cmdInput = document.getElementById('edit-command-' + floorId);
         var cwdInput = document.getElementById('edit-cwd-' + floorId);
@@ -1656,23 +1681,26 @@
 
         var html = '';
         for (var i = profiles.length - 1; i >= 0; i--) {
+            if (profiles[i]._temp) continue;  // skip transient floors in lobby management
             html += buildLobbyProfileCardHTML(profiles[i], i);
         }
         container.innerHTML = html;
     }
 
     function serializeProfiles() {
-        return profiles.map(function(p) {
-            return {
-                name: p.name,
-                command: p.command || null,
-                cwd: (p.cwd && p.cwd !== defaultCwd) ? p.cwd : null,
-                icon: p.icon || null,
-                panel: p.panel || null,
-                page: p.page || null,
-                enabled: p.enabled !== false,
-            };
-        });
+        return profiles
+            .filter(function(p) { return !p._temp; })  // exclude transient floors
+            .map(function(p) {
+                return {
+                    name: p.name,
+                    command: p.command || null,
+                    cwd: (p.cwd && p.cwd !== defaultCwd) ? p.cwd : null,
+                    icon: p.icon || null,
+                    panel: p.panel || null,
+                    page: p.page || null,
+                    enabled: p.enabled !== false,
+                };
+            });
     }
 
     function saveLobbyProfiles(onSuccess) {
@@ -2904,6 +2932,109 @@
             .replace(/&/g, '&amp;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    // ==============================================================
+    // SLUG GENERATION (mirrors backend logic)
+    // ==============================================================
+    function slugify(name) {
+        return name.toLowerCase()
+            .replace(/[^a-z0-9]/g, '-')
+            .split('-')
+            .filter(function(s) { return s.length > 0; })
+            .join('-');
+    }
+
+    // ==============================================================
+    // TRANSIENT FLOOR DUPLICATION
+    // ==============================================================
+
+    /**
+     * Duplicate a floor as a transient (in-memory-only) clone.
+     * The temp floor inherits default_cwd (via cwd: null), gets a unique
+     * suffixed name like "Claude (2)", and is NOT saved to profiles.json.
+     */
+    function duplicateFloor(sourceFloorId) {
+        var source = findProfile(sourceFloorId);
+        if (!source || source.page) return;  // only duplicate terminal floors
+
+        // Find the next available suffix for this source name
+        var baseName = source.name.replace(/\s*\(\d+\)$/, '');  // strip existing "(N)" suffix
+        var suffix = 2;
+        var existingNames = profiles.map(function(p) { return p.name; });
+        while (existingNames.indexOf(baseName + ' (' + suffix + ')') !== -1) {
+            suffix++;
+        }
+        var newName = baseName + ' (' + suffix + ')';
+        var newId = slugify(newName);
+
+        // Ensure unique ID
+        while (findProfile(newId)) {
+            suffix++;
+            newName = baseName + ' (' + suffix + ')';
+            newId = slugify(newName);
+        }
+
+        var tempProfile = {
+            id: newId,
+            name: newName,
+            command: source.command || null,
+            cwd: null,  // inherit default_cwd at spawn time
+            icon: source.icon || null,
+            panel: source.panel || null,
+            page: null,
+            enabled: true,
+            _temp: true
+        };
+
+        // Add to profiles array (but NOT persisted)
+        profiles.push(tempProfile);
+
+        // Re-render everything
+        renderFloors(profiles);
+
+        // Navigate to the new floor
+        var targetEl = document.getElementById('floor-' + newId);
+        if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Auto power-on the new temp floor
+        setTimeout(function() {
+            var resolved = Object.assign({}, tempProfile, {
+                cwd: defaultCwd || null
+            });
+            CodeFactoryTerminals.powerOn(newId, resolved);
+            setTimeout(function() {
+                CodeFactoryTerminals.focus(newId);
+                syncMobileBar();
+            }, 200);
+        }, 300);
+
+        console.log('[CodeFactory] Duplicated floor ' + sourceFloorId + ' -> ' + newId + ' (transient)');
+    }
+
+    /**
+     * Remove a transient temp floor from the profiles array and DOM.
+     * Called after killing a temp floor's terminal session.
+     */
+    function removeTempFloor(floorId) {
+        var idx = findProfileIndex(floorId);
+        if (idx === -1) return;
+
+        // Remove from profiles array
+        profiles.splice(idx, 1);
+
+        // Re-render to clean up DOM
+        renderFloors(profiles);
+
+        // Scroll to lobby after removing
+        var lobby = document.getElementById('lobby');
+        if (lobby) {
+            lobby.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        console.log('[CodeFactory] Removed temp floor: ' + floorId);
     }
 
 })();
