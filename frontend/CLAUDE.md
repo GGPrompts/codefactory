@@ -7,14 +7,23 @@ Vanilla JS/HTML/CSS — no build step, served directly by the backend.
 ### Core
 
 - `index.html` — single page with lobby + dynamic floor sections
-- `js/app.js` — profile fetching, floor rendering, elevator mechanics, lobby workdir selector, edit mode, page floor lifecycle, mobile bottom bar, keyboard shortcuts
+- `js/app.js` — profile fetching, floor rendering, elevator mechanics, page floor lifecycle, keyboard shortcuts (delegates to extracted modules below)
 - `js/terminal.js` — xterm.js terminal lifecycle, websocket connection per floor, Claude session status display
 - `js/markdown-panel.js` — side panel markdown rendering
 - `css/style.css` — all styles, industrial theme via CSS custom properties
 - `css/industrial-prose.css` — markdown content styles
 - `css/file-picker.css` — standalone FilePicker modal styles (for use in page floors without loading full style.css)
 
-### Modules
+### Modules (extracted from app.js)
+
+- `js/panels.js` — `PanelManager` module: side panel state persistence (localStorage), toggle open/close, drag-to-resize handle
+- `js/elevator-sounds.js` — `ElevatorSounds` module: Web Audio API oscillator effects for floor transitions (ding, click, unlock)
+- `js/text-view.js` — `TextViewer` module: terminal text capture view (eye button), REFERENCE/TERMINAL tab switching
+- `js/floor-edit.js` — `FloorEdit` module: enter/exit edit mode, save profile changes, FilePicker browse button wiring
+- `js/lobby.js` — `LobbyManager` module: lobby workdir editor, recent dirs, profile card management (add/delete/reorder/toggle)
+- `js/mobile.js` — `MobileManager` module: unified mobile bottom bar (swipeable keys/chat/nav panels), pages hub
+
+### Standalone Modules
 
 - `js/swipe-panels.js` — `SwipePanels` module: touch/pointer swipe detection from screen edges, shows/hides registered panel content per edge
 - `js/extra-keys.js` — `ExtraKeys` module: mobile extra key row (ESC, TAB, CTRL, ALT, arrows, PgUp, F1-F10, Ctrl-B, Enter) with sticky modifier support (tap = one-shot, double-tap = lock)
@@ -89,8 +98,8 @@ Three horizontally-swipeable panels:
 ## Conventions
 
 - ES5-style: `var`, IIFEs, `function` declarations, `.forEach` (no arrow functions)
-- Three global namespaces exposed: `CodeFactoryTerminals` (terminal.js), `MarkdownPanel` (markdown-panel.js), `FilePicker` (file-picker.js)
-- `app.js` is a self-contained IIFE — all state is module-scoped
+- Global namespaces: `CodeFactoryTerminals` (terminal.js), `MarkdownPanel` (markdown-panel.js), `FilePicker` (file-picker.js), `PanelManager` (panels.js), `ElevatorSounds` (elevator-sounds.js), `TextViewer` (text-view.js), `FloorEdit` (floor-edit.js), `LobbyManager` (lobby.js), `MobileManager` (mobile.js)
+- `app.js` is the main IIFE — coordinates extracted modules via context objects and callbacks
 - Profile cwd resolution: `profile.cwd || defaultCwd || '~'` — null means inherit from lobby setting
 - Floor HTML is built as string concatenation
 - Reconnect logic skips page floors (no tmux sessions to reconnect)
