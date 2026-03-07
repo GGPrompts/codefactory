@@ -129,33 +129,7 @@
         autoLoadPageFloors(enabledProfiles);
     }
 
-    // ==============================================================
-    // PANEL STATE (localStorage)
-    // ==============================================================
-    function getPanelState(floorId) {
-        try {
-            return localStorage.getItem('cf-panel-' + floorId) === 'open';
-        } catch (e) { return false; }
-    }
-
-    function setPanelState(floorId, open) {
-        try {
-            localStorage.setItem('cf-panel-' + floorId, open ? 'open' : 'closed');
-        } catch (e) { /* ignore */ }
-    }
-
-    function getPanelWidth(floorId) {
-        try {
-            var w = parseInt(localStorage.getItem('cf-panel-width-' + floorId), 10);
-            return w > 0 ? w : 0;
-        } catch (e) { return 0; }
-    }
-
-    function setPanelWidth(floorId, width) {
-        try {
-            localStorage.setItem('cf-panel-width-' + floorId, String(width));
-        } catch (e) { /* ignore */ }
-    }
+    // PANEL STATE & TOGGLE/RESIZE — see panels.js (PanelManager)
 
     function buildFloorHTML(floorId, profile) {
         var name = profile.name || 'Terminal Bay ' + floorId;
@@ -172,7 +146,7 @@
         var command = profile.command || 'bash';
         var cwd = profile.cwd || defaultCwd || '~';
         var hasPanel = !!profile.panel;
-        var panelOpen = hasPanel && getPanelState(floorId);
+        var panelOpen = hasPanel && PanelManager.getPanelState(floorId);
 
         // Panel toggle button (only when panel is configured)
         var panelToggleBtn = hasPanel
@@ -188,7 +162,7 @@
         '</button>';
 
         // Side panel div (always present for terminal floors -- used by .md panel and/or terminal text view)
-        var savedWidth = getPanelWidth(floorId);
+        var savedWidth = PanelManager.getPanelWidth(floorId);
         var widthStyle = (panelOpen && savedWidth) ? ' style="width:' + savedWidth + 'px"' : '';
         var sidePanelHTML =
             '<div class="floor-side-panel' + (panelOpen ? '' : ' collapsed') + '" id="side-panel-' + floorId + '"' + widthStyle + '>' +
@@ -424,7 +398,7 @@
                             syncMobileBar();
                         }, 200);
                         // If panel is configured and was open, load its content
-                        if (profile.panel && getPanelState(floorId)) {
+                        if (profile.panel && PanelManager.getPanelState(floorId)) {
                             var content = document.getElementById('panel-content-' + floorId);
                             if (content && !content.hasChildNodes()) {
                                 MarkdownPanel.load(content, profile.panel);
@@ -568,7 +542,7 @@
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
                 var panelName = btn.dataset.panel;
-                togglePanel(floorId, panelName, btn);
+                PanelManager.togglePanel(floorId, panelName, btn, { activePanelTab: activePanelTab, updatePanelTabs: updatePanelTabs });
             });
         });
 
@@ -593,7 +567,7 @@
 
         // Panel resize handles
         document.querySelectorAll('.panel-resize-handle').forEach(function(handle) {
-            initPanelResize(handle);
+            PanelManager.initPanelResize(handle);
         });
 
         // Click-to-focus on terminal containers
@@ -603,93 +577,6 @@
                 CodeFactoryTerminals.focus(floorId);
             });
         });
-    }
-
-    // ==============================================================
-    // PANEL TOGGLE & RESIZE
-    // ==============================================================
-    function togglePanel(floorId, panelName, btn) {
-        var panel = document.getElementById('side-panel-' + floorId);
-        if (!panel) return;
-
-        var isCollapsed = panel.classList.contains('collapsed');
-
-        if (isCollapsed) {
-            // Expand panel
-            panel.classList.remove('collapsed');
-            var savedWidth = getPanelWidth(floorId);
-            if (savedWidth) panel.style.width = savedWidth + 'px';
-            btn.classList.add('panel-active');
-            setPanelState(floorId, true);
-
-            // Switch to reference tab when opening via [PANEL] button
-            activePanelTab[floorId] = 'reference';
-            updatePanelTabs(floorId);
-
-            // Load content if not yet loaded
-            var content = document.getElementById('panel-content-' + floorId);
-            if (content && !content.hasChildNodes()) {
-                MarkdownPanel.load(content, panelName);
-            } else if (activePanelTab[floorId] === 'reference') {
-                // Re-load reference content if we were on terminal tab
-                content.innerHTML = '';
-                MarkdownPanel.load(content, panelName);
-            }
-        } else {
-            // Collapse panel
-            panel.classList.add('collapsed');
-            panel.style.width = '';
-            btn.classList.remove('panel-active');
-            setPanelState(floorId, false);
-            // Also deactivate eye button
-            var eyeBtn = document.querySelector('.term-view-btn[data-floor="' + floorId + '"]');
-            if (eyeBtn) eyeBtn.classList.remove('panel-active');
-        }
-
-        // Refit terminal after panel toggle
-        refitTerminal(floorId);
-    }
-
-    function refitTerminal(floorId) {
-        setTimeout(function () {
-            if (typeof CodeFactoryTerminals === 'undefined') return;
-            var entry = CodeFactoryTerminals.getTerminal(floorId);
-            if (entry && entry.fitAddon && entry.powered) {
-                entry.fitAddon.fit();
-            }
-        }, 350);  // wait for CSS transition
-    }
-
-    function initPanelResize(handle) {
-        var floorId = handle.dataset.floor;
-        var panel = document.getElementById('side-panel-' + floorId);
-        if (!panel) return;
-
-        var startX, startWidth;
-
-        handle.addEventListener('mousedown', function (e) {
-            e.preventDefault();
-            startX = e.clientX;
-            startWidth = panel.offsetWidth;
-            document.addEventListener('mousemove', onDrag);
-            document.addEventListener('mouseup', onStop);
-            handle.classList.add('dragging');
-        });
-
-        function onDrag(e) {
-            // Dragging left edge of panel: moving left = wider, moving right = narrower
-            var delta = startX - e.clientX;
-            var newWidth = Math.max(200, Math.min(800, startWidth + delta));
-            panel.style.width = newWidth + 'px';
-        }
-
-        function onStop() {
-            document.removeEventListener('mousemove', onDrag);
-            document.removeEventListener('mouseup', onStop);
-            handle.classList.remove('dragging');
-            setPanelWidth(floorId, panel.offsetWidth);
-            refitTerminal(floorId);
-        }
     }
 
     // ==============================================================
@@ -725,14 +612,14 @@
             panel.classList.add('collapsed');
             panel.style.width = '';
             if (eyeBtn) eyeBtn.classList.remove('panel-active');
-            refitTerminal(floorId);
+            PanelManager.refitTerminal(floorId);
             return;
         }
 
         // Expand panel if collapsed
         if (isCollapsed) {
             panel.classList.remove('collapsed');
-            var savedWidth = getPanelWidth(floorId);
+            var savedWidth = PanelManager.getPanelWidth(floorId);
             if (savedWidth) panel.style.width = savedWidth + 'px';
         }
         if (eyeBtn) eyeBtn.classList.add('panel-active');
@@ -751,7 +638,7 @@
             captureTerminalText(floorId, content);
         }
 
-        refitTerminal(floorId);
+        PanelManager.refitTerminal(floorId);
     }
 
     function openTerminalTextMobile(floorId) {
@@ -1410,7 +1297,7 @@
                 CodeFactoryTerminals.powerOn(floorId, resolved);
 
                 // If panel was open, load it
-                if (profile.panel && getPanelState(floorId)) {
+                if (profile.panel && PanelManager.getPanelState(floorId)) {
                     var content = document.getElementById('panel-content-' + floorId);
                     if (content && !content.hasChildNodes()) {
                         MarkdownPanel.load(content, profile.panel);
