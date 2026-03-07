@@ -29,7 +29,7 @@ Axum web server that serves the frontend and manages terminal sessions via tmux.
 ### Content Serving
 
 - `GET /api/panels/{*name}` — serve markdown panel files (`text/markdown`)
-- `GET /api/pages/{*name}` — serve HTML page files (`text/html`); same path resolution as panels
+- `GET /api/pages/{*name}` — serve HTML page files (`text/html`); same path resolution as panels; returns `cache-control: no-cache`
 - `GET /api/terminal/{session}/capture?lines=` — capture terminal output
 
 ### Git Operations
@@ -51,6 +51,52 @@ All git routes accept `?path=` query param; `find_git_root()` walks up to find `
 ### Beads
 
 - `GET /api/beads/issues?path=` — list issues from beads
+- `GET /api/beads/projects` — list registered project prefixes from ggbd (for dropdown selectors)
+
+### File System
+
+- `GET /api/files/list?path=&dir=` — list directory contents (used by FilePicker)
+- `GET /api/files/read?path=` — read file contents
+- `POST /api/files/rename` — rename file/directory
+- `POST /api/files/delete` — delete file/directory
+- `POST /api/files/create` — create file/directory
+- `GET /api/files/diff?path=&a=&b=` — diff two files
+
+### Search
+
+- `GET /api/search?path=&q=` — full-text search across files
+- `POST /api/search/replace` — search and replace
+
+### Notes
+
+- `GET /api/notes/list` — list notes
+- `GET /api/notes/read` — read a note
+- `POST /api/notes/save` — save a note
+- `POST /api/notes/delete` — delete a note
+
+### Config
+
+- `GET /api/config/list` — list config files
+- `GET /api/config/read` — read a config file
+- `POST /api/config/write` — write a config file
+- `GET /api/config/env` — environment variables
+
+### Processes & Ports
+
+- `GET /api/processes` — list running processes
+- `POST /api/processes/kill` — kill a process
+- `GET /api/ports` — list listening ports
+
+### Logs
+
+- `POST /api/logs/ingest` — receive frontend console logs
+- `GET /api/logs` — retrieve log entries
+- `WS /ws/logs` — live log streaming via WebSocket
+
+### Server Control
+
+- `POST /api/shutdown` — graceful server shutdown
+- `WS /ws/livereload` — development live-reload notifications
 
 ### Termux API (mobile only)
 

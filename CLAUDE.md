@@ -32,9 +32,19 @@ tail -f /tmp/codefactory.log  # monitor unified log stream in any terminal
 |------|------|-------------|
 | Git | `frontend/pages/git.html` | Stage, unstage, commit, push, pull, diff viewer |
 | Git Graph | `frontend/pages/git-tree.html` | Visual commit graph using canvas |
-| Beads Board | `frontend/pages/beads-board.html` | Kanban board for Beads issue tracker |
+| Diff | `frontend/pages/diff.html` | Side-by-side diff viewer (uncommitted, vs HEAD, compare two files) |
+| Files | `frontend/pages/files.html` | File browser with create, rename, delete, preview |
+| Search | `frontend/pages/search.html` | Full-text search across project files |
+| Beads Board | `frontend/pages/beads-board.html` | Kanban board for Beads issue tracker (project dropdown) |
 | Terminals | `frontend/pages/terminals.html` | Dashboard showing Claude session status, context meters, activity |
 | Termux Dashboard | `frontend/pages/termux-dashboard.html` | Mobile system controls (battery, wifi, volume, brightness, torch, TTS) |
+| Config | `frontend/pages/config.html` | Project config viewer |
+| Logs | `frontend/pages/logs.html` | Filterable, color-coded live log viewer via WebSocket |
+| Markdown | `frontend/pages/markdown.html` | Markdown file renderer |
+| Notes | `frontend/pages/notes.html` | Notes editor |
+| Ports | `frontend/pages/ports.html` | Port/process monitor |
+| Processes | `frontend/pages/processes.html` | System process viewer |
+| Snippets | `frontend/pages/snippets.html` | Code snippet manager |
 
 ## Profile Fields
 
@@ -94,7 +104,7 @@ Frontend JS console output and backend tracing events are merged into a single l
 - Issue prefix for this project: `cf` (e.g., `cf-xxxx`)
 - CLI: `ggbd list --prefix cf`, `ggbd create`, `ggbd close cf-xxxx`
 - MCP server configured globally in `~/.claude/.mcp.json`
-- On Termux: uses local SQLite backend — issues stay local
+- On Termux: uses Supabase/Postgres backend (same as all devices)
 - See `BEADS_SETUP.md` for setup details
 
 See `backend/CLAUDE.md` and `frontend/CLAUDE.md` for crate/directory-specific details.

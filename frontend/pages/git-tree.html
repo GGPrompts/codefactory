@@ -528,11 +528,14 @@ html, body {
   <div class="gg-path-bar">
     <label for="repo-path">Repo:</label>
     <input type="text" id="repo-path" placeholder="/path/to/repo">
+    <button id="browse-repo" title="Browse for repo">&#128193;</button>
     <button id="load-btn">Load</button>
   </div>
   <div id="git-graph-container"></div>
 </div>
 
+<link rel="stylesheet" href="/css/file-picker.css">
+<script src="/js/file-picker.js"></script>
 <script src="/js/git-graph.js"></script>
 <script>
 (function () {
@@ -560,6 +563,18 @@ html, body {
   loadBtn.addEventListener("click", loadGraph);
   pathInput.addEventListener("keydown", function (e) {
     if (e.key === "Enter") loadGraph();
+  });
+
+  document.getElementById("browse-repo").addEventListener("click", function () {
+    if (typeof FilePicker === "undefined") return;
+    FilePicker.open({
+      mode: "dir",
+      startPath: pathInput.value.trim() || "~",
+      onSelect: function (path) {
+        pathInput.value = path;
+        loadGraph();
+      }
+    });
   });
 
   // Auto-load if path is provided

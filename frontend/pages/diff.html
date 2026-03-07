@@ -182,6 +182,12 @@ html, body {
   border-color: var(--hazard-yellow);
 }
 
+.dv-browse-btn {
+  padding: 6px 10px;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
 /* ── Summary ── */
 .dv-summary {
   padding: 6px 12px;
@@ -377,8 +383,10 @@ html, body {
   <div class="dv-compare-bar" id="compare-bar">
     <label>A:</label>
     <input type="text" id="compare-a" placeholder="path/to/file-a">
+    <button class="dv-btn dv-browse-btn" id="browse-a" title="Browse for file A">&#128193;</button>
     <label>B:</label>
     <input type="text" id="compare-b" placeholder="path/to/file-b">
+    <button class="dv-btn dv-browse-btn" id="browse-b" title="Browse for file B">&#128193;</button>
     <button class="dv-btn" id="compare-btn">Diff</button>
   </div>
 
@@ -391,6 +399,8 @@ html, body {
 
 <div class="dv-toast" id="toast"></div>
 
+<link rel="stylesheet" href="/css/file-picker.css">
+<script src="/js/file-picker.js"></script>
 <script>
 (function () {
   "use strict";
@@ -801,6 +811,24 @@ html, body {
   });
   compareB.addEventListener("keydown", function (e) {
     if (e.key === "Enter") loadCompare();
+  });
+
+  // Browse buttons for file picker
+  document.getElementById("browse-a").addEventListener("click", function () {
+    if (typeof FilePicker === "undefined") return;
+    FilePicker.open({
+      mode: "file",
+      startPath: repoPath || "~",
+      onSelect: function (path) { compareA.value = path; }
+    });
+  });
+  document.getElementById("browse-b").addEventListener("click", function () {
+    if (typeof FilePicker === "undefined") return;
+    FilePicker.open({
+      mode: "file",
+      startPath: repoPath || "~",
+      onSelect: function (path) { compareB.value = path; }
+    });
   });
 
   // ── Init ──

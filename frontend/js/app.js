@@ -1561,6 +1561,20 @@
             if (e.key === 'Enter') saveWorkdir();
             if (e.key === 'Escape') exitWorkdirEdit();
         });
+
+        var browseBtn = document.getElementById('workdir-browse-btn');
+        if (browseBtn && typeof FilePicker !== 'undefined') {
+            browseBtn.addEventListener('click', function() {
+                FilePicker.open({
+                    mode: 'dir',
+                    startPath: inputEl.value.trim() || defaultCwd || '~',
+                    onSelect: function(path) {
+                        inputEl.value = path;
+                        saveWorkdir();
+                    }
+                });
+            });
+        }
     }
 
     // ==============================================================
@@ -1603,7 +1617,10 @@
                     '</div>' +
                     '<div class="edit-field">' +
                         '<label>CWD <span class="label-hint">(blank = inherit global)</span></label>' +
-                        '<input type="text" class="edit-input lobby-edit-cwd" value="' + escapeAttr(cwd) + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
+                        '<div class="edit-field-row">' +
+                            '<input type="text" class="edit-input lobby-edit-cwd" value="' + escapeAttr(cwd) + '" placeholder="' + escapeAttr(defaultCwd || '~') + '">' +
+                            '<button type="button" class="browse-btn lobby-browse-btn" data-browse="dir" data-target-class="lobby-edit-cwd" data-index="' + index + '">BROWSE</button>' +
+                        '</div>' +
                     '</div>' +
                     '<div class="edit-field">' +
                         '<label>ICON</label>' +
@@ -1611,11 +1628,17 @@
                     '</div>' +
                     '<div class="edit-field">' +
                         '<label>PANEL <span class="label-hint">(markdown filename)</span></label>' +
-                        '<input type="text" class="edit-input lobby-edit-panel" value="' + escapeAttr(panel) + '" placeholder="(optional)">' +
+                        '<div class="edit-field-row">' +
+                            '<input type="text" class="edit-input lobby-edit-panel" value="' + escapeAttr(panel) + '" placeholder="(optional)">' +
+                            '<button type="button" class="browse-btn lobby-browse-btn" data-browse="file" data-target-class="lobby-edit-panel" data-index="' + index + '">BROWSE</button>' +
+                        '</div>' +
                     '</div>' +
                     '<div class="edit-field">' +
                         '<label>PAGE <span class="label-hint">(HTML path — sets floor as page type)</span></label>' +
-                        '<input type="text" class="edit-input lobby-edit-page" value="' + escapeAttr(page) + '" placeholder="(optional)">' +
+                        '<div class="edit-field-row">' +
+                            '<input type="text" class="edit-input lobby-edit-page" value="' + escapeAttr(page) + '" placeholder="(optional)">' +
+                            '<button type="button" class="browse-btn lobby-browse-btn" data-browse="file" data-target-class="lobby-edit-page" data-index="' + index + '">BROWSE</button>' +
+                        '</div>' +
                     '</div>' +
                     '<div class="lobby-edit-actions">' +
                         '<button class="lobby-save-btn" data-action="save" data-index="' + index + '">[SAVE]</button>' +
@@ -1751,6 +1774,24 @@
                     profiles[idx + 1] = tmp2;
                     saveLobbyProfiles();
                 }
+                return;
+            }
+
+            // Browse buttons (FilePicker) for lobby edit fields
+            if (target.classList.contains('lobby-browse-btn') && typeof FilePicker !== 'undefined') {
+                e.stopPropagation();
+                var browseMode = target.dataset.browse;
+                var targetClass = target.dataset.targetClass;
+                var browseIdx = target.dataset.index;
+                var editDiv = container.querySelector('.lobby-profile-edit[data-index="' + browseIdx + '"]');
+                if (!editDiv) return;
+                var inputEl = editDiv.querySelector('.' + targetClass);
+                if (!inputEl) return;
+                FilePicker.open({
+                    mode: browseMode,
+                    startPath: inputEl.value.trim() || defaultCwd || '~',
+                    onSelect: function(path) { inputEl.value = path; }
+                });
                 return;
             }
 
@@ -2431,10 +2472,11 @@
             pageUrl += (pageUrl.indexOf('?') === -1 ? '?' : '&') + 'path=' + encodeURIComponent(pageCwd);
         }
 
-        // Reuse existing iframe if same URL, otherwise create new
+        // If already showing this page, reload the iframe
         var existing = container.querySelector('iframe');
         if (existing && existing.getAttribute('data-hub-page-id') === pageId) {
-            return; // already showing this page
+            existing.contentWindow.location.reload();
+            return;
         }
 
         container.innerHTML = '';

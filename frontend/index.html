@@ -66,7 +66,10 @@
                     <button class="workdir-edit-btn" id="workdir-edit-btn" title="Change working directory">[EDIT]</button>
                 </div>
                 <div class="workdir-editor" id="workdir-editor" style="display:none;">
-                    <input type="text" class="workdir-input" id="workdir-input" placeholder="/path/to/project" spellcheck="false">
+                    <div class="edit-field-row">
+                        <input type="text" class="workdir-input edit-input" id="workdir-input" placeholder="/path/to/project" spellcheck="false">
+                        <button type="button" class="browse-btn" id="workdir-browse-btn">BROWSE</button>
+                    </div>
                     <div class="workdir-actions">
                         <button class="workdir-action-btn workdir-save-btn" id="workdir-save-btn">[SAVE]</button>
                         <button class="workdir-action-btn workdir-cancel-btn" id="workdir-cancel-btn">[CANCEL]</button>

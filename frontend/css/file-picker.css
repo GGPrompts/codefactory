@@ -1,0 +1,259 @@
+/* FilePicker modal styles — extracted for use in standalone page floors */
+
+.fp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.fp-overlay.fp-visible {
+    display: flex;
+}
+
+.fp-modal {
+    background: var(--iron-black, #1A1D1F);
+    border: 2px solid var(--hazard-yellow, #FFB800);
+    border-radius: 4px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 184, 0, 0.1);
+}
+
+/* ── Header / Breadcrumbs ── */
+.fp-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--steel-dark, #2C3033);
+    border-bottom: 1px solid var(--steel-mid, #4A5459);
+    flex-shrink: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.fp-header-btn {
+    background: var(--steel-mid, #4A5459);
+    border: 1px solid var(--steel-light, #7A8489);
+    color: var(--dirty-white, #E8E4DC);
+    font-family: var(--font-heading, 'Oswald', sans-serif);
+    font-size: 12px;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    min-height: 36px;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.fp-header-btn:hover {
+    background: var(--hazard-yellow, #FFB800);
+    color: var(--iron-black, #1A1D1F);
+    border-color: var(--hazard-yellow, #FFB800);
+}
+
+.fp-toggle-hidden {
+    font-family: var(--font-mono, 'Share Tech Mono', monospace);
+    font-size: 11px;
+    color: var(--steel-light, #7A8489);
+    background: transparent;
+    border: 1px solid var(--steel-mid, #4A5459);
+}
+
+.fp-toggle-hidden.fp-on {
+    color: var(--hazard-yellow, #FFB800);
+    border-color: var(--hazard-yellow, #FFB800);
+}
+
+.fp-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.fp-crumb {
+    font-family: var(--font-mono, 'Share Tech Mono', monospace);
+    font-size: 12px;
+    padding: 3px 5px;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--bright-steel, #C5CED4);
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.fp-crumb:hover {
+    background: color-mix(in srgb, var(--hazard-yellow, #FFB800) 15%, transparent);
+    color: var(--hazard-yellow, #FFB800);
+}
+
+.fp-crumb-sep {
+    color: var(--steel-light, #7A8489);
+    font-family: var(--font-mono, 'Share Tech Mono', monospace);
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.fp-crumb-current {
+    color: var(--hazard-yellow, #FFB800);
+    font-weight: 600;
+}
+
+/* ── File List ── */
+.fp-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 200px;
+    max-height: 50vh;
+}
+
+.fp-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--steel-dark, #2C3033);
+    cursor: pointer;
+    transition: background 0.1s;
+    min-height: 44px;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.fp-item:hover {
+    background: color-mix(in srgb, var(--hazard-yellow, #FFB800) 8%, transparent);
+}
+
+.fp-item:active {
+    background: color-mix(in srgb, var(--hazard-yellow, #FFB800) 15%, transparent);
+}
+
+.fp-item-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+}
+
+.fp-item-name {
+    font-family: var(--font-mono, 'Share Tech Mono', monospace);
+    font-size: 13px;
+    color: var(--bright-steel, #C5CED4);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fp-item-name-dir {
+    color: var(--hazard-yellow, #FFB800);
+    font-weight: 600;
+}
+
+.fp-empty {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--steel-light, #7A8489);
+    font-family: var(--font-mono, 'Share Tech Mono', monospace);
+    font-size: 13px;
+}
+
+.fp-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    gap: 12px;
+    color: var(--brushed-steel, #9BA3A9);
+}
+
+.fp-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--steel-mid, #4A5459);
+    border-top-color: var(--hazard-yellow, #FFB800);
+    border-radius: 50%;
+    animation: fp-spin 0.6s linear infinite;
+}
+
+@keyframes fp-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Footer ── */
+.fp-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--steel-dark, #2C3033);
+    border-top: 1px solid var(--steel-mid, #4A5459);
+    flex-shrink: 0;
+}
+
+.fp-path-display {
+    font-family: var(--font-mono, 'Share Tech Mono', monospace);
+    font-size: 11px;
+    color: var(--steel-light, #7A8489);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fp-footer-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.fp-cancel-btn,
+.fp-select-btn {
+    background: none;
+    border: 2px solid;
+    font-family: var(--font-heading, 'Oswald', sans-serif);
+    font-size: 12px;
+    padding: 4px 12px;
+    cursor: pointer;
+    border-radius: 3px;
+    min-height: 36px;
+}
+
+.fp-cancel-btn {
+    border-color: var(--steel-light, #7A8489);
+    color: var(--steel-light, #7A8489);
+}
+
+.fp-cancel-btn:hover {
+    border-color: var(--dirty-white, #E8E4DC);
+    color: var(--dirty-white, #E8E4DC);
+}
+
+.fp-select-btn {
+    border-color: var(--safety-green, #2D8B47);
+    color: var(--safety-green, #2D8B47);
+}
+
+.fp-select-btn:hover {
+    background: var(--safety-green, #2D8B47);
+    color: var(--dirty-white, #E8E4DC);
+}

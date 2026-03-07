@@ -488,7 +488,8 @@ async fn get_page(Path(name): Path<String>) -> impl IntoResponse {
     if name.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            [("content-type", "text/plain")],
+            [("content-type", "text/plain"),
+             ("cache-control", "no-cache")],
             "Invalid page name".to_string(),
         );
     }
@@ -514,7 +515,8 @@ async fn get_page(Path(name): Path<String>) -> impl IntoResponse {
         _ => {
             return (
                 StatusCode::NOT_FOUND,
-                [("content-type", "text/plain")],
+                [("content-type", "text/plain"),
+                 ("cache-control", "no-cache")],
                 format!("Page '{}' not found", name),
             );
         }
@@ -523,12 +525,14 @@ async fn get_page(Path(name): Path<String>) -> impl IntoResponse {
     match tokio::fs::read_to_string(&file_path).await {
         Ok(content) => (
             StatusCode::OK,
-            [("content-type", "text/html; charset=utf-8")],
+            [("content-type", "text/html; charset=utf-8"),
+             ("cache-control", "no-cache")],
             content,
         ),
         Err(_) => (
             StatusCode::NOT_FOUND,
-            [("content-type", "text/plain")],
+            [("content-type", "text/plain"),
+             ("cache-control", "no-cache")],
             format!("Page '{}' not found", name),
         ),
     }

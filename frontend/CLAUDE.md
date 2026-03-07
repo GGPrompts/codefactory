@@ -12,11 +12,15 @@ Vanilla JS/HTML/CSS — no build step, served directly by the backend.
 - `js/markdown-panel.js` — side panel markdown rendering
 - `css/style.css` — all styles, industrial theme via CSS custom properties
 - `css/industrial-prose.css` — markdown content styles
+- `css/file-picker.css` — standalone FilePicker modal styles (for use in page floors without loading full style.css)
 
 ### Modules
 
 - `js/swipe-panels.js` — `SwipePanels` module: touch/pointer swipe detection from screen edges, shows/hides registered panel content per edge
 - `js/extra-keys.js` — `ExtraKeys` module: mobile extra key row (ESC, TAB, CTRL, ALT, arrows, PgUp, F1-F10, Ctrl-B, Enter) with sticky modifier support (tap = one-shot, double-tap = lock)
+- `js/file-picker.js` — `FilePicker` module: reusable modal file/directory browser using `/api/files/list`, with breadcrumb nav, hidden file toggle, file/dir mode
+- `js/console-forwarder.js` — intercepts `console.log/warn/error/info` and `window.onerror`, batches POSTs to `/api/logs/ingest`
+- `js/livereload.js` — development live-reload via WebSocket
 
 ### Page-specific JS (loaded by page floors, not index.html)
 
@@ -31,11 +35,21 @@ Vanilla JS/HTML/CSS — no build step, served directly by the backend.
 
 ### Page Floors (`pages/`)
 
-- `beads-board.html` — Kanban board for Beads issue tracker
+- `beads-board.html` — Kanban board for Beads issue tracker (project dropdown via `/api/beads/projects`)
 - `git.html` — Git operations (stage, unstage, commit, push, pull, diff viewer)
-- `git-tree.html` — Git commit graph visualization using canvas
+- `git-tree.html` — Git commit graph visualization using canvas (FilePicker for repo path)
+- `diff.html` — Side-by-side diff viewer: uncommitted, vs HEAD, compare two files (FilePicker for file paths)
+- `files.html` — File browser with create, rename, delete, preview
+- `search.html` — Full-text search across project files
 - `terminals.html` — Active terminals dashboard (status dots, context meters, activity, hover history)
 - `termux-dashboard.html` — Termux system controls (battery, wifi, volume, brightness, torch, TTS)
+- `config.html` — Project config viewer
+- `logs.html` — Filterable, color-coded live log viewer via WebSocket
+- `markdown.html` — Markdown file renderer
+- `notes.html` — Notes editor
+- `ports.html` — Port/process monitor
+- `processes.html` — System process viewer
+- `snippets.html` — Code snippet manager
 
 ## Floor Rendering
 
@@ -75,7 +89,7 @@ Three horizontally-swipeable panels:
 ## Conventions
 
 - ES5-style: `var`, IIFEs, `function` declarations, `.forEach` (no arrow functions)
-- Two global namespaces exposed: `CodeFactoryTerminals` (terminal.js) and `MarkdownPanel` (markdown-panel.js)
+- Three global namespaces exposed: `CodeFactoryTerminals` (terminal.js), `MarkdownPanel` (markdown-panel.js), `FilePicker` (file-picker.js)
 - `app.js` is a self-contained IIFE — all state is module-scoped
 - Profile cwd resolution: `profile.cwd || defaultCwd || '~'` — null means inherit from lobby setting
 - Floor HTML is built as string concatenation
