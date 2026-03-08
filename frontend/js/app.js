@@ -35,10 +35,9 @@
         .then(function(data) {
             profiles = (data && data.profiles) || [];
             defaultCwd = (data && data.default_cwd) || '';
+            initMobileManager();
             renderFloors(profiles);
             initElevatorMechanics();
-            initMobileManager();
-            MobileManager.setupMobileBar();
             LobbyManager.init(profiles, defaultCwd, renderFloors, function(cwd) { defaultCwd = cwd; });
             initLobbyRefresh();
             initLobbyShutdown();
@@ -46,7 +45,7 @@
             console.log('[CodeFactory] Loaded ' + profiles.length + ' profiles');
         })
         .catch(function(err) {
-            console.warn('[CodeFactory] Failed to load profiles:', err);
+            console.error('[CodeFactory] Failed to load profiles:', err);
             // Render empty state
             renderFloors([]);
             initElevatorMechanics();

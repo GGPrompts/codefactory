@@ -3307,9 +3307,6 @@ async fn processes_list() -> impl IntoResponse {
                 if line.is_empty() {
                     continue;
                 }
-                // Parse: PID USER %CPU %MEM COMMAND...
-                let parts: Vec<&str> = line.splitn(5, char::is_whitespace).collect();
-                // Filter empty parts from extra whitespace
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() < 5 {
                     continue;

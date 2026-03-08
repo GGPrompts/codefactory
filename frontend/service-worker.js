@@ -2,7 +2,7 @@
 // No aggressive caching: terminals need live connections, and static
 // files are served locally from the same device.
 
-var CACHE_NAME = 'codefactory-v2';
+var CACHE_NAME = 'codefactory-v3';
 
 self.addEventListener('install', function(event) {
     self.skipWaiting();
