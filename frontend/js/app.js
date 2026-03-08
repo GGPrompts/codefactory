@@ -364,8 +364,10 @@
     // FLOOR EVENT LISTENERS
     // ==============================================================
     function attachFloorListeners(profileList) {
-        // Power ON buttons
+        // Power ON buttons (guard against double-attach with data-bound)
         document.querySelectorAll('.power-on-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -405,6 +407,8 @@
 
         // Detach buttons (disconnect PTY, preserve tmux session)
         document.querySelectorAll('.detach-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -415,6 +419,8 @@
 
         // Kill buttons (disconnect PTY and destroy tmux session, or power off page)
         document.querySelectorAll('.kill-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -436,6 +442,8 @@
 
         // Page navigation buttons (back/forward/refresh/home)
         document.querySelectorAll('.page-nav-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -476,6 +484,8 @@
 
         // Duplicate buttons (spawn transient clone)
         document.querySelectorAll('.dupe-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -485,6 +495,8 @@
 
         // Edit buttons
         document.querySelectorAll('.edit-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -494,6 +506,8 @@
 
         // Save buttons
         document.querySelectorAll('.save-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -503,6 +517,8 @@
 
         // Cancel buttons
         document.querySelectorAll('.cancel-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -512,6 +528,8 @@
 
         // Browse buttons (file picker for cwd, panel, page fields)
         document.querySelectorAll('.browse-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var field = btn.dataset.browse;
@@ -532,6 +550,8 @@
 
         // Panel toggle buttons
         document.querySelectorAll('.panel-toggle-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -542,6 +562,8 @@
 
         // Terminal text view (eye) buttons
         document.querySelectorAll('.term-view-btn').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = btn.dataset.floor;
@@ -551,6 +573,8 @@
 
         // Panel tab buttons (REFERENCE / TERMINAL)
         document.querySelectorAll('.panel-tab').forEach(function(tab) {
+            if (tab.dataset.bound) return;
+            tab.dataset.bound = '1';
             tab.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var floorId = tab.dataset.floor;
@@ -561,11 +585,15 @@
 
         // Panel resize handles
         document.querySelectorAll('.panel-resize-handle').forEach(function(handle) {
+            if (handle.dataset.bound) return;
+            handle.dataset.bound = '1';
             PanelManager.initPanelResize(handle);
         });
 
         // Click-to-focus on terminal containers
         document.querySelectorAll('.terminal-container').forEach(function(container) {
+            if (container.dataset.bound) return;
+            container.dataset.bound = '1';
             container.addEventListener('mousedown', function() {
                 var floorId = container.id.replace('terminal-', '');
                 CodeFactoryTerminals.focus(floorId);
@@ -1346,8 +1374,40 @@
         // Add to profiles array (but NOT persisted)
         profiles.push(tempProfile);
 
-        // Re-render everything
-        renderFloors(profiles);
+        // --- Inject new floor DOM without destroying existing floors ---
+
+        // Build the new floor HTML + shaft wall
+        var newFloorHTML = buildFloorHTML(newId, tempProfile) + buildShaftWallHTML(newId, tempProfile.icon);
+
+        // Insert at the top of the floors container (highest floor = top of DOM)
+        floorsContainer.insertAdjacentHTML('afterbegin', newFloorHTML);
+
+        // Add elevator button at the top (highest floor first)
+        var btnContent = tempProfile.icon ? escapeHtml(tempProfile.icon) : newId;
+        var iconClass = tempProfile.icon ? ' has-icon' : '';
+        var btnHTML = '<button class="floor-btn floor-btn-temp' + iconClass + '" data-target="floor-' + newId +
+                '" data-label="' + escapeAttr(newName) + '">' + btnContent + '</button>';
+        elevatorButtons.insertAdjacentHTML('afterbegin', btnHTML);
+
+        // Rebuild DOM references and re-observe
+        var enabledProfiles = profiles.filter(function(p) { return p.enabled !== false; });
+        rebuildDOMReferences(enabledProfiles);
+
+        if (viewObserver) {
+            var newFloorEl = document.getElementById('floor-' + newId);
+            if (newFloorEl) viewObserver.observe(newFloorEl);
+        }
+        if (activeFloorObserver) {
+            var newFloorEl2 = document.getElementById('floor-' + newId);
+            if (newFloorEl2) activeFloorObserver.observe(newFloorEl2);
+        }
+
+        // Attach listeners for the new floor only
+        attachFloorListeners(enabledProfiles);
+
+        // Rebuild mobile bar to include new button
+        MobileManager.teardown();
+        MobileManager.setupMobileBar();
 
         // Navigate to the new floor
         var targetEl = document.getElementById('floor-' + newId);

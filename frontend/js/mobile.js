@@ -277,15 +277,15 @@ var MobileManager = (function () {
             var navPanel = document.createElement('div');
             navPanel.className = 'mobile-bar-panel mobile-bar-nav';
 
-            var navInner = document.createElement('div');
-            navInner.className = 'mobile-bar-nav-inner';
-
-            // Nav-to-chat button
+            // Nav-to-chat button (far left, outside scrollable area)
             var navNavLeft = document.createElement('button');
             navNavLeft.className = 'mobile-bar-panel-nav';
             navNavLeft.setAttribute('data-bar-panel', '1');
             navNavLeft.textContent = '\u2039'; // ‹
-            navInner.appendChild(navNavLeft);
+            navPanel.appendChild(navNavLeft);
+
+            var navInner = document.createElement('div');
+            navInner.className = 'mobile-bar-nav-inner';
 
             // Floor buttons (lowest first) — skip built-in pages on mobile
             var builtinPages = ctx.getBuiltinPageProfiles();

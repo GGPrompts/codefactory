@@ -2056,7 +2056,7 @@ section.floor.powered-on .profile-edit-form {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 48px;
+    height: 52px;
     background: var(--iron-black);
     border-top: 2px solid var(--steel-mid);
     z-index: 499;
@@ -2066,7 +2066,7 @@ section.floor.powered-on .profile-edit-form {
 .mobile-bar-track {
     display: flex;
     width: 300%;
-    height: 42px;
+    height: 46px;
     transition: transform 0.25s ease;
 }
 
@@ -2234,15 +2234,18 @@ section.floor.powered-on .profile-edit-form {
     display: flex;
     align-items: center;
     overflow: hidden;
+    gap: 6px;
+    padding-left: 6px;
 }
 
 .mobile-bar-nav-inner {
     display: flex;
     flex-wrap: wrap;
     align-content: center;
+    justify-content: center;
     height: 100%;
-    gap: 2px;
-    padding: 1px 4px;
+    gap: 4px;
+    padding: 4px 6px;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
@@ -2256,76 +2259,85 @@ section.floor.powered-on .profile-edit-form {
 
 .mobile-bar-btn {
     flex: 0 0 auto;
-    height: 19px;
-    min-width: 28px;
-    padding: 0 6px;
-    font-family: var(--font-heading);
-    font-size: 0.7rem;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
     font-weight: 500;
     color: var(--bright-steel);
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 3px;
+    background: linear-gradient(145deg, var(--steel-dark), #1e2225);
+    border: 2px solid var(--steel-mid);
+    border-radius: 50%;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color 0.3s, color 0.3s, box-shadow 0.3s, background 0.3s;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .mobile-bar-btn:active {
-    background: var(--steel-dark);
+    background: radial-gradient(circle, rgba(197, 206, 212, 0.15) 0%, rgba(30, 34, 37, 1) 70%);
 }
 
 .mobile-bar-btn.active {
     border-color: var(--hazard-yellow);
     color: var(--hazard-yellow);
-    text-shadow: 0 0 6px rgba(255, 184, 0, 0.4);
+    background: radial-gradient(circle, rgba(255, 184, 0, 0.2) 0%, rgba(30, 34, 37, 1) 70%);
+    box-shadow: 0 0 10px rgba(255, 184, 0, 0.35);
 }
 
 /* Claude session status on mobile nav buttons */
 .mobile-bar-btn.claude-awaiting {
     border-color: var(--safety-green);
     color: var(--safety-green);
-    box-shadow: 0 0 4px rgba(45, 139, 71, 0.5);
+    background: radial-gradient(circle, rgba(45, 139, 71, 0.15) 0%, rgba(30, 34, 37, 1) 70%);
+    box-shadow: 0 0 8px rgba(45, 139, 71, 0.5);
 }
 
 .mobile-bar-btn.claude-processing {
     border-color: var(--hazard-orange);
     color: var(--hazard-orange);
-    box-shadow: 0 0 4px rgba(255, 107, 0, 0.4);
+    background: radial-gradient(circle, rgba(255, 107, 0, 0.15) 0%, rgba(30, 34, 37, 1) 70%);
+    box-shadow: 0 0 8px rgba(255, 107, 0, 0.4);
 }
 
 /* Active floor + claude status: claude status wins for border/shadow */
 .mobile-bar-btn.active.claude-awaiting {
     border-color: var(--safety-green);
     color: var(--safety-green);
-    text-shadow: 0 0 6px rgba(45, 139, 71, 0.4);
-    box-shadow: 0 0 4px rgba(45, 139, 71, 0.5);
+    background: radial-gradient(circle, rgba(45, 139, 71, 0.2) 0%, rgba(30, 34, 37, 1) 70%);
+    box-shadow: 0 0 10px rgba(45, 139, 71, 0.5);
 }
 
 .mobile-bar-btn.active.claude-processing {
     border-color: var(--hazard-orange);
     color: var(--hazard-orange);
-    text-shadow: 0 0 6px rgba(255, 107, 0, 0.4);
-    box-shadow: 0 0 4px rgba(255, 107, 0, 0.4);
+    background: radial-gradient(circle, rgba(255, 107, 0, 0.2) 0%, rgba(30, 34, 37, 1) 70%);
+    box-shadow: 0 0 10px rgba(255, 107, 0, 0.4);
 }
 
 /* Panel nav buttons (switch between bar panels) */
 .mobile-bar-panel-nav {
     flex: 0 0 auto;
-    height: 19px;
-    min-width: 22px;
-    padding: 0 4px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,184,0,0.2);
-    color: rgba(255,184,0,0.5);
-    border-radius: 3px;
-    font-size: 12px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: linear-gradient(145deg, var(--steel-dark), #1e2225);
+    border: 1px solid rgba(255,184,0,0.3);
+    color: rgba(255,184,0,0.6);
+    border-radius: 50%;
+    font-size: 10px;
     font-family: var(--font-mono);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .mobile-bar-panel-nav:active {
@@ -2380,7 +2392,7 @@ section.floor.powered-on .profile-edit-form {
     }
 
     main.shaft {
-        padding-bottom: 48px !important;
+        padding-bottom: 52px !important;
     }
 
     /* Full-screen swipe panels on mobile */
@@ -2466,7 +2478,7 @@ section.floor.powered-on .profile-edit-form {
 
 .mobile-elevator-indicator {
     font-family: var(--font-mono);
-    font-size: 1.6rem;
+    font-size: 1.4rem;
     color: var(--hazard-yellow);
     background: var(--iron-black);
     border: 2px solid var(--steel-mid);
@@ -2475,49 +2487,53 @@ section.floor.powered-on .profile-edit-form {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
+    border-radius: 4px;
     text-shadow: 0 0 8px rgba(255, 184, 0, 0.6);
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .mobile-elevator-buttons {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     width: 100%;
+    max-width: 320px;
 }
 
 .mobile-floor-btn {
-    width: 100%;
-    max-width: 200px;
-    padding: 10px 8px;
-    font-family: var(--font-heading);
-    font-size: 1.1rem;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 1rem;
     font-weight: 500;
     color: var(--bright-steel);
-    background: var(--iron-black);
+    background: linear-gradient(145deg, var(--steel-dark), #1e2225);
     border: 2px solid var(--steel-mid);
-    border-radius: 3px;
+    border-radius: 50%;
     cursor: pointer;
-    transition: border-color 0.2s, color 0.2s, background 0.2s;
-    text-align: center;
+    transition: border-color 0.3s, color 0.3s, box-shadow 0.3s, background 0.3s;
     -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .mobile-floor-btn.has-icon {
-    font-size: 1.4rem;
+    font-size: 1.3rem;
 }
 
 .mobile-floor-btn:active {
-    background: var(--steel-dark);
+    background: radial-gradient(circle, rgba(197, 206, 212, 0.15) 0%, rgba(30, 34, 37, 1) 70%);
 }
 
 .mobile-floor-btn.active {
     border-color: var(--hazard-yellow);
     color: var(--hazard-yellow);
-    text-shadow: 0 0 6px rgba(255, 184, 0, 0.4);
-    box-shadow: 0 0 8px rgba(255, 184, 0, 0.15);
+    background: radial-gradient(circle, rgba(255, 184, 0, 0.2) 0%, rgba(30, 34, 37, 1) 70%);
+    box-shadow: 0 0 14px rgba(255, 184, 0, 0.4);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2796,6 +2812,7 @@ section.floor.powered-on .profile-edit-form {
 /* Hub nav button style in mobile bar */
 .mobile-bar-btn-hub {
     border-style: dashed;
+    border-width: 1.5px;
 }
 
 /* ==============================================================
