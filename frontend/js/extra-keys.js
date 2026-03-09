@@ -257,9 +257,21 @@ var ExtraKeys = (function () {
     // ==============================================================
     // PUBLIC API
     // ==============================================================
+    /** Apply active modifiers to a value and consume one-shot state.
+     *  Returns null if no modifiers are active (caller should use original). */
+    function applyAndConsume(value) {
+        var ctrlOn = modState.ctrl === 'active' || modState.ctrl === 'locked';
+        var altOn = modState.alt === 'active' || modState.alt === 'locked';
+        if (!ctrlOn && !altOn) return null;
+        value = applyModifiers(value);
+        consumeActiveModifiers();
+        return value;
+    }
+
     return {
         createKeysPanel: createKeysPanel,
         setFloor: setFloor,
         isTerminalFloor: isTerminalFloor,
+        applyAndConsume: applyAndConsume,
     };
 })();

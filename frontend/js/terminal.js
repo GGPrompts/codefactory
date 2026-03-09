@@ -432,6 +432,13 @@ var CodeFactoryTerminals = (function() {
             if (entry.escGuarded && data.charCodeAt(0) === 0x1b) {
                 return;
             }
+            // Apply extra-keys modifier state (CTRL/ALT) to soft keyboard input
+            if (typeof ExtraKeys !== 'undefined' && ExtraKeys.applyAndConsume) {
+                var modified = ExtraKeys.applyAndConsume(data);
+                if (modified !== null) {
+                    data = modified;
+                }
+            }
             // Fast path: single printable character — skip regex
             var filtered = (data.length === 1 && data.charCodeAt(0) >= 0x20)
                 ? data
