@@ -1870,6 +1870,34 @@ section.floor.powered-on .profile-edit-form {
     /* No special styling -- just remove processing/awaiting glows */
 }
 
+/* Context percent fill — left-to-right background behind button content.
+   Uses a gradient trick: colored up to --context-pct, then transparent. */
+.floor-btn.has-context,
+.mobile-bar-btn.has-context {
+    background-blend-mode: normal;
+}
+
+.floor-btn.context-green,
+.mobile-bar-btn.context-green {
+    background:
+        linear-gradient(90deg, rgba(45, 139, 71, 0.35) var(--context-pct, 0%), transparent var(--context-pct, 0%)),
+        linear-gradient(145deg, var(--steel-dark), #1e2225) !important;
+}
+
+.floor-btn.context-yellow,
+.mobile-bar-btn.context-yellow {
+    background:
+        linear-gradient(90deg, rgba(255, 184, 0, 0.3) var(--context-pct, 0%), transparent var(--context-pct, 0%)),
+        linear-gradient(145deg, var(--steel-dark), #1e2225) !important;
+}
+
+.floor-btn.context-red,
+.mobile-bar-btn.context-red {
+    background:
+        linear-gradient(90deg, rgba(204, 51, 51, 0.4) var(--context-pct, 0%), transparent var(--context-pct, 0%)),
+        linear-gradient(145deg, var(--steel-dark), #1e2225) !important;
+}
+
 /* Page floor buttons — lighter border to distinguish from terminals */
 .floor-btn.floor-btn-page {
     border-color: var(--steel-light);

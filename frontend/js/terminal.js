@@ -167,9 +167,11 @@ var CodeFactoryTerminals = (function() {
         (function() {
             var touchStartY = 0;
             var scrolling = false;
-            var SCROLL_THRESHOLD = 20; // px per scroll tick
-            var SCROLL_THROTTLE_MS = 50;
+            var PX_PER_LINE = 8;        // px of movement per scroll line
+            var SCROLL_DEAD_ZONE = 10;  // px before scrolling activates
+            var SCROLL_THROTTLE_MS = 30;
             var lastScrollSend = 0;
+            var accumDy = 0;            // accumulated sub-threshold movement
 
             // Pre-compute encoded scroll messages to avoid btoa/JSON.stringify per event
             var SCROLL_UP_MSG = JSON.stringify({ type: 'terminal-input', data: btoa('\x1b[<65;1;1M') });
@@ -179,30 +181,49 @@ var CodeFactoryTerminals = (function() {
                 if (e.touches.length === 1) {
                     touchStartY = e.touches[0].clientY;
                     scrolling = false;
+                    accumDy = 0;
                 }
             }, { passive: true });
 
             container.addEventListener('touchmove', function(e) {
                 if (e.touches.length !== 1) return;
-                var dy = touchStartY - e.touches[0].clientY;
-                if (Math.abs(dy) >= SCROLL_THRESHOLD) {
-                    e.preventDefault(); // only prevent default once scrolling confirmed
-                    scrolling = true;
-                    var now = Date.now();
-                    if (now - lastScrollSend >= SCROLL_THROTTLE_MS) {
-                        if (entry.ws && entry.ws.readyState === WebSocket.OPEN && !entry.inputGuarded) {
-                            entry.ws.send(dy > 0 ? SCROLL_UP_MSG : SCROLL_DOWN_MSG);
-                        }
-                        lastScrollSend = now;
+                var currentY = e.touches[0].clientY;
+                var dy = touchStartY - currentY;
+
+                if (!scrolling && Math.abs(dy) < SCROLL_DEAD_ZONE) {
+                    e.preventDefault(); // block page scroll on terminal
+                    return;
+                }
+
+                e.preventDefault();
+                scrolling = true;
+
+                var now = Date.now();
+                if (now - lastScrollSend < SCROLL_THROTTLE_MS) return;
+
+                // Accumulate movement and send proportional scroll lines
+                accumDy += dy;
+                touchStartY = currentY;
+
+                var lines = Math.floor(Math.abs(accumDy) / PX_PER_LINE);
+                if (lines < 1) return;
+
+                accumDy = (accumDy > 0 ? 1 : -1) * (Math.abs(accumDy) % PX_PER_LINE);
+                lastScrollSend = now;
+
+                if (entry.ws && entry.ws.readyState === WebSocket.OPEN && !entry.inputGuarded) {
+                    // Cap at 10 lines per tick to avoid flooding
+                    var msg = (dy > 0) ? SCROLL_UP_MSG : SCROLL_DOWN_MSG;
+                    var count = Math.min(lines, 10);
+                    for (var i = 0; i < count; i++) {
+                        entry.ws.send(msg);
                     }
-                    touchStartY = e.touches[0].clientY;
-                } else if (!scrolling) {
-                    e.preventDefault(); // still block page scroll on terminal
                 }
             }, { passive: false });
 
             container.addEventListener('touchend', function() {
                 scrolling = false;
+                accumDy = 0;
             }, { passive: true });
         })();
 
@@ -757,6 +778,27 @@ var CodeFactoryTerminals = (function() {
     // ── Claude Session Status Handling ──────────────────────────────
     var sessionStatuses = {};  // floorId -> { status, currentTool, subagentCount }
 
+    // Apply context-percent background fill to an elevator button.
+    // Fills left-to-right: green (0-49%), yellow (50-69%), red (70%+).
+    function applyContextFill(btn, pct) {
+        if (pct == null) {
+            btn.style.removeProperty('--context-pct');
+            btn.classList.remove('has-context');
+            return;
+        }
+        var clamped = Math.max(0, Math.min(100, pct));
+        btn.style.setProperty('--context-pct', clamped + '%');
+        btn.classList.add('has-context');
+        btn.classList.remove('context-green', 'context-yellow', 'context-red');
+        if (clamped < 50) {
+            btn.classList.add('context-green');
+        } else if (clamped < 70) {
+            btn.classList.add('context-yellow');
+        } else {
+            btn.classList.add('context-red');
+        }
+    }
+
     function handleSessionStatus(msg) {
         var fid = msg.floorId;
         if (!fid) return;
@@ -765,6 +807,7 @@ var CodeFactoryTerminals = (function() {
             status: msg.status,
             currentTool: msg.currentTool || '',
             subagentCount: msg.subagentCount || 0,
+            contextPercent: msg.contextPercent != null ? msg.contextPercent : null,
         };
 
         // Defer DOM mutations to idle time to avoid blocking input processing
@@ -787,6 +830,9 @@ var CodeFactoryTerminals = (function() {
                         btn.classList.add('claude-idle');
                         break;
                 }
+
+                // Update context percent fill on button
+                applyContextFill(btn, msg.contextPercent);
 
                 // Update tooltip with status info
                 var label = btn.getAttribute('data-label') || '';
@@ -818,6 +864,7 @@ var CodeFactoryTerminals = (function() {
                         mobileBtn.classList.add('claude-idle');
                         break;
                 }
+                applyContextFill(mobileBtn, msg.contextPercent);
             }
 
             // Update floor header status badge if this floor is active (powered on)

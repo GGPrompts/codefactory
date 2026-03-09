@@ -80,6 +80,8 @@ pub enum ServerMessage {
         current_tool: String,
         #[serde(rename = "subagentCount")]
         subagent_count: u32,
+        #[serde(rename = "contextPercent")]
+        context_percent: Option<u32>,
     },
 
     #[serde(rename = "log-entry")]

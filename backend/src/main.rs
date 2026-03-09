@@ -938,6 +938,7 @@ async fn session_status_poller(state: Arc<AppState>) {
                         status: "idle".to_string(),
                         current_tool: String::new(),
                         subagent_count: 0,
+                        context_percent: None,
                     });
                 }
                 continue;
@@ -970,6 +971,7 @@ async fn session_status_poller(state: Arc<AppState>) {
                 status: state_file.status,
                 current_tool: state_file.current_tool.unwrap_or_default(),
                 subagent_count: state_file.subagent_count.unwrap_or(0),
+                context_percent: state_file.context_percent,
             });
         }
     }
