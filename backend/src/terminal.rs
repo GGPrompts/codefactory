@@ -11,6 +11,8 @@ use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
+use crate::term_state::TermState;
+
 /// A single terminal session representing one floor's PTY + tmux pairing.
 ///
 /// The session persists across WebSocket reconnections.  Only the output
@@ -33,6 +35,11 @@ struct TerminalSession {
     output_sink: Arc<ArcSwap<Option<mpsc::UnboundedSender<Vec<u8>>>>>,
     /// Set to false when the persistent reader task exits (PTY EOF/error).
     reader_alive: Arc<AtomicBool>,
+    /// Server-side terminal emulator state.  The PTY reader thread feeds
+    /// bytes into this via `process_bytes()`; a future wgpu renderer will
+    /// read the cell grid.  Wrapped in `Arc<Mutex<_>>` so the reader
+    /// thread (writer) and renderer thread (reader) can share it.
+    term_state: Arc<Mutex<TermState>>,
     cols: u16,
     rows: u16,
     #[allow(dead_code)]
@@ -252,11 +259,17 @@ impl TerminalManager {
             Arc::new(ArcSwap::from_pointee(None));
         let reader_alive = Arc::new(AtomicBool::new(true));
 
+        // Create server-side terminal state for this session.
+        let term_state = Arc::new(Mutex::new(TermState::new(cols, rows, None)));
+
         // Start persistent reader task.  This task runs for the lifetime of
         // the PTY (not the WebSocket connection).  It reads from the PTY and
         // forwards to whatever output sink is currently subscribed.
+        // It also feeds every byte through the server-side terminal parser
+        // so the cell grid stays up to date for the wgpu renderer.
         let sink_clone = output_sink.clone();
         let alive_clone = reader_alive.clone();
+        let term_state_clone = Arc::clone(&term_state);
         let reader_floor_id = floor_id.to_string();
         tokio::task::spawn_blocking(move || {
             let mut reader = reader;
@@ -274,10 +287,18 @@ impl TerminalManager {
                         break;
                     }
                     Ok(n) => {
+                        let bytes = &buf[..n];
+
+                        // Feed bytes to server-side terminal parser.
+                        if let Ok(mut ts) = term_state_clone.lock() {
+                            ts.process_bytes(bytes);
+                        }
+
+                        // Forward raw bytes to WebSocket subscriber (if any).
                         let guard = sink_clone.load();
                         if let Some(ref tx) = **guard {
                             // Ignore send errors — subscriber disconnected.
-                            let _ = tx.send(buf[..n].to_vec());
+                            let _ = tx.send(bytes.to_vec());
                         }
                     }
                     Err(e) => {
@@ -326,6 +347,7 @@ impl TerminalManager {
             input_tx,
             output_sink,
             reader_alive,
+            term_state,
             cols,
             rows,
             created_at: Instant::now(),
@@ -422,6 +444,19 @@ impl TerminalManager {
         Ok(())
     }
 
+    /// Get the server-side terminal state for a given floor.
+    ///
+    /// Returns an `Arc<Mutex<TermState>>` that the wgpu renderer can lock
+    /// to read the cell grid.  The PTY reader thread writes to this same
+    /// TermState, so callers should hold the lock briefly.
+    pub fn get_term_state(&self, floor_id: &str) -> Result<Arc<Mutex<TermState>>> {
+        let sessions = self.sessions.lock().map_err(|e| anyhow!("Lock poisoned: {e}"))?;
+        let session = sessions
+            .get(floor_id)
+            .ok_or_else(|| anyhow!("No session found for floor {floor_id}"))?;
+        Ok(Arc::clone(&session.term_state))
+    }
+
     /// Get the input channel sender for a given floor (for zero-overhead writes).
     ///
     /// The returned sender feeds a dedicated writer thread, avoiding
@@ -454,6 +489,11 @@ impl TerminalManager {
                 pixel_height: 0,
             })
             .context("Failed to resize PTY")?;
+
+        // Keep the server-side terminal parser in sync with the new dimensions.
+        if let Ok(mut ts) = session.term_state.lock() {
+            ts.resize(cols, rows);
+        }
 
         session.cols = cols;
         session.rows = rows;

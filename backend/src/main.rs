@@ -1,6 +1,7 @@
 mod config;
 mod log_layer;
 mod state;
+mod term_state;
 mod terminal;
 mod ws;
 
