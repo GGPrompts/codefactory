@@ -10,3 +10,6 @@ node_modules/
 *.db
 .beads-credential-key
 .beads/metadata.json
+
+# Claude Code local settings
+.claude/
